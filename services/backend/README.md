@@ -36,3 +36,12 @@ serializes commits under the company planning revision, copies the exact indepen
 candidate to committed work/schedule rows, and writes audit plus outbox intent in the same
 transaction. Planning approval never substitutes for the separately hashed employee-brief
 disclosure approval.
+
+The `coordination.employee` package exposes the human execution boundary. Employees list only
+their active owner assignments and the exact separately approved employee brief. Lifecycle
+commands bind the current task version and an idempotency key. Managers assign a versioned reviewer
+policy; submissions bind that exact policy, clean private-file metadata and an immutable digest;
+the assigned reviewer accepts or requests revision against the exact version. A revision does not
+increase accepted employee evidence. Acceptance updates only the submitting employee. See
+[`docs/architecture/employee-workflow-boundary.md`](../../docs/architecture/employee-workflow-boundary.md)
+for endpoint and trust-boundary details.

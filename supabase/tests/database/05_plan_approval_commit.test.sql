@@ -26,6 +26,13 @@ insert into app.company_memberships (
   'active', 'manager', clock_timestamp()
 );
 
+insert into app.employee_profiles (id, company_id, membership_id)
+values (
+  '66666666-d000-4000-8000-000000000066',
+  '11111111-1111-4111-8111-111111111111',
+  '66666666-0000-4000-8000-000000000066'
+);
+
 insert into app.planning_requests (
   id, company_id, requester_membership_id, original_prompt, idempotency_key, request_digest
 ) values (

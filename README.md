@@ -4,7 +4,7 @@
 
 Coordination Engine is a human-led company coordination system proposed for the Recruit Holdings Innovation Cup 2026. It turns an authorised organisational decision into a source-grounded, capacity-feasible and permission-aware change to existing work.
 
-> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, finite planning and exact approval/commitment slices. The repository contains a Tauri/React manager-review surface, FastAPI service, separate Python worker boundary, ordered Supabase migrations, fail-closed company membership resolution, private Storage ticketing, natural-language planning intake, one server-side Gemini adapter, deterministic candidate admission, an allowlisted Z3 compiler, bounded repair, independent schedule validation, immutable exact approvals, atomic revision-checked commitment, locked toolchains and Cloud Run definitions. These paths are repository-tested but are not claimed as applied to hosted Supabase, exercised with a live Gemini credential or yet connected through the durable worker. Employee workflows, durable outbox processing, signed native releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
+> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, finite planning, exact approval/commitment and employee execution slices. The repository contains Tauri/React manager and employee surfaces, a FastAPI service, a separate Python worker boundary, ordered Supabase migrations, fail-closed company membership resolution, private Storage ticketing, natural-language planning intake, one server-side Gemini adapter, deterministic candidate admission, an allowlisted Z3 compiler, bounded repair, independent schedule validation, immutable exact approvals, atomic revision-checked commitment, versioned employee submissions/reviews, locked toolchains and Cloud Run definitions. These paths are repository-tested but are not claimed as applied to hosted Supabase, exercised with a live Gemini credential or yet connected through the durable worker/authenticated desktop session. Durable scanner/outbox processing, signed native releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
 
 ## Product idea
 
@@ -21,6 +21,8 @@ Authorised sources
   -> trusted Z3 model
   -> independently validated schedule
   -> approval and atomic commitment
+  -> authorised employee task
+  -> exact-version submission and review
 ```
 
 ## Intended architecture
@@ -53,6 +55,7 @@ The initial demonstration connects software and HR operations teams through one 
 | [Interpretation boundary](docs/architecture/interpretation-boundary.md) | Permission-bounded retrieval, Gemini gateway, candidate admission and failure behavior. |
 | [Planning boundary](docs/architecture/planning-boundary.md) | Validated constraints, immutable snapshots, Z3 scopes, diagnosis and independent validation. |
 | [Approval and commitment boundary](docs/architecture/approval-commit-boundary.md) | Exact digest binding, authority rechecks, concurrency, atomic commit and disclosure separation. |
+| [Employee workflow boundary](docs/architecture/employee-workflow-boundary.md) | Permission-safe task views, lifecycle concurrency, private submissions and exact-version review. |
 | [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
 
 ## Delivery priorities

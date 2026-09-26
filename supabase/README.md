@@ -19,6 +19,9 @@ manual-application guidance. It contains no linked-project metadata or credentia
 - Exact planning/disclosure approval requirements, immutable decisions with expiry, current
   authority checks, revision-serialized atomic plan commitment, exclusion-protected committed
   human effort, approval-use evidence, audit events and transactional outbox intents.
+- Task-scoped employee access, exact approved-brief binding, lifecycle events, immediate workload
+  state, versioned reviewer policies and submissions, worker-only file-scan evidence, exact-version
+  review, correction privacy and accepted familiarity/effort evidence.
 - Deterministic synthetic company anchors and a guarded demo reset.
 
 The Edge Function validates a real user session, runs only the narrow ticket functions as the
