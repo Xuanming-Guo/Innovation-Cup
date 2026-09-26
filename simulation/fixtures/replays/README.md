@@ -2,7 +2,7 @@
 
 `tiny-no-impact.v1.json` is an authored example of an unchanged starting schedule
 for seed 17, generated once by `scripts/generate_replay_example.py`. It was **not
-captured from Coordination Engine**. The replay adapter reads those stored blocks
+captured from ALTO**. The replay adapter reads those stored blocks
 verbatim and refuses any different canonical input digest. It never constructs,
 repairs or chooses a product schedule. Changing seed without matching versioned
 evidence is an explicit failed run.

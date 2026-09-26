@@ -27,6 +27,11 @@ The entries below describe changes to the implementation specification only. The
 
 ### Changed
 
+- 2026-09-26: Applied the founder-selected **ALTO** product name to current simulation
+  and demo prompts, script output, judge UI and the teammate handoff generator.
+  Updated the implementation prompt's pinned checksum for this authorised naming-only
+  revision. Preserved historical reports, source DOCX, replay fixtures and machine IDs;
+  no benchmark method or result changed.
 - The UI formats schedule slots as Tokyo day/time labels instead of presenting
   raw JSON as the primary card display.
 - Browser acceptance now distinguishes the archived pre-inspector desktop pass,

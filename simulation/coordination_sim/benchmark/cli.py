@@ -14,7 +14,7 @@ from .validation import validate
 
 
 def main():
-    parser=argparse.ArgumentParser(description='Synthetic benchmark. Product NOT_RUN.')
+    parser=argparse.ArgumentParser(description='ALTO synthetic benchmark. Product NOT_RUN.')
     parser.add_argument('command',choices=('benchmark','generate','serve','benchmark-schemas','acceptance'))
     parser.add_argument('--preset',choices=tuple(PRESETS),default='tiny')
     parser.add_argument('--seed',type=int,default=17)
@@ -54,5 +54,5 @@ def main():
     print('SYNTHETIC BENCHMARK — REPLAY IS NOT A PRODUCT RESULT')
     for attempt in manifest['attempts']:
         print(f"{attempt['scenario']} / {attempt['method']}: {attempt['terminal']}, {attempt['violations']} neutral violation records")
-    print('Coordination Engine: NOT_RUN');print(path.relative_to(ROOT))
+    print('ALTO: NOT_RUN');print(path.relative_to(ROOT))
     return int(manifest['status']!='COMPLETED')
