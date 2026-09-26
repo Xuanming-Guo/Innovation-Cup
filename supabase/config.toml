@@ -1,0 +1,69 @@
+project_id = "coordination-engine"
+
+[api]
+enabled = true
+port = 54321
+schemas = ["public", "graphql_public"]
+extra_search_path = ["public", "extensions"]
+max_rows = 1000
+
+[db]
+port = 54322
+shadow_port = 54320
+major_version = 17
+
+[db.pooler]
+enabled = false
+
+[db.migrations]
+enabled = true
+
+[db.seed]
+enabled = true
+sql_paths = ["./seed.sql"]
+
+[realtime]
+enabled = true
+
+[studio]
+enabled = true
+port = 54323
+
+[local_smtp]
+enabled = true
+
+[storage]
+enabled = true
+file_size_limit = "25MiB"
+
+[storage.buckets.coordination-quarantine]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/csv",
+  "text/plain",
+]
+
+[storage.buckets.coordination-private]
+public = false
+file_size_limit = "25MiB"
+allowed_mime_types = [
+  "application/pdf",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  "text/csv",
+  "text/plain",
+]
+
+[auth]
+enabled = true
+site_url = "http://127.0.0.1:1420"
+additional_redirect_urls = ["http://127.0.0.1:1420/**", "tauri://localhost/**"]
+jwt_expiry = 3600
+enable_signup = true
+enable_anonymous_sign_ins = false
+
+[functions.storage-ticket]
+enabled = true
+verify_jwt = true

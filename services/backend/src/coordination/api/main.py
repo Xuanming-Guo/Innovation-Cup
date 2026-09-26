@@ -7,6 +7,7 @@ from fastapi import Depends, FastAPI, Response, status
 from pydantic import BaseModel, ConfigDict
 
 from coordination import __version__
+from coordination.auth.dependencies import CompanyContextDependency
 from coordination.config import Settings, get_settings
 
 
@@ -31,6 +32,14 @@ class VersionResponse(StrictResponse):
     api_version: str
     build_commit: str
     package_version: str
+
+
+class SessionResponse(StrictResponse):
+    user_id: str
+    company_id: str
+    membership_id: str
+    administrative_role: str
+    employee_id: str | None
 
 
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -66,6 +75,16 @@ def create_app() -> FastAPI:
             api_version=settings.api_version,
             build_commit=settings.build_commit,
             package_version=__version__,
+        )
+
+    @application.get("/v1/session", response_model=SessionResponse)
+    def session(context: CompanyContextDependency) -> SessionResponse:
+        return SessionResponse(
+            user_id=str(context.actor.user_id),
+            company_id=str(context.company_id),
+            membership_id=str(context.membership_id),
+            administrative_role=context.administrative_role,
+            employee_id=str(context.employee_id) if context.employee_id else None,
         )
 
     return application

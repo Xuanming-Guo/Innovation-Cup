@@ -7,9 +7,9 @@ changes capability state.
 |---|---|---|---|
 | Repository governance | Implemented | Repository contract workflow and development guide | Protect `main` in GitHub settings |
 | Desktop foundation | Implemented and Windows build-tested | Tauri/React source, frontend tests, Rust tests, native CI, and local Windows release build | Installed Windows/macOS smoke tests |
-| API foundation | Implemented locally | FastAPI health/version endpoints and tests | Hosted deployment and dependency readiness |
+| API foundation and company context | Implemented locally | FastAPI health/version/session endpoints, asymmetric Supabase JWT verification and current-membership tests | Hosted deployment and live Supabase evaluation |
 | Worker foundation | Implemented locally, queue disabled | Separate worker command and tests | Durable queue/lease implementation in #12 |
-| Supabase schema/auth/storage | Not implemented | Specification only | #7 and founder-applied migrations |
+| Supabase identity/tenant/storage slice | Implemented and repository-tested | Ordered migrations, migration manifest, pgTAP isolation tests, private ticket Edge Function and boundary tests | Founder applies migrations/functions and provisions runtime secrets; live hosted isolation test |
 | Gemini interpretation | Not implemented | Configuration boundary only | #8 plus real credential evaluation |
 | Z3 planning/validation | Not implemented | Specification only | #9 tests and solver evidence |
 | Approval/commitment | Not implemented | Specification only | #10 |

@@ -4,7 +4,7 @@
 
 Coordination Engine is a human-led company coordination system proposed for the Recruit Holdings Innovation Cup 2026. It turns an authorised organisational decision into a source-grounded, capacity-feasible and permission-aware change to existing work.
 
-> **Current status:** buildable application foundation. The repository now contains a Tauri/React desktop shell, FastAPI health/version service, separate Python worker boundary, locked toolchains and Cloud Run definitions. Product workflows, Supabase migrations, Gemini calls, Z3 planning, native release artifacts, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
+> **Current status:** buildable application foundation plus the first identity and tenancy slice. The repository contains a Tauri/React desktop shell, FastAPI service, separate Python worker boundary, ordered Supabase migrations, fail-closed company membership resolution, private Storage ticketing, locked toolchains and Cloud Run definitions. The migrations and Edge Function are repository-ready but are not claimed as applied to a hosted project. Task workflows, Gemini calls, Z3 planning, signed native releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
 
 ## Product idea
 
@@ -49,6 +49,7 @@ The initial demonstration connects software and HR operations teams through one 
 | [Version 2 changelog](docs/CHANGELOG_v2.md) | Maps substantive revisions and later clarifications. |
 | [Formatted specification](docs/coordination_engine_master_v2.docx) | Formatted Version 2 snapshot for reading and presentation. The Markdown specification is authoritative and contains the current clarification. |
 | [GitHub workflow](docs/development/github-workflow.md) | Issue, branch, commit, pull-request, merge and repository-rules conventions. |
+| [Tenant and Storage boundary](docs/security/tenant-and-storage-boundary.md) | JWT, current-membership, RLS, private-file and hosted-secret boundaries. |
 | [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
 
 ## Delivery priorities
@@ -67,12 +68,12 @@ scripts/                 Dependency-free repository checks
 apps/desktop/            Tauri 2 and React/TypeScript native desktop foundation
 services/backend/        FastAPI API and separate durable-worker process boundary
 deploy/cloud-run/        Reviewable API service and worker-pool definitions
-supabase/                Canonical home for future migrations, seeds, tests and Edge Functions
+supabase/                Migrations, seeds, database tests, Edge Functions and safe operator tooling
 AGENTS.md                 Agent operating context
 README.md                 Project entry point and honest status
 ```
 
-The target application layout is defined in the implementation master prompt and will be introduced through reviewed vertical slices rather than an unverified scaffold. When that tree is created, all Supabase CLI configuration, migrations, seeds, database tests, Edge Functions, shared function code, function tests and safe environment examples live under root `supabase/`. Google Cloud, Gemini and privileged Supabase values are supplied later through local/deployment environment variables or secret stores; only descriptive placeholders are committed. Repository migrations remain authoritative when the founder applies them manually to hosted Supabase.
+The target application layout is defined in the implementation master prompt and is introduced through reviewed vertical slices. All Supabase CLI configuration, migrations, seeds, database tests, Edge Functions, shared function code, function tests and safe environment examples live under root `supabase/`. Google Cloud, Gemini and privileged Supabase values are supplied later through local/deployment environment variables or secret stores; only descriptive placeholders are committed. Repository migrations remain authoritative when the founder applies them manually to hosted Supabase.
 
 ## Contributing
 
