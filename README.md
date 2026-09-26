@@ -8,7 +8,7 @@ Coordination Engine is a human-led company coordination system proposed for the 
 
 ## Product idea
 
-A manager supplies an outcome, context, priority, deadline and employee-shareable brief. The system retrieves permitted current facts, proposes typed task contracts, compiles validated constraints into a finite Z3 scheduling model, explains the proposed changes, obtains the required authority and commits approved changes consistently. Employees then receive appropriate instructions, submit work and participate in later replanning.
+A manager supplies an outcome, context, priority, deadline and employee-shareable brief. The system retrieves permitted current facts, uses the Gemini API to propose typed task contracts, compiles validated constraints into a finite Z3 scheduling model, explains the proposed changes, obtains the required authority and commits approved changes consistently. Employees then receive appropriate instructions, submit work and participate in later replanning.
 
 The product is not an all-knowing AI manager. Models interpret and explain; trusted code enforces identity, authority and supported constraint types; Z3 constructs or checks schedules inside the admitted model; an independent validator checks the concrete schedule; humans or explicitly configured policy authorise material changes.
 
@@ -30,9 +30,12 @@ Authorised sources
 | Desktop | Tauri 2 with React, TypeScript and Vite |
 | Backend | Python, FastAPI and Pydantic with separate API and worker processes |
 | Planning | Server-side `z3-solver` with deterministic compilation and validation |
-| Platform | Supabase Auth, Postgres and private Storage with a non-exposed business schema |
+| Model API | Google Gemini API, called only from trusted server-side code through a typed adapter |
+| Platform | Supabase backend: Auth, Postgres, private Storage, Realtime and durable queue/job state |
 | Jobs and writes | Durable jobs, transactional outbox, idempotent connector actions and reconciliation |
 | Native targets | Windows 11 x64 and macOS 13+ on Apple Silicon and Intel |
+
+Supabase is the shared backend platform and system of record. The separately hosted FastAPI service and Python worker are the compute tier connected to it: the worker retrieves a permission-bounded source projection, calls Gemini, validates its structured output, compiles trusted constraints, runs Z3 and persists the result to Supabase. A Supabase Edge Function may call Gemini for a short, bounded request, but long-running planning and Z3 work belongs in the durable worker. The Gemini credential is never shipped in the desktop application.
 
 The initial demonstration connects software and HR operations teams through one shared specialist. Cross-team capacity may be used without disclosing another team's private context.
 

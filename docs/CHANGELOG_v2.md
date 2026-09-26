@@ -1,6 +1,6 @@
 # Coordination Engine — Version 2 change log
 
-**Revised:** 25 September 2026  
+**Revised:** 26 September 2026<br>
 **Baseline:** The original Version 1.0 Word and Markdown master specification of 23 September 2026.  
 **Purpose:** Identify substantive changes, why they were made, and where they now appear. This is a clean revised edition, not a Word tracked-changes/redline file. The original source files remain unchanged for comparison.
 
@@ -11,6 +11,8 @@ The revision rewrites the relevant original sections, schema entries and accepta
 The master specification and implementation handoff now state the complete pre-solver trust boundary explicitly: authorised and versioned sources become bounded evidence, schema-constrained candidate task contracts, deterministically validated constraints, an immutable planning snapshot and finally a trusted compiled Z3 model. Raw source content and model-generated code never enter Z3. Z3 constructs or checks a schedule within the admitted model; a separate deterministic validator checks the concrete result before approval or commitment.
 
 The repository guidance now also requires protected-main pull-request development, consistent branch and commit naming, issue and PR templates, automated repository checks, reviewable merges and honest capability documentation. These governance additions do not constitute application implementation or test results.
+
+The founder has now confirmed Google Gemini as the model API and Supabase as the shared database/backend platform. The documented default topology keeps Gemini credentials server-side: Supabase owns identity, authoritative records, private files, realtime refresh and durable job state, while the Python worker calls Gemini through a typed gateway, validates structured output, compiles the trusted model and runs Z3. Supabase Edge Functions may make short bounded Gemini calls, but they do not replace the durable worker for planning or solver execution.
 
 ## 1. Page-by-page feedback incorporated
 

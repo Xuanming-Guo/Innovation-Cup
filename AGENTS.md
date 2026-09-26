@@ -49,6 +49,7 @@ The required pre-solver trace is:
 - Authorise access before retrieval and retain source/version/freshness/authority metadata.
 - Retrieve bounded current structured facts and necessary excerpts. Summaries are optional caches, not approved facts.
 - Models may propose schema-constrained task contracts, evidence links, assumptions and clarification questions. They may not generate executable Python, SQL, SMT-LIB or arbitrary solver expressions.
+- Gemini is the confirmed model API. Route every Gemini call through the server-side typed model gateway; require structured output where applicable and still validate it as untrusted input.
 - Trusted code validates tenant IDs, types, units, dates/timezones, cycles, evidence, authority, confidentiality, current permission and confirmation state.
 - Unsupported or materially ambiguous hard constraints stop for clarification. Never guess a permissive fallback.
 - Freeze an immutable planning snapshot with source, policy, permission, profile, estimate, compiler and company-revision versions plus a canonical digest.
@@ -63,7 +64,10 @@ Never send raw private cross-team context merely because the planner needs a cap
 - Desktop: Tauri 2, React, TypeScript and Vite from one codebase.
 - Backend: Python, FastAPI and Pydantic; API and worker are separate processes using one domain package.
 - Planning: native server-side `z3-solver` with deterministic interpretation validation, compilation and candidate validation boundaries.
-- Platform: Supabase Auth, Postgres and private Storage. Business tables live in a non-exposed `app` schema behind FastAPI.
+- Model provider: Google Gemini API for interpretation, explanations, risk review and the optional bounded executor. Keep the exact model ID configurable and record the model, prompt and safety/configuration versions for each run.
+- Platform: Supabase is the shared backend platform and system of record: Auth, Postgres, private Storage, Realtime and durable queue/job state. Business tables live in a non-exposed `app` schema behind FastAPI.
+- Runtime boundary: the durable Python worker normally calls Gemini directly through the official Google Gen AI SDK and runs Z3. Supabase Edge Functions may provide short authenticated gateway operations, but must not own long-running planning, unconstrained optimisation or durable agent execution.
+- Credentials: Gemini authorization/API keys and Supabase privileged secrets are server-only, environment-specific secrets. Never place them in Vite variables, desktop code, database rows readable by clients, logs or fixtures.
 - Runtime roles are least-privileged, non-owner and non-BYPASSRLS. Migration credentials are separate.
 - Tenant-owned relationships use composite tenant-aware integrity, not UUID uniqueness alone.
 - Compute outside database transactions. Commit an exact approved proposal and its outbox intents atomically under a planning revision check.
