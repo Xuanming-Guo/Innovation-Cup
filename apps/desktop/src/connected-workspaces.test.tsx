@@ -104,9 +104,13 @@ describe("connected workspaces", () => {
         expect(String(init.body)).toContain("test-company-gemini-key-value-0001");
         return Promise.resolve(json({
           provider: "gemini_developer_api",
+          credential_kind: "api_key",
           status: "configured",
           credential_hint: "0123456789ab",
           validated_model: "gemini-test",
+          vertex_project_id: null,
+          vertex_client_email: null,
+          vertex_location: null,
           configured_at: "2026-09-26T12:00:00Z",
           validated_at: "2026-09-26T12:00:00Z",
           rotated_at: null,
@@ -114,9 +118,13 @@ describe("connected workspaces", () => {
       }
       return Promise.resolve(json({
         provider: "gemini_developer_api",
+        credential_kind: "api_key",
         status: "not_configured",
         credential_hint: null,
         validated_model: null,
+        vertex_project_id: null,
+        vertex_client_email: null,
+        vertex_location: null,
         configured_at: null,
         validated_at: null,
         rotated_at: null,
@@ -134,5 +142,69 @@ describe("connected workspaces", () => {
     expect(await screen.findByText("0123456789ab")).toBeVisible();
     expect(screen.queryByDisplayValue(key)).not.toBeInTheDocument();
     expect(screen.queryByText(key)).not.toBeInTheDocument();
+  });
+
+  it("submits Vertex JSON once and renders only its safe identity metadata", async () => {
+    const privateMarker = "private-material-that-must-be-cleared";
+    const serviceAccountJson = JSON.stringify({
+      type: "service_account",
+      project_id: "test-vertex-project",
+      private_key: privateMarker,
+      client_email: "agent@test-vertex-project.iam.gserviceaccount.com",
+    });
+    const fetchMock = vi
+      .fn()
+      .mockImplementation((_input: string | URL | Request, init?: RequestInit) => {
+        if (init?.method === "PUT") {
+          const body = JSON.parse(String(init.body)) as Record<string, string>;
+          expect(body.credential_kind).toBe("vertex_service_account");
+          expect(body.service_account_json).toBe(serviceAccountJson);
+          expect(body.api_key).toBeUndefined();
+          return Promise.resolve(
+            json({
+              provider: "vertex_ai",
+              credential_kind: "vertex_service_account",
+              status: "configured",
+              credential_hint: "abcdef012345",
+              validated_model: "gemini-test",
+              vertex_project_id: "test-vertex-project",
+              vertex_client_email: "agent@test-vertex-project.iam.gserviceaccount.com",
+              vertex_location: "global",
+              configured_at: "2026-09-26T12:00:00Z",
+              validated_at: "2026-09-26T12:00:00Z",
+              rotated_at: null,
+            }),
+          );
+        }
+        return Promise.resolve(
+          json({
+            provider: "gemini_developer_api",
+            credential_kind: "api_key",
+            status: "not_configured",
+            credential_hint: null,
+            validated_model: null,
+            vertex_project_id: null,
+            vertex_client_email: null,
+            vertex_location: null,
+            configured_at: null,
+            validated_at: null,
+            rotated_at: null,
+          }),
+        );
+      });
+    vi.stubGlobal("fetch", fetchMock);
+
+    render(<CompanyConnections api={api} canManage />);
+    await screen.findByLabelText("Company API key");
+    fireEvent.click(screen.getByRole("button", { name: "Vertex service account" }));
+    fireEvent.change(screen.getByLabelText("Service-account JSON"), {
+      target: { value: serviceAccountJson },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Verify and connect" }));
+
+    expect(await screen.findByText("test-vertex-project")).toBeVisible();
+    expect(screen.getByText("agent@test-vertex-project.iam.gserviceaccount.com")).toBeVisible();
+    expect(screen.queryByDisplayValue(serviceAccountJson)).not.toBeInTheDocument();
+    expect(screen.queryByText(privateMarker)).not.toBeInTheDocument();
   });
 });

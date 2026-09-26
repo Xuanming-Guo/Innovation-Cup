@@ -32,6 +32,8 @@ def get_gemini_credential_validator(
     return GoogleGeminiCredentialValidator(
         model=settings.gemini_model,
         timeout_seconds=settings.gemini_timeout_seconds,
+        vertex_location=settings.vertex_location,
+        vertex_allowed_project_ids=settings.vertex_project_allowlist,
     )
 
 

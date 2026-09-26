@@ -60,6 +60,11 @@
       "file": "20260926021000_local_host_discovery.sql",
       "sha256": "3b3fa4d874863de5b239973a659402ca0bce9106aa9a276f2abda0ffd9add2d4",
       "version": "20260926021000"
+    },
+    {
+      "file": "20260926022000_vertex_service_account_byok.sql",
+      "sha256": "d335622042a0ad2b6e3398ce5055269674a8e5b3d6d40c4c7b304eac04fd2c85",
+      "version": "20260926022000"
     }
   ]
 }

@@ -5,6 +5,7 @@ from typing import Any, Literal, Protocol
 
 import httpx
 from google import genai
+from google.auth.credentials import Credentials
 from google.genai import errors, types
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
@@ -106,27 +107,41 @@ class GoogleGeminiGateway:
     def __init__(
         self,
         *,
-        api_key: str,
+        api_key: str | None = None,
+        vertex_credentials: Credentials | None = None,
+        vertex_project_id: str | None = None,
+        vertex_location: str | None = None,
         configuration: GatewayConfiguration,
         client: Any | None = None,
     ) -> None:
-        if not api_key:
-            raise ValueError("Gemini API key is required")
+        using_api_key = bool(api_key)
+        using_vertex = all((vertex_credentials, vertex_project_id, vertex_location))
+        if client is None and using_api_key == using_vertex:
+            raise ValueError("exactly one Google credential mode is required")
         self.configuration = configuration
-        self._client = client or genai.Client(
-            api_key=api_key,
-            http_options=types.HttpOptions(
-                timeout=configuration.timeout_seconds * 1000,
-                retry_options=types.HttpRetryOptions(
-                    attempts=configuration.retry_attempts,
-                    initial_delay=0.25,
-                    max_delay=2.0,
-                    exp_base=2.0,
-                    jitter=0.25,
-                    http_status_codes=[408, 429, 500, 502, 503, 504],
-                ),
+        http_options = types.HttpOptions(
+            timeout=configuration.timeout_seconds * 1000,
+            retry_options=types.HttpRetryOptions(
+                attempts=configuration.retry_attempts,
+                initial_delay=0.25,
+                max_delay=2.0,
+                exp_base=2.0,
+                jitter=0.25,
+                http_status_codes=[408, 429, 500, 502, 503, 504],
             ),
         )
+        if client is not None:
+            self._client = client
+        elif using_api_key:
+            self._client = genai.Client(api_key=api_key, http_options=http_options)
+        else:
+            self._client = genai.Client(
+                vertexai=True,
+                project=vertex_project_id,
+                location=vertex_location,
+                credentials=vertex_credentials,
+                http_options=http_options,
+            )
 
     def generate(self, projection: InterpretationProjection) -> GatewayResponse:
         try:

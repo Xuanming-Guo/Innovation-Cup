@@ -1,6 +1,6 @@
 # ADR 0002: Company Gemini BYOK and portable compute
 
-- **Status:** Accepted
+- **Status:** Accepted; credential-mode decision superseded by ADR 0004
 - **Date:** 26 September 2026
 - **Issue:** [#13](https://github.com/Xuanming-Guo/Innovation-Cup/issues/13)
 
@@ -17,11 +17,9 @@ Application sessions and durable job state belong in Supabase regardless of wher
 
 ## Decision
 
-Each company has at most one active Gemini Developer API credential. A company administrator
-submits it through an authenticated write-only workflow. The API checks access to the configured
-model without sending company content, then a guarded database function stores the key in
-Supabase Vault. Application tables retain only a Vault identifier, SHA-256 hint, configured model,
-administrator and timestamps.
+The original decision selected one Gemini Developer API credential per company. ADR 0004 extends
+that boundary to a mutually exclusive choice between a Developer API key and Vertex AI
+service-account JSON while preserving the same write-only, Vault-backed and worker-only rules.
 
 Only the `coordination_worker` role can execute the plaintext resolver, and only with current
 actor/company/purpose context and an active company membership. Every model-backed job resolves
@@ -39,11 +37,11 @@ Python Z3 and multi-stage durable work stay in the worker.
 ## Consequences
 
 - Each customer controls Gemini quota, billing, revocation and provider terms for its own use.
-- Employees use the company connection without possessing its key.
-- Google still associates Gemini keys with projects for its own quota and billing, but the
-  application does not need to run on Google Cloud.
+- Employees use the company connection without possessing its credential.
+- Google associates Developer API keys or Vertex service accounts with projects for quota and
+  billing, but the application does not need to run on Google Cloud.
 - Production readiness can be evaluated without a global model credential; an individual model
-  job fails safely when its company has no key.
+  job fails safely when its company has no credential.
 - The operator must secure Vault access, database function ownership, runtime database roles and
   the chosen container host.
 - Live-provider, data-use, residency and contractual suitability remain company-specific release

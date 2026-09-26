@@ -36,8 +36,8 @@ lease. Only an authenticated active company member can call the narrow public di
 
 The desktop resolves the endpoint after Supabase sign-in and re-resolves during authorised
 refresh, so a restarted tunnel does not require rebuilding installers. The API and worker retain
-separate least-privileged database logins. The manager still configures the company Gemini key
-through Connections; no Gemini credential is part of host or installer configuration.
+separate least-privileged database logins. The manager still configures the company Google AI
+credential through Connections; no provider credential is part of host or installer configuration.
 
 ## Consequences
 

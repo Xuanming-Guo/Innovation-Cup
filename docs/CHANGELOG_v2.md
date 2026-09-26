@@ -28,6 +28,13 @@ the durable worker can resolve it under active tenant context. Employees never r
 Google Cloud remains an optional host and the provider-side project behind a Gemini key, not a
 required application-session runtime.
 
+Issue #38 extends company BYOK with an explicit Vertex AI service-account mode alongside the
+existing Gemini Developer API-key mode. The administrator pastes the downloaded JSON object, not
+an executable Python sample. The API strictly validates and tests it without company content,
+Vault stores only canonical secret material, safe project/email/location metadata is readable,
+and the worker builds the official SDK client with `vertexai=True` plus explicit project,
+location and scoped credentials. Existing API-key requests remain compatible.
+
 The founder subsequently selected a no-hosting-bill Innovation Cup deployment: exactly one cloned
 laptop runs the API, durable worker, a free HTTPS Quick Tunnel and a lease registrar. Installed
 manager and employee clients authenticate with Supabase before resolving the current host
@@ -36,7 +43,7 @@ database passwords remain on the host laptop. The host must stay awake, online a
 this controlled demo topology is not an SLA-backed production service. ADR 0003 records the
 decision and its limitations.
 
-The founder has confirmed the repository and deployment boundary for Supabase implementation. Root `supabase/` is the single home for CLI configuration, ordered migrations, reference seeds, database tests, Edge Functions, shared function code, function tests and committed environment placeholders. The founder will manually apply repository migrations to hosted Supabase and supply privileged Supabase/runtime values later; company administrators supply their own Gemini keys through the application. Migration applications remain traceable to a repository commit/version and no real credentials are committed.
+The founder has confirmed the repository and deployment boundary for Supabase implementation. Root `supabase/` is the single home for CLI configuration, ordered migrations, reference seeds, database tests, Edge Functions, shared function code, function tests and committed environment placeholders. The founder will manually apply repository migrations to hosted Supabase and supply privileged Supabase/runtime values later; company administrators supply their own Google AI credentials through the application. Migration applications remain traceable to a repository commit/version and no real credentials are committed.
 
 ## 1. Page-by-page feedback incorporated
 

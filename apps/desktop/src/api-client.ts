@@ -24,10 +24,14 @@ export interface PlanningContext {
 }
 
 export interface GeminiProviderConfiguration {
-  provider: "gemini_developer_api";
+  provider: "gemini_developer_api" | "vertex_ai";
+  credential_kind: "api_key" | "vertex_service_account";
   status: "configured" | "not_configured";
   credential_hint: string | null;
   validated_model: string | null;
+  vertex_project_id: string | null;
+  vertex_client_email: string | null;
+  vertex_location: string | null;
   configured_at: string | null;
   validated_at: string | null;
   rotated_at: string | null;
@@ -199,12 +203,21 @@ export function getGeminiProviderConfiguration(
 
 export function configureGeminiProvider(
   context: AuthorisedApiContext,
-  apiKey: string,
+  credential: {
+    kind: "api_key" | "vertex_service_account";
+    value: string;
+  },
 ): Promise<GeminiProviderConfiguration> {
   return requestJson(companyUrl(context, "/ai-provider/gemini"), {
     method: "PUT",
     headers: headers(context, true),
-    body: JSON.stringify({ api_key: apiKey, correlation_id: crypto.randomUUID() }),
+    body: JSON.stringify({
+      credential_kind: credential.kind,
+      ...(credential.kind === "api_key"
+        ? { api_key: credential.value }
+        : { service_account_json: credential.value }),
+      correlation_id: crypto.randomUUID(),
+    }),
   });
 }
 

@@ -4,7 +4,7 @@
 
 Coordination Engine is a human-led company coordination system proposed for the Recruit Holdings Innovation Cup 2026. It turns an authorised organisational decision into a source-grounded, capacity-feasible and permission-aware change to existing work.
 
-> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, trusted candidate materialisation, finite planning, exact approval/commitment, employee execution and durable coordination slices. It includes company-scoped Gemini BYOK through Supabase Vault, connected manager/employee/company-settings surfaces, leased Postgres jobs, bounded retry/review/cancellation, durable Gemini/Z3 dispatch, transactional outbox delivery, notifications, private Realtime refresh and a single-laptop hosted-demo mode with authenticated endpoint discovery. Native CI has produced checksummed Windows x64, macOS arm64 and macOS Intel artifacts for commit `ec45bcbc35a5b912b0e27178f48f2e29a1df46f0`; they are unsigned/ad-hoc and have not been installed-smoke-tested. The connected paths are repository-tested but are not claimed as applied to hosted Supabase or exercised with a live company credential. File scanning remains fail-closed until a real scanner is configured. Signed/notarised public releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
+> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, trusted candidate materialisation, finite planning, exact approval/commitment, employee execution and durable coordination slices. It includes company-scoped Google Gemini BYOK through Supabase Vault using either a Gemini Developer API key or Vertex AI service-account JSON, connected manager/employee/company-settings surfaces, leased Postgres jobs, bounded retry/review/cancellation, durable Gemini/Z3 dispatch, transactional outbox delivery, notifications, private Realtime refresh and a single-laptop hosted-demo mode with authenticated endpoint discovery. Native CI has produced checksummed Windows x64, macOS arm64 and macOS Intel artifacts for commit `ec45bcbc35a5b912b0e27178f48f2e29a1df46f0`; they are unsigned/ad-hoc and have not been installed-smoke-tested. The connected paths are repository-tested but are not claimed as applied to hosted Supabase or exercised with a live company credential. File scanning remains fail-closed until a real scanner is configured. Signed/notarised public releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
 
 
 ## Product idea
@@ -34,12 +34,12 @@ Authorised sources
 | Backend | Python, FastAPI and Pydantic with separate API and worker processes |
 | Hosted compute | Portable OCI image with separate FastAPI and durable-worker processes; the selected demo mode runs them on one laptop behind a free HTTPS tunnel |
 | Planning | Server-side `z3-solver` with deterministic compilation and validation |
-| Model API | Google Gemini Developer API through a typed server-side adapter; each company supplies its own key and the initial model default is configurable |
+| Model API | Google Gemini through a typed server-side adapter; each company selects a Developer API key or Vertex AI service account and the initial model default is configurable |
 | Platform | Supabase backend: Auth, Postgres, Vault, private Storage, Realtime and durable queue/job state |
 | Jobs and writes | Durable jobs, transactional outbox, idempotent connector actions and reconciliation |
 | Native targets | Windows 11 x64 and macOS 13+ on Apple Silicon and Intel |
 
-Supabase is the shared backend platform and system of record. FastAPI and the durable Python worker run from the same portable container image with different commands. For the selected no-hosting-bill demo, one cloned Windows or macOS laptop runs the Docker Compose host bundle; installed clients authenticate with Supabase and discover its current HTTPS tunnel through a short-lived company lease. A company administrator verifies and installs that company's Gemini key through the authenticated Connections screen; Vault encrypts the secret, and only the worker can resolve it under current tenant context. Employees call the application API, never Gemini directly. No database or provider key is shipped in the desktop application.
+Supabase is the shared backend platform and system of record. FastAPI and the durable Python worker run from the same portable container image with different commands. For the selected no-hosting-bill demo, one cloned Windows or macOS laptop runs the Docker Compose host bundle; installed clients authenticate with Supabase and discover its current HTTPS tunnel through a short-lived company lease. A company administrator selects and verifies either that company's Gemini API key or a downloaded Vertex service-account JSON object through the authenticated Connections screen. Vault encrypts the credential, and only the worker can resolve it under current tenant context. Pasted Python is never executed. Employees call the application API, never Google directly. No database or provider credential is shipped in the desktop application.
 
 The initial demonstration connects software and HR operations teams through one shared specialist. Cross-team capacity may be used without disclosing another team's private context.
 
@@ -61,6 +61,7 @@ The initial demonstration connects software and HR operations teams through one 
 | [Backend deployment](docs/development/backend-deployment.md) | Portable API/worker hosting, Supabase connectivity and company BYOK operations. |
 | [Production and hosted-demo setup](docs/development/production-setup.md) | Exact Supabase, runtime-role, Edge Function, API/worker, environment and desktop setup order. |
 | [Single-laptop hosted-demo ADR](docs/adr/0003-single-laptop-hosted-demo.md) | Why the free demo uses one Docker laptop, a Quick Tunnel and authenticated endpoint discovery. |
+| [Google credential modes ADR](docs/adr/0004-google-ai-credential-modes.md) | API-key and Vertex service-account BYOK, validation, storage and worker boundaries. |
 | [Native release matrix](docs/release-matrix.md) | Windows/macOS artifact targets, checksums, signing state and honest smoke-test boundary. |
 | [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
 
@@ -86,7 +87,7 @@ AGENTS.md                 Agent operating context
 README.md                 Project entry point and honest status
 ```
 
-The target application layout is defined in the implementation master prompt and is introduced through reviewed vertical slices. All Supabase CLI configuration, migrations, seeds, database tests, Edge Functions, shared function code, function tests and safe environment examples live under root `supabase/`. Company Gemini keys are installed at runtime through the authenticated application and encrypted in Supabase Vault. Deployment environment variables contain only backend/runtime configuration and privileged Supabase connectivity; no real secret is committed. Repository migrations remain authoritative when the founder applies them manually to hosted Supabase.
+The target application layout is defined in the implementation master prompt and is introduced through reviewed vertical slices. All Supabase CLI configuration, migrations, seeds, database tests, Edge Functions, shared function code, function tests and safe environment examples live under root `supabase/`. Company Gemini API keys or Vertex service-account JSON credentials are installed at runtime through the authenticated application and encrypted in Supabase Vault. Deployment environment variables contain only backend/runtime configuration and privileged Supabase connectivity; no real secret is committed. Repository migrations remain authoritative when the founder applies them manually to hosted Supabase.
 
 ## Contributing
 
@@ -131,7 +132,7 @@ Follow the
 
 Run the issue-level application check with `npm.cmd run check`. With its database configured,
 the worker verifies the durable schema and consumes leased jobs; Gemini work additionally requires
-the current company to have a verified key. See [local development](docs/development/local-development.md),
+the current company to have a verified Google credential. See [local development](docs/development/local-development.md),
 [backend deployment](docs/development/backend-deployment.md) and the [complete GitHub workflow](docs/development/github-workflow.md).
 
 ## Security and evidence

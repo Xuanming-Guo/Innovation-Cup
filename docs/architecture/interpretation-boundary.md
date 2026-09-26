@@ -15,8 +15,10 @@ schedule, a validated constraint, an approval or a committed task.
    permitted excerpts, permitted employee identities, known structured facts and explicit
    missing-data markers. It records a canonical SHA-256 digest.
 4. One adapter calls the official `google-genai` SDK. The worker resolves the current company's
-   encrypted Gemini key from Supabase Vault under the same tenant context and constructs a
-   short-lived client. The call has an explicit timeout, bounded retry, a fixed
+   encrypted Gemini API key or Vertex service-account JSON from Supabase Vault under the same
+   tenant context and constructs a short-lived client for the selected mode. Vertex clients bind
+   explicit service-account credentials, project and location. The call has an explicit timeout,
+   bounded retry, a fixed
    model/prompt/schema/safety profile, no model tools and a supported JSON response schema.
 5. Pydantic rejects fields outside `CandidateTaskContract`. Trusted admission code then checks
    company/request/version identity, current source versions, retrieved locators, source

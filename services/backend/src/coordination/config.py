@@ -47,6 +47,13 @@ class Settings(BaseSettings):
     gemini_retry_attempts: int = Field(default=2, ge=1, le=3)
     gemini_max_output_tokens: int = Field(default=8192, ge=512, le=32768)
     gemini_max_projection_characters: int = Field(default=150000, ge=10000, le=500000)
+    vertex_location: str = Field(
+        default="global",
+        min_length=2,
+        max_length=64,
+        pattern=r"^(global|[a-z]+-[a-z]+[0-9])$",
+    )
+    vertex_allowed_project_ids: str = ""
     worker_poll_seconds: float = Field(default=5.0, ge=0.5, le=60.0)
     worker_batch_size: int = Field(default=4, ge=1, le=32)
     worker_lease_seconds: int = Field(default=120, ge=15, le=900)
@@ -109,6 +116,14 @@ class Settings(BaseSettings):
         )
 
     @property
+    def vertex_project_allowlist(self) -> tuple[str, ...]:
+        return tuple(
+            project_id.strip()
+            for project_id in self.vertex_allowed_project_ids.split(",")
+            if project_id.strip()
+        )
+
+    @property
     def missing_production_settings(self) -> tuple[str, ...]:
         required = {
             "database_url": self.database_url,
@@ -126,7 +141,7 @@ class Settings(BaseSettings):
             "environment": self.environment,
             "supabase_configured": bool(self.supabase_url and self.supabase_jwt_issuer),
             "database_configured": self.database_url is not None,
-            "gemini_credential_mode": "tenant_byok",
+            "gemini_credential_mode": "tenant_byok_api_key_or_vertex_service_account",
             "gemini_local_fallback_configured": (
                 self.environment != "production" and self.gemini_api_key is not None
             ),

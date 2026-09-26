@@ -85,7 +85,7 @@ local/remote drift, `db push --dry-run` previews the target changes, and only th
 `db push` changes the hosted database.
 
 Stop if hosted history is not an exact prefix before the push, or if the final list does not match
-the twelve files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
+the thirteen files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
 copies into the Dashboard SQL editor: that applies untracked bytes and loses reliable migration
 history.
 
@@ -104,8 +104,8 @@ order by version;
 ```
 
 The migrations create the private schemas, both private Storage buckets, RLS/grants, durable job
-state, private Realtime policy, Vault-backed Gemini credential functions and the two non-login
-group roles. Supabase Vault is enabled by the final migration.
+state, private Realtime policy, Vault-backed Gemini API-key/Vertex service-account functions and
+the two non-login group roles. Supabase Vault is enabled by the BYOK migrations.
 
 ## 3. Create separate API and worker database logins
 
@@ -169,7 +169,7 @@ node scripts/backend.mjs python supabase/scripts/demo_tenant.py seed
 ```
 
 The configured company ID is `11111111-1111-4111-8111-111111111111`. The manager becomes a
-company administrator and can install the company's Gemini key. Remove the local filled env file
+company administrator and can install the company's Google AI credential. Remove the local filled env file
 after provisioning if your operating process does not require it.
 
 ## 6. Deploy the API and worker
@@ -201,9 +201,11 @@ Fill exactly these values:
 | `COORDINATION_HOST_COMPANY_ID` | Demo company: `11111111-1111-4111-8111-111111111111` |
 | `COORDINATION_HOST_ACTOR_ID` | Authentication -> Users -> UUID of the seeded `company_admin` manager |
 | `COORDINATION_GEMINI_MODEL` | `gemini-3.8-flash` unless the reviewed provider model changes |
+| `COORDINATION_VERTEX_LOCATION` | Vertex region, default `global`; keep API and worker identical |
+| `COORDINATION_VERTEX_ALLOWED_PROJECT_IDS` | Optional comma-separated Vertex project allowlist; for a single supplied project, set its exact `project_id` |
 
 Do not put the database administrator password, publishable key, Supabase secret/service-role key
-or Gemini key in this file. The launcher rejects reused/wrong runtime usernames and never prints
+or Google AI credential in this file. The launcher rejects reused/wrong runtime usernames and never prints
 the DSNs. It creates `deploy/local-host/.env.runtime` with the current commit and a persistent
 instance UUID.
 
@@ -276,6 +278,8 @@ or environment settings, not in Git or the desktop.
 | `COORDINATION_GEMINI_RETRY_ATTEMPTS` | `2` | Bounded provider attempts |
 | `COORDINATION_GEMINI_MAX_OUTPUT_TOKENS` | `8192` | Model output bound |
 | `COORDINATION_GEMINI_MAX_PROJECTION_CHARACTERS` | `150000` | Authorised prompt projection bound |
+| `COORDINATION_VERTEX_LOCATION` | `global` | Explicit Vertex AI request location |
+| `COORDINATION_VERTEX_ALLOWED_PROJECT_IDS` | blank | Optional comma-separated accepted service-account project IDs |
 | `COORDINATION_WORKER_POLL_SECONDS` | `5` | Durable queue polling interval |
 | `COORDINATION_WORKER_BATCH_SIZE` | `4` | Jobs leased per worker cycle |
 | `COORDINATION_WORKER_LEASE_SECONDS` | `120` | Lease duration |
@@ -283,9 +287,18 @@ or environment settings, not in Git or the desktop.
 | `COORDINATION_WORKER_INSTANCE_NAME` | Container hostname | Optional stable worker label |
 
 Do not set `COORDINATION_GEMINI_API_KEY` in production. It is a local/test fallback and production
-ignores it. A company administrator enters the production key in **Connections**; the API verifies
-model access without company content, Vault stores it, and only the worker resolves plaintext.
-The API and worker do not need a Supabase secret/service-role key.
+ignores it. A company administrator selects **Gemini API key** or **Vertex service account** in
+**Connections**. For Vertex, paste only the downloaded service-account JSON object—not the Python
+sample that reads it. The API strictly parses the JSON, verifies configured-model access without
+company content, Vault stores the canonical credential, and only the worker resolves plaintext.
+The host does not need `GOOGLE_SERVICE_ACCOUNT_JSON`, `GOOGLE_APPLICATION_CREDENTIALS` or a Gemini
+key environment variable. The API and worker do not need a Supabase secret/service-role key.
+
+Before installing a Vertex credential, enable the Vertex AI API and grant that service account
+only the Google Cloud permissions required to invoke the selected model. If a private key has been
+posted in chat, logs or a screenshot, revoke/delete that key in Google Cloud and create a new one;
+do not install the exposed key. A live provider call remains required to prove IAM, quota, billing
+and model availability.
 
 After deployment, require successful responses from `/health/live`, `/health/ready` and `/version`.
 `/health/ready` must report both configuration and durable schema ready.
@@ -322,7 +335,8 @@ normally distributed production installer opens ready for sign-in without employ
 2. Confirm the baked discovery/Supabase/company values are active, then sign in as the synthetic
    manager.
 3. Confirm the service chip becomes reachable through authenticated laptop-host discovery. In
-   **Connections**, install and validate the company's Gemini Developer API key.
+   **Connections**, install and validate either the company's Gemini Developer API key or its
+   downloaded Vertex service-account JSON object.
 4. Create a planning request, wait for interpretation/materialisation/Z3 jobs, review the exact
    proposal and approve/commit it.
 5. Sign in as the employee on the other platform, receive the authorised task, submit it, then

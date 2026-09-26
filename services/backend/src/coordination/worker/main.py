@@ -30,7 +30,7 @@ def worker_status(
             "durable_schema": durable_schema_ready,
         },
         "queue_consumer_enabled": configuration_ready and durable_schema_ready,
-        "gemini_credential_mode": "tenant_byok",
+        "gemini_credential_mode": "tenant_byok_api_key_or_vertex_service_account",
         "gemini_local_fallback_configured": (
             settings.environment != "production" and settings.gemini_api_key is not None
         ),

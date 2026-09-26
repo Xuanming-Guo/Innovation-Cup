@@ -6,12 +6,18 @@ from typing import Annotated, Literal
 from uuid import UUID, uuid5
 
 import uvicorn
-from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response, status
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 from coordination import __version__
-from coordination.ai_provider.contracts import AiProviderConfiguration
+from coordination.ai_provider.contracts import (
+    AiCredentialKind,
+    AiProviderConfiguration,
+    AiProviderName,
+)
 from coordination.ai_provider.dependencies import (
     AiProviderStoreDependency,
     GeminiCredentialValidatorDependency,
@@ -120,8 +126,40 @@ class SessionResponse(StrictResponse):
 
 
 class GeminiCredentialRequest(StrictResponse):
-    api_key: SecretStr = Field(min_length=20, max_length=512)
+    credential_kind: AiCredentialKind = "api_key"
+    api_key: SecretStr | None = Field(default=None, min_length=20, max_length=512)
+    service_account_json: SecretStr | None = Field(
+        default=None,
+        min_length=100,
+        max_length=65_536,
+    )
     correlation_id: UUID
+
+    @model_validator(mode="after")
+    def exactly_one_matching_credential(self) -> GeminiCredentialRequest:
+        if (
+            self.credential_kind == "api_key"
+            and self.api_key is not None
+            and self.service_account_json is None
+        ):
+            return self
+        if (
+            self.credential_kind == "vertex_service_account"
+            and self.service_account_json is not None
+            and self.api_key is None
+        ):
+            return self
+        raise ValueError("credential value does not match credential_kind")
+
+    @property
+    def provider(self) -> AiProviderName:
+        return "gemini_developer_api" if self.credential_kind == "api_key" else "vertex_ai"
+
+    def credential_value(self) -> str:
+        value = self.api_key if self.credential_kind == "api_key" else self.service_account_json
+        if value is None:  # Defensive; model validation already enforces this invariant.
+            raise ValueError("credential value is required")
+        return value.get_secret_value()
 
 
 class PlanningRequestCreate(StrictResponse):
@@ -338,6 +376,24 @@ def create_app() -> FastAPI:
         allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Company-ID"],
     )
 
+    @application.exception_handler(RequestValidationError)
+    async def redact_request_validation_input(
+        _request: Request,
+        error: RequestValidationError,
+    ) -> JSONResponse:
+        detail = [
+            {
+                "type": item.get("type", "value_error"),
+                "loc": item.get("loc", ()),
+                "msg": item.get("msg", "Request validation failed"),
+            }
+            for item in error.errors()
+        ]
+        return JSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            content={"detail": detail},
+        )
+
     @application.get("/health/live", response_model=LivenessResponse)
     def live() -> LivenessResponse:
         return LivenessResponse()
@@ -416,25 +472,60 @@ def create_app() -> FastAPI:
         validator: GeminiCredentialValidatorDependency,
     ) -> AiProviderConfiguration:
         _require_company_admin(company_id, context)
-        api_key = body.api_key.get_secret_value()
+        credential = body.credential_value()
         try:
-            validation = validator.validate(api_key=api_key)
-            return store.configure(
+            validation = validator.validate(
+                credential_kind=body.credential_kind,
+                credential=credential,
+            )
+        except InvalidGeminiCredentialError as error:
+            _record_ai_credential_test(
+                store=store,
                 context=context,
-                api_key=api_key,
+                provider=body.provider,
+                credential_kind=body.credential_kind,
+                outcome="rejected",
+                validated_model=None,
+                correlation_id=body.correlation_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Google rejected the credential or configured model",
+            ) from error
+        except GeminiCredentialValidationUnavailableError as error:
+            _record_ai_credential_test(
+                store=store,
+                context=context,
+                provider=body.provider,
+                credential_kind=body.credential_kind,
+                outcome="unavailable",
+                validated_model=None,
+                correlation_id=body.correlation_id,
+            )
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Google credential validation is temporarily unavailable",
+            ) from error
+        try:
+            store.record_validation(
+                context=context,
+                provider=validation.provider,
+                credential_kind=validation.credential_kind,
+                outcome="accepted",
                 validated_model=validation.model,
                 correlation_id=body.correlation_id,
             )
-        except InvalidGeminiCredentialError as error:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Gemini rejected the key or the configured model is unavailable",
-            ) from error
-        except GeminiCredentialValidationUnavailableError as error:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="Gemini credential validation is temporarily unavailable",
-            ) from error
+            return store.configure(
+                context=context,
+                provider=validation.provider,
+                credential_kind=validation.credential_kind,
+                credential_secret=validation.canonical_credential.get_secret_value(),
+                validated_model=validation.model,
+                vertex_project_id=validation.vertex_project_id,
+                vertex_client_email=validation.vertex_client_email,
+                vertex_location=validation.vertex_location,
+                correlation_id=body.correlation_id,
+            )
         except AiProviderAuthorityError as error:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -1325,6 +1416,37 @@ def create_app() -> FastAPI:
             ) from error
 
     return application
+
+
+def _record_ai_credential_test(
+    *,
+    store: AiProviderStoreDependency,
+    context: CompanyContextDependency,
+    provider: AiProviderName,
+    credential_kind: AiCredentialKind,
+    outcome: str,
+    validated_model: str | None,
+    correlation_id: UUID,
+) -> None:
+    try:
+        store.record_validation(
+            context=context,
+            provider=provider,
+            credential_kind=credential_kind,
+            outcome=outcome,
+            validated_model=validated_model,
+            correlation_id=correlation_id,
+        )
+    except AiProviderAuthorityError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="company administrator authority is required",
+        ) from error
+    except AiProviderStoreUnavailableError as error:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI provider credential test could not be recorded",
+        ) from error
 
 
 def _require_manager_company(company_id: UUID, context: CompanyContextDependency) -> None:
