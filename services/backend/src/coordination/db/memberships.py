@@ -5,9 +5,9 @@ from typing import Protocol, cast
 from uuid import UUID
 
 import psycopg
-from psycopg.rows import dict_row
 
 from coordination.auth.models import AdministrativeRole
+from coordination.db.session import company_transaction
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,21 +36,14 @@ class PostgresMembershipResolver:
 
     def resolve_active(self, *, user_id: UUID, company_id: UUID) -> ActiveMembership | None:
         try:
-            with (
-                psycopg.connect(
-                    self._dsn,
-                    connect_timeout=self._connect_timeout_seconds,
-                    row_factory=dict_row,
-                ) as connection,
-                connection.transaction(),
-            ):
-                connection.execute("set local role coordination_api")
-                connection.execute(
-                    "select set_config('app.actor_id', %s, true), "
-                    "set_config('app.company_id', %s, true), "
-                    "set_config('app.purpose', %s, true)",
-                    (str(user_id), str(company_id), "membership:resolve"),
-                )
+            with company_transaction(
+                self._dsn,
+                role="coordination_api",
+                actor_id=user_id,
+                company_id=company_id,
+                purpose="membership:resolve",
+                connect_timeout_seconds=self._connect_timeout_seconds,
+            ) as connection:
                 row = connection.execute(
                     """
                         select

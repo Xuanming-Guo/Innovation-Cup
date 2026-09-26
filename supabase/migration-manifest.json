@@ -20,6 +20,11 @@
       "file": "20260926013000_storage_gateway_and_demo_guard.sql",
       "sha256": "9674cc0b337d3af18f4888cff7dad919a795d10437b4ab7a2b4537d9947fb47f",
       "version": "20260926013000"
+    },
+    {
+      "file": "20260926014000_interpretation_pipeline.sql",
+      "sha256": "cbbc078b45ab2553838d8d28dbf5d665cd218195eae04050ef1759c00c4ab359",
+      "version": "20260926014000"
     }
   ]
 }

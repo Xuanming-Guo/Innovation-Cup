@@ -11,6 +11,8 @@ manual-application guidance. It contains no linked-project metadata or credentia
 - Separate non-login API and worker roles that own no business table and cannot bypass RLS.
 - Composite company foreign keys and fail-closed RLS for trusted direct Postgres access.
 - Private quarantine/final buckets and a short authenticated Storage-ticket Edge Function.
+- Manager planning requests, pinned source selections, bounded excerpts, retrieval/model run
+  ledgers, immutable candidate contracts, clarifications and viewer-safe trace steps.
 - Deterministic synthetic company anchors and a guarded demo reset.
 
 The Edge Function validates a real user session, runs only the narrow ticket functions as the
