@@ -49,12 +49,17 @@ From the repository root, with Docker running:
 npm.cmd exec supabase -- start
 npm.cmd exec supabase -- db reset --local
 npm.cmd run test:supabase:db
+npm.cmd run test:supabase:runtime
+npm.cmd exec supabase -- db lint --local
 npm.cmd run test:supabase:functions
 python supabase/scripts/verify_migrations.py
 ```
 
 `db reset --local` is destructive only to the local Supabase stack. Never substitute `--linked`.
-The function test requires Deno; database tests use the project-pinned Supabase CLI.
+The function test requires Deno; database tests use the project-pinned Supabase CLI. The
+runtime-role audit refuses any non-local database, resets only the synthetic demo tenant, and
+proves the Python API and worker can complete the critical workflow using separate `NOINHERIT`
+login roles with no cross-role assumption.
 
 To seed memberships for existing synthetic Auth users, copy `.env.example` to an untracked
 environment file and provide `DEMO_MANAGER_USER_ID`, `DEMO_EMPLOYEE_USER_ID`, and a

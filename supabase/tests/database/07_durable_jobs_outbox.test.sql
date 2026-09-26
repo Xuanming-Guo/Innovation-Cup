@@ -1,5 +1,5 @@
 begin;
-select plan(40);
+select plan(42);
 
 select has_table('app', 'durable_jobs', 'durable jobs exist');
 select has_table('app', 'job_attempts', 'durable attempt ledger exists');
@@ -92,6 +92,21 @@ create temporary table ambiguous_lease (like first_lease) on commit drop;
 grant select, insert, update on durable_results, first_lease, second_lease, outbox_lease,
   expiry_lease, expiry_second_lease, ambiguous_lease
   to coordination_api, coordination_worker;
+
+set local role coordination_api;
+select set_config('app.actor_id', '88888888-aaaa-4aaa-8aaa-aaaaaaaaaaa1', true);
+select set_config('app.company_id', '11111111-1111-4111-8111-111111111111', true);
+select set_config('app.purpose', 'test:durable-ensure', true);
+insert into durable_results
+select 'ensured-trigger-job', job_id::text from app.ensure_durable_job(
+  '11111111-1111-4111-8111-111111111111',
+  'interpretation.run',
+  '88888888-1000-4000-8000-000000000001',
+  'durable-explicit-ensure-0001',
+  decode(repeat('80', 32), 'hex'),
+  '88888888-c000-4000-8000-000000000080'
+);
+reset role;
 
 set local role coordination_worker;
 insert into first_lease select * from app.lease_durable_jobs(
@@ -437,6 +452,13 @@ reset role;
 
 select is((select observed from durable_results where label = 'first-state'),
   'leased', 'ready work is atomically leased');
+select is(
+  (select observed from durable_results where label = 'ensured-trigger-job'),
+  (select id::text from app.durable_jobs
+   where job_kind = 'interpretation.run'
+     and aggregate_id = '88888888-1000-4000-8000-000000000001'),
+  'explicit ensure returns the interpretation job created by the request trigger'
+);
 select is((select observed from durable_results where label = 'first-attempt'),
   '1', 'first lease increments the attempt counter');
 select is((select observed from durable_results where label = 'attempt-ledger'),
@@ -500,6 +522,14 @@ select ok(
     'coordination_worker', 'app.reconcile_unauthorised_durable_jobs()', 'EXECUTE'
   ),
   'worker can invoke requester-authority reconciliation'
+);
+select ok(
+  not has_function_privilege(
+    'coordination_worker',
+    'app.ensure_durable_job(uuid,text,uuid,text,bytea,uuid)',
+    'EXECUTE'
+  ),
+  'worker cannot invoke the manager durable-job command function'
 );
 
 select * from finish();

@@ -65,6 +65,11 @@
       "file": "20260926022000_vertex_service_account_byok.sql",
       "sha256": "d335622042a0ad2b6e3398ce5055269674a8e5b3d6d40c4c7b304eac04fd2c85",
       "version": "20260926022000"
+    },
+    {
+      "file": "20260926023000_durable_interpretation_handoff.sql",
+      "sha256": "f08deff959bc21da02908770e4660588afdb6b3cbf06c7addae14e93064b7b5e",
+      "version": "20260926023000"
     }
   ]
 }

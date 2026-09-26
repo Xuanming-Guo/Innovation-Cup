@@ -74,12 +74,17 @@ and Deno available:
 ```powershell
 npm.cmd exec supabase -- start
 npm.cmd run test:supabase:db
+npm.cmd run test:supabase:runtime
+npm.cmd exec supabase -- db lint --local
 npm.cmd run test:supabase:functions
 python supabase/scripts/verify_migrations.py
 ```
 
-The database tests rebuild their test database from ordered repository migrations. They do not
-connect to a linked or hosted project.
+The database tests rebuild their test database from ordered repository migrations and the
+synthetic company-anchor seed. They do not connect to a linked or hosted project. The runtime-role
+test refuses non-local database hosts, resets only the local synthetic demo tenant, provisions
+separate API/worker login roles, and exercises request interpretation, materialisation, Z3
+planning, approval, commit, outbox delivery, employee submission and manager review.
 
 The backend suite uses a fake typed interpretation gateway and never spends Gemini quota. The
 credential endpoint validates model access without sending company content. Live interpretation

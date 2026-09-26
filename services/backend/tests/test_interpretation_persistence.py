@@ -107,6 +107,22 @@ def install_connection(
     return connection
 
 
+def install_role_recording_connection(
+    monkeypatch: pytest.MonkeyPatch,
+    responses: list[QueryResponse],
+) -> tuple[RecordingConnection, list[dict[str, Any]]]:
+    connection = RecordingConnection(responses)
+    transactions: list[dict[str, Any]] = []
+
+    @contextmanager
+    def transaction(*_args: Any, **kwargs: Any) -> Iterator[RecordingConnection]:
+        transactions.append(kwargs)
+        yield connection
+
+    monkeypatch.setattr(persistence_module, "company_transaction", transaction)
+    return connection, transactions
+
+
 def request_row(*, request_digest: bytes | None = None) -> dict[str, Any]:
     row: dict[str, Any] = {
         "id": REQUEST_ID,
@@ -228,3 +244,23 @@ def test_create_request_rejects_an_idempotency_key_with_different_content(
         )
 
     assert len(connection.calls) == 1
+
+
+def test_worker_reconciliation_read_uses_only_the_worker_role(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection, transactions = install_role_recording_connection(
+        monkeypatch,
+        [{"status": "interpreted", "candidate_digest": "ab" * 32}],
+    )
+
+    result = PostgresInterpretationStore(
+        "postgresql://unused"
+    ).get_worker_request_state(context=context(), request_id=REQUEST_ID)
+
+    assert result.status == "interpreted"
+    assert result.candidate_digest == "ab" * 32
+    assert transactions[0]["role"] == "coordination_worker"
+    statement = connection.calls[0][0].lower()
+    assert "app.durable_jobs" not in statement
+    assert "app.planning_requests" in statement

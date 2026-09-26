@@ -31,6 +31,7 @@
     "test:desktop": "npm run test --workspace @coordination/desktop",
     "test:host": "node --test scripts/local-host.test.mjs",
     "test:supabase:db": "supabase test db",
+    "test:supabase:runtime": "node scripts/backend.mjs python supabase/scripts/verify_runtime_roles.py",
     "test:supabase:functions": "deno test --config supabase/functions/deno.json --lock=supabase/deno.lock --frozen --allow-env supabase/functions/tests",
     "typecheck": "npm run typecheck --workspace @coordination/desktop && node scripts/backend.mjs mypy --config-file services/backend/pyproject.toml services/backend/src services/backend/tests"
   },

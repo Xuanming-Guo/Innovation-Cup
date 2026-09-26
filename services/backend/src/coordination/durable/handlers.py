@@ -74,7 +74,9 @@ class InterpretationJobHandler:
         retrieval_run_id = uuid5(lease.job_id, f"retrieval:{lease.attempt_count}")
         try:
             gateway = self._gateway_factory(context)
-            current = self._store.get_request(context=context, request_id=request_id)
+            current = self._store.get_worker_request_state(
+                context=context, request_id=request_id
+            )
             if current.status in {"interpreted", "clarification_required"}:
                 return JobResult(
                     values={

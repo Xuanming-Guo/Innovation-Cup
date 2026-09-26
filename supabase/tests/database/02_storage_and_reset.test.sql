@@ -1,5 +1,5 @@
 begin;
-select plan(8);
+select plan(9);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, created_at, updated_at)
 values
@@ -57,6 +57,14 @@ values
     '22222222-2222-4222-8222-222222222222',
     'dddddddd-0000-4000-8000-000000000004'
   );
+
+insert into app.employee_workload_state (
+  company_id, employee_id, assigned_count
+) values (
+  '22222222-2222-4222-8222-222222222222',
+  'dddddddd-1000-4000-8000-000000000004',
+  1
+);
 
 insert into app.source_records (
   id, company_id, uploaded_by_employee_id, source_kind, title, authority_status
@@ -189,6 +197,19 @@ select is(
 select lives_ok(
   $$ select app_private.reset_demo_company('22222222-2222-4222-8222-222222222222') $$,
   'demo reset accepts an explicitly marked demo tenant'
+);
+select is(
+  (
+    select count(*)::integer
+    from app.employee_profiles
+    where company_id = '22222222-2222-4222-8222-222222222222'
+  ) + (
+    select count(*)::integer
+    from app.employee_workload_state
+    where company_id = '22222222-2222-4222-8222-222222222222'
+  ),
+  0,
+  'demo reset removes workload dependants before employee profiles'
 );
 
 select * from finish();
