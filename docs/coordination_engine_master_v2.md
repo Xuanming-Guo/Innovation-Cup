@@ -2,7 +2,7 @@
 ## Master prompt, product explanation and implementation specification
 
 **Project:** Recruit Holdings Innovation Cup 2026  
-**Version:** 2.0 | **Revised:** 25 September 2026 | **Replaces:** version 1.0 of 23 September 2026  
+**Version:** 2.0 | **Revised:** 26 September 2026 | **Replaces:** version 1.0 of 23 September 2026<br>
 **Audience:** Founders, product/design collaborators, engineers, reviewers and coding agents  
 **Working label:** Coordination Engine. A final product name has not been selected.  
 **Status:** Updated design and implementation contract. This document is not a runnable application, tested migration package, customer validation or benchmark result. Native macOS and Windows builds are required deliverables of the subsequent implementation.
@@ -12,7 +12,7 @@
 
 ## 0. How to use this document as a master prompt
 
-Act as the product architect, engineering lead and critical implementation partner for the project specified here. Read the entire document before changing its scope or implementing an isolated feature. Preserve human-led coordination as the baseline, native Tauri delivery on macOS and Windows, Supabase shared state, central hosted planning, Z3-based formal scheduling, source-linked evidence and company/team privacy. Use a resource abstraction that can later execute explicitly authorised low-risk tasks through AI agents; the bounded hybrid path is optional P1, not a prerequisite for the human workflow.
+Act as the product architect, engineering lead and critical implementation partner for the project specified here. Read the entire document before changing its scope or implementing an isolated feature. Preserve human-led coordination as the baseline, native Tauri delivery on macOS and Windows, Supabase as the shared database/backend platform, Gemini as the model API, central hosted planning, Z3-based formal scheduling, source-linked evidence and company/team privacy. Use a resource abstraction that can later execute explicitly authorised low-risk tasks through Gemini-backed AI agents; the bounded hybrid path is optional P1, not a prerequisite for the human workflow.
 
 The product should be ambitious in the organisational outcome it changes and disciplined in its first demonstrable workflow. Do not reduce it to a chatbot that generates tasks. Do not expand it into unrestricted autonomous employees, recruitment screening, payroll, employee surveillance or a replacement for every enterprise system. Agent execution is separately permissioned and retains human business ownership and acceptance.
 
@@ -31,11 +31,11 @@ All application-specific designs below are proposals derived from the discussion
 
 ### 0.1 Engineering-agent operating contract
 
-At the start of implementation, inspect the repository and report what actually exists. Do not infer completion from this specification. Produce a requirements-to-tests map and a short dependency-ordered implementation plan. Make a runnable end-to-end slice early, then harden it. Keep migrations, schemas, API contracts and desktop types aligned. Use deterministic checks for identities, permissions, scheduling, state transitions and arithmetic; use language models for interpretation and explanation where appropriate.
+At the start of implementation, inspect the repository and report what actually exists. Do not infer completion from this specification. Produce a requirements-to-tests map and a short dependency-ordered implementation plan. Make a runnable end-to-end slice early, then harden it. Keep migrations, schemas, API contracts and desktop types aligned. Use deterministic checks for identities, permissions, scheduling, state transitions and arithmetic; use Gemini for interpretation and explanation where appropriate.
 
 Return actual test outputs, unresolved failures and simulated capabilities. Never fabricate an integration connection, solver proof, execution trace, customer quote or benchmark result. Do not claim a feature is implemented merely because a screen exists.
 
-Pin and record library versions, model identifiers, prompts and configuration when building. Recheck provider documentation before implementing APIs whose permissions or behaviour may have changed. Keep provider selection configurable rather than hard-coding an assumed newest model.
+Pin and record library versions, Gemini model identifiers, prompts and configuration when building. Recheck provider documentation before implementing APIs whose permissions or behaviour may have changed. Gemini is the confirmed provider, but the exact model ID remains server configuration; never hard-code or claim an assumed newest model.
 
 ### 0.2 Competition boundary
 
@@ -47,7 +47,7 @@ A company does not have one queue of independent tasks. Employees contribute to 
 
 Our product addresses that decision-to-execution gap. A manager describes an outcome, context, priority and deadline. The application helps turn that request into specific contributions, checks them against the existing work model, proposes a schedule and explains its sources and trade-offs. Humans complete the baseline work. An optional, separately approved agent executor can produce a bounded draft for human acceptance. When conditions change, the system proposes a repair rather than treating the whole company as a blank slate.
 
-The native macOS and Windows desktop applications share one frontend codebase and provide the manager's review surface and the employee's work-management surface. Windows uses a setup executable; macOS uses an application bundle, usually distributed in a DMG. A Windows executable is not the Mac application. [S12, S48, S49] Supabase holds the authoritative application records. A hosted backend performs permitted retrieval, structured interpretation, planning and approved synchronisation. Z3 reasons over a formal representation of work; it does not directly understand the company, grant permissions or judge whether a submitted report is good.
+The native macOS and Windows desktop applications share one frontend codebase and provide the manager's review surface and the employee's work-management surface. Windows uses a setup executable; macOS uses an application bundle, usually distributed in a DMG. A Windows executable is not the Mac application. [S12, S48, S49] Supabase is the shared backend platform and holds the authoritative application records. A hosted FastAPI/worker compute tier uses Gemini for permitted structured interpretation and explanation, then performs planning and approved synchronisation. Z3 reasons over a formal representation of work; it does not directly understand the company, grant permissions or judge whether a submitted report is good.
 
 ### 1.1 The product's three central outputs
 
@@ -72,8 +72,9 @@ The defensible promise is narrower: **the system exposes assumptions, checks a d
 | Internal-company focus | The immediate product is coordination of existing employees, not a recruitment marketplace. |
 | Human-led core; hybrid extension | Human task execution remains P0. Version 2 permits a bounded agent-execution extension with a human accountable owner, explicit tool permissions, budgets and acceptance. General autonomous employees remain excluded. |
 | Native Windows and macOS delivery | Use Tauri with shared manager/employee interfaces. Produce and test Windows x64 and Mac Apple Silicon/Intel artifacts; architecture support must be evidenced, not inferred from a browser build. |
-| Supabase shared platform | Use its authentication, Postgres and private file storage; tasks live centrally. |
-| Hosted processing | A hosted backend and hosted model processing are acceptable for the current design. |
+| Supabase database/backend platform | Use Supabase Auth, Postgres, private Storage, Realtime and durable queue/job state as the shared backend platform and system of record. The Python API/worker is the connected application-compute tier. |
+| Gemini model API | Use the Google Gemini API for model-backed interpretation, explanation, risk review and optional bounded agent execution. Calls are server-side through a typed gateway; exact model/configuration is recorded per run. |
+| Hosted processing | A hosted FastAPI service and durable Python worker may process permitted data against Supabase and Gemini. |
 | Tasks primarily managed in the app | External systems synchronise selected information; they do not silently become competing owners of every field. |
 | Capacity-aware multitasking | Permit multiple assigned tasks and overlapping completion windows. Reserve feasible effort segments; exclusive active work cannot be double-booked. Fixed meetings remain exact, passive waiting is separate. |
 | Skills, recent familiarity and learning | Track live workload immediately; accepted evidence informs confirmed contributions and estimates. Recent project/component familiarity is a separate correctable signal, not proof of general skill. |
@@ -94,6 +95,8 @@ Treat deadline extension as unauthorised unless a manager supplies an explicit f
 
 Use one Supabase project with isolated company records for the prototype, not a project per customer. Keep business tables in a non-exposed `app` schema behind the backend. Use permissions and RLS as layered controls. Keep protected integration credentials outside employee-visible tables. Supabase Storage must use its own explicit object-access policies, not an assumption that business-table policies cover files. Authorise before signing short-lived links. Already issued signed URLs or downloaded files are not necessarily recalled by a later access change; use short expiry and a re-authorising proxy for high-sensitivity immediate-revocation requirements. [S19]
 
+Use the official Google Gen AI SDK in the Python worker through one provider adapter. Keep `GEMINI_API_KEY` and the configurable `GEMINI_MODEL` in server-side deployment secrets. Ask Gemini for schema-constrained output where appropriate, but validate syntax, semantics, evidence, authority and current permission independently before the output can affect a plan. A Gemini answer is a candidate interpretation, not a trusted constraint. [S61, S62, S63]
+
 ### 2.2a Version 2 defaults that make the build determinate
 
 Target Windows 11 x64 and macOS 13 or later on Apple Silicon and Intel, subject to the actual dependency minimums. These are product support targets, not universal Tauri minimums. Ship separate native Mac builds by default; a universal bundle is optional. Windows ARM64 and Linux are outside the required release matrix. If a requested machine requires another OS version, resolve that before claiming compatibility. [S48, S52]
@@ -106,7 +109,7 @@ Default hybrid mode is disabled. Its schema/API boundaries are designed now, whi
 
 ### 2.3 Open decisions that should remain visible
 
-The final name, selected model/provider configuration, deployment region, task/priority vocabulary, allowed deadline movement, automated-change envelope, profile-correction process, retention periods, pilot buyer and pricing remain open. So do exact live connector scopes and whether the organisers require a browser-accessible companion to the desktop demo.
+The final name, exact Gemini model/version and safety configuration, Gemini data-processing region/account arrangement, deployment region, task/priority vocabulary, allowed deadline movement, automated-change envelope, profile-correction process, retention periods, pilot buyer and pricing remain open. Gemini itself and Supabase as the shared database/backend platform are confirmed. Exact live connector scopes and whether the organisers require a browser-accessible companion to the desktop demo also remain open.
 
 No application repository or confirmed implementation state is part of the supplied materials. No claim about build progress should be inferred from the level of detail in this document.
 
@@ -346,13 +349,13 @@ A local cache may hold permitted last-seen task data under a documented retentio
 
 ### 10.1 Component map
 
-**Tauri desktop → authenticated FastAPI → application services → Supabase Postgres/Storage.**
+**Tauri desktop → authenticated FastAPI → application services → Supabase Auth/Postgres/Storage/Realtime/Queues.**
 
-**Planning request → durable job → Python planner → bounded retrieval → language-model interpretation → typed constraint compiler → Z3 → candidate validator → approval gate → atomic internal commit → durable external-action worker.**
+**Planning request → Supabase durable job → Python planner → bounded retrieval → Gemini structured interpretation → deterministic admission → typed constraint compiler → Z3 → candidate validator → approval gate → atomic Supabase commit → durable external-action worker.**
 
 **Provider webhooks/polling → authenticated ingestion → source/version updates → impact detection → new planning proposal.**
 
-The worker and API may run from the same repository/container image with different commands. Keep component interfaces modular without creating unnecessary microservices. A native Python Z3 process must remain server-side.
+The worker and API may run from the same repository/container image with different commands. They form the application-compute tier attached to the Supabase backend platform. Keep component interfaces modular without creating unnecessary microservices. Gemini and Z3 calls remain server-side; a native Python Z3 process must never run in the desktop client.
 
 ### 10.2 Stack specification
 
@@ -361,6 +364,7 @@ The worker and API may run from the same repository/container image with differe
 | Desktop shell | Tauri 2 with a minimal Rust boundary, native macOS and Windows builds from one codebase |
 | Interface | React, TypeScript and Vite; share typed API contracts and keep visualisation replaceable |
 | Backend | Python/FastAPI with Pydantic validation, explicit authorisation services and typed responses |
+| Model API | Google Gemini API via the official Google Gen AI SDK and one typed server-side gateway; exact model ID is configuration |
 | Planner | Python `z3-solver`; finite scheduling domain; timeout and memory isolation |
 | Database | Supabase Postgres with migrations, constraints, RLS and a non-exposed business schema |
 | Identity | Supabase Auth; validated bearer sessions at the backend |
@@ -371,7 +375,23 @@ The worker and API may run from the same repository/container image with differe
 | Tests | Python tests for compiler/solver/permissions; frontend unit tests; end-to-end desktop/browser-component tests; connector contract tests |
 | Observability | Structured logs with trace IDs, restricted audit records, job metrics, solver statistics and cost accounting |
 
-FastAPI documents container deployment; Cloud Run provides container execution. A queue-polling worker needs an appropriate continuously allocated worker arrangement or a real triggered job—not an assumption that request-scoped serverless CPU will keep polling after a response. Supabase's hosted Edge Functions currently document a two-second CPU limit, so do not place unconstrained optimisation there. [S22, S44, S45]
+FastAPI documents container deployment; Cloud Run provides container execution. A queue-polling worker needs an appropriate continuously allocated worker arrangement or a real triggered job—not an assumption that request-scoped serverless CPU will keep polling after a response. Supabase documents Edge Functions as server-side TypeScript functions suitable for small AI inference/orchestration, while heavy long-running jobs belong in background workers; its hosted limits include a two-second CPU budget per request. Do not place Z3 or the durable planning pipeline there. [S22, S44, S45, S64]
+
+### 10.2a Gemini and Supabase execution topology
+
+Gemini is the confirmed provider for model-backed interpretation, explanation, risk review and the optional bounded executor. Supabase is the confirmed shared database/backend platform and system of record. The DEFAULT deployment path is:
+
+1. The desktop obtains a Supabase user session and sends the request to FastAPI.
+2. FastAPI validates the token plus current company membership/authority, stores the request and creates a durable Supabase queue/job record.
+3. The Python worker leases that job and retrieves a purpose-bound, permission-filtered, versioned source projection.
+4. One model gateway calls Gemini through the official Google Gen AI SDK. It supplies the configured model ID and an explicit JSON/Pydantic output schema.
+5. Trusted Pydantic and deterministic semantic validators treat the response as an untrusted `CandidateTaskContract`; they check source lineage, authority, tenant, types, units, dates, confidentiality and supported constraint families.
+6. Only then does trusted code freeze a `PlanningSnapshot`, compile a `CompiledModel`, run Z3 and independently validate the concrete candidate.
+7. The worker persists run metadata, diagnostics and the proposed result in Supabase. Realtime carries only a private refresh signal; the client refetches authorised data.
+
+Yes, a Supabase Edge Function can call Gemini over HTTPS. For a short bounded endpoint, validate the Supabase JWT and current scope, load the Gemini credential from Supabase project secrets, call the API, validate structured output, write the permitted result and return an operation/result ID. Do not route through an Edge Function merely to add another hop when the Python worker already owns the job. Edge Functions are optional thin gateways for low-latency or webhook-style operations, not the execution home for Z3, multi-step durable planning or agent runs. Supabase documents third-party API calls, project secrets and short-lived/idempotent design; Google documents the official SDK and JSON-schema structured output. [S61, S62, S64, S65]
+
+Use one server-side Gemini gateway rather than provider calls scattered across FastAPI, workers and Edge Functions. Apply timeouts, per-company rate/cost budgets, bounded retry with jitter only for retryable errors, cancellation and request idempotency. Persist model ID, API/SDK version, prompt version, schema version, safety/configuration values, token/cost/latency data and outcome. Re-evaluate the exact credential type, data-use terms, retention and region before sending real company data.
 
 ### 10.3 Authentication and credentials
 
@@ -379,7 +399,7 @@ Use Supabase identity sessions, validating signature, issuer, audience, expiry a
 
 For desktop OAuth, use a reviewed system-browser redirect flow with PKCE/state protections and a platform-safe token store. Register the supported redirect configuration rather than inventing callback URLs. Distinguish signing into our app from granting access to Microsoft/Google resources.
 
-Keep the project publishable key and URL separate from privileged server secrets. Never bundle a Supabase secret/service key, database password, provider refresh token shared across the company, or model API key in the executable. Short-lived user tokens are not authority to bypass company scope.
+Keep the project publishable key and URL separate from privileged server secrets. Never bundle a Supabase secret/service key, database password, provider refresh token shared across the company, or `GEMINI_API_KEY` in the executable. Use the current supported Gemini authorization-key mechanism in an environment-specific Google Cloud project, keep it in the API/worker deployment secret store or Supabase project secrets when an Edge Function owns the call, and rotate/revoke it independently. Short-lived user tokens are not authority to bypass company scope. [S63, S65]
 
 Connector refresh tokens should be encrypted under a managed server-side key or stored through a secrets mechanism; database rows hold credential references. Rotate and revoke them. Never log bearer tokens, calendar subjects or raw confidential documents in ordinary application telemetry.
 
@@ -503,7 +523,7 @@ Begin with project/task/resource relationships and include reduced shared-capaci
 
 ### Step 5: Interpret into restricted structures
 
-A language model proposes task contracts, hard and preferred capabilities, dependencies, acceptance/review requirements, active-effort estimates, fixed/flexible/passive timing type, requested deadlines, priority inheritance and source evidence. It receives the product-wide priority/displacement policy, allowed deadline windows and current commitments; it cannot grant itself freedom to move them. It flags ambiguity and unsupported requests. Retrieved text is untrusted data, never executable instructions.
+Gemini proposes schema-constrained task contracts, hard and preferred capabilities, dependencies, acceptance/review requirements, active-effort estimates, fixed/flexible/passive timing type, requested deadlines, priority inheritance and source evidence. It receives the product-wide priority/displacement policy, allowed deadline windows and current commitments; it cannot grant itself freedom to move them. It flags ambiguity and unsupported requests. Retrieved text and Gemini output are untrusted data, never executable instructions.
 
 ### Step 6: Validate meaning and authority
 
@@ -573,7 +593,7 @@ The pre-solver pipeline has seven explicit stages and durable boundary artifacts
 
 1. **Authorise and version sources.** Resolve company, actor, purpose and current access before content retrieval. Materialise a `SourceVersionRef` containing source and provider identity, external version, retrieval time, authority classification, access snapshot, freshness/revocation state and permitted structured fields or bounded excerpts. A source's existence, recency or popularity does not make it authoritative.
 2. **Build the bounded evidence manifest.** Traverse the relevant project/task/resource graph, include reduced cross-team capacity facts without private context, and prefer current structured fields over excerpts and optional summary caches. Record selected, omitted, missing, stale and deliberately inaccessible sources. Never search a broad corpus first and filter after a model has seen it.
-3. **Interpret into candidate work contracts.** The language model may propose tasks, deliverables, acceptance criteria, active-effort estimates, timing type, dependencies, reviewer needs, capability/permission requirements, priority interpretation, assumptions and source references. Its output is a `CandidateTaskContract`, not a solver program and not an approved fact.
+3. **Interpret into candidate work contracts.** Gemini may propose tasks, deliverables, acceptance criteria, active-effort estimates, timing type, dependencies, reviewer needs, capability/permission requirements, priority interpretation, assumptions and source references under an explicit response schema. Its output is a `CandidateTaskContract`, not a solver program and not an approved fact. JSON-schema conformance alone does not establish truth, authority or permission.
 4. **Validate semantics, evidence and authority.** Trusted code verifies tenant-scoped identifiers, units, timezones, dates, cycles, supported constraint kinds, evidence linkage, source authority, current permissions and policy authority. It converts admitted items into `ValidatedConstraint` records with stable ID, typed payload, scope, hard/preferred status, evidence and authority references, confidentiality, negotiability and confirmation state. Unsupported or materially ambiguous items stop for clarification; the compiler never guesses a permissive fallback.
 5. **Confirm material interpretations.** A person with the relevant authority confirms critical inferred requirements, estimates, priority, deadline flexibility or disclosure where authoritative evidence is insufficient. Suggestions remain suggestions. Shareable-brief approval remains separate from planning-constraint approval.
 6. **Normalise and freeze the planning snapshot.** Convert confirmed facts to canonical units and UTC-aligned finite slots while preserving original timezone meaning. Separate ownership, flexible windows, exclusive effort, fixed attendance and passive waits. Freeze the task graph, eligibility domain, availability, reservations, requested/agreed/forecast dates, policies, profile/estimate versions, source manifest, base company revision, horizon, slot size and a canonical digest in an immutable `PlanningSnapshot`.
@@ -972,9 +992,9 @@ Record source-claim IDs, projection digest and actual generation/check steps. St
 
 ### 17.6 Model failures and budgets
 
-Handle refusal, invalid output, missing fields, source mismatch, timeout and exhausted cost budgets. Retry only bounded, meaningful failures. Store the model/prompt version and outcome. If interpretation remains unsupported, ask a person; do not silently fall back to ungrounded constraints.
+Handle Gemini refusal, invalid output, missing fields, source mismatch, timeout, throttling and exhausted cost budgets. Retry only bounded, meaningful and safe failures. Store the exact Gemini model ID, SDK/API version, prompt/schema/safety configuration, outcome, latency and cost/token metadata. If interpretation remains unsupported, ask a person; do not silently fall back to ungrounded constraints.
 
-Choose models on measured extraction reliability, structured-output behaviour, latency and total cost. Do not require a named “latest” model in the specification; verify available models when building and record the actual choice.
+Choose the exact Gemini model on measured extraction reliability, structured-output behaviour, latency and total cost. Gemini is confirmed, but no named model is permanently “latest”; verify available models when building, keep the identifier configurable and record the actual choice.
 
 ## 18. Employee learning, recent familiarity and optional AI executors
 
@@ -1014,7 +1034,7 @@ For humans, capacity concerns working windows, effort, skills, review and agreed
 
 ### 18.6 Bounded hybrid execution extension
 
-The first optional executor may draft an HR onboarding checklist from approved documents and save it as a private submission. It cannot hire or score people, provision access, alter payroll, send external mail, spend money or invoke arbitrary shell/network tools. A manager must enable the capability; the task has an approved input set, tool allowlist, budget, timeout, kill switch and human reviewer.
+The first optional executor uses the same server-side Gemini gateway and may draft an HR onboarding checklist from approved documents and save it as a private submission. It cannot hire or score people, provision access, alter payroll, send external mail, spend money or invoke arbitrary shell/network tools. A manager must enable the capability; the task has an approved input set, tool allowlist, budget, timeout, kill switch and human reviewer. No agent receives the Gemini credential or chooses a different provider path.
 
 An authorised, committed agent assignment produces a version-bound run request. The executor validates scope again, retrieves only permitted inputs, calls allowed tools, records actual actions/cost and writes an artifact into quarantine/private storage. Deterministic checks and the named human reviewer determine acceptance. Downstream dependent work waits for acceptance, not model self-certification. [S29]
 
@@ -1286,7 +1306,7 @@ State the exact live and simulated connectors. A fixture is legitimate for testi
 | Open item | Safe default until resolved |
 |---|---|
 | Final name | Use Coordination Engine as a descriptive working label |
-| Model/provider and region | Configurable server-side adapter; select and review before real-data use |
+| Exact Gemini model/configuration and processing region | Gemini is confirmed; configure the exact model server-side and review quality, cost, safety, data use and region before real-data use |
 | Automatic-change limits | Disabled until manager configures an explicit versioned envelope |
 | Deadline flexibility | Zero unless an authorised owner declares a window |
 | Started task movement | Locked by default; explicit review needed |
@@ -1317,7 +1337,7 @@ The central business hypothesis is that this reduces the human cost and disrupti
 
 ## 26. Sources and evidence register
 
-Version 1 retained sources S01–S47 from the 23 September 2026 specification. Version 2 rechecked the key statistical, solver, security and connector references and added native-platform/research references S48–S60 on 25 September 2026. This is not a claim that every retained page was independently re-fetched in version 2. Dates in source notes distinguish historical findings from current documentation. Vendor feature descriptions and case studies are not independent product tests. The product architecture, example scenarios, proposed schema, objectives and test plans are our design recommendations, not findings established by these sources.
+Version 1 retained sources S01–S47 from the 23 September 2026 specification. Version 2 rechecked the key statistical, solver, security and connector references, added native-platform/research references S48–S60 on 25 September 2026, and added Gemini/Supabase execution references S61–S65 on 26 September 2026. This is not a claim that every retained page was independently re-fetched in version 2. Dates in source notes distinguish historical findings from current documentation. Vendor feature descriptions and case studies are not independent product tests. The product architecture, example scenarios, proposed schema, objectives and test plans are our design recommendations, not findings established by these sources.
 
 ### S01. Recruit Holdings Innovation Cup 2026 — overview and judging criteria
 
@@ -1679,8 +1699,38 @@ Participant information, optional recording, data use and consent process. Not a
 
 [Open primary source](https://www.gov.uk/service-manual/user-research/getting-users-consent-for-research)
 
+### S61. Google — Gemini API libraries
+
+Official recommendation for the Google Gen AI SDK and its supported languages. The exact dependency version must still be pinned and tested.
+
+[Open primary source](https://ai.google.dev/gemini-api/docs/libraries)
+
+### S62. Google — Gemini structured outputs
+
+Official JSON-schema/Pydantic structured-output capability. Schema conformance improves parsing but does not establish factual correctness, authority or permission.
+
+[Open primary source](https://ai.google.dev/gemini-api/docs/structured-output)
+
+### S63. Google — Gemini API keys
+
+Official authentication/key guidance. Recheck the current authorization-key mechanism, restrictions and project configuration before deployment.
+
+[Open primary source](https://ai.google.dev/gemini-api/docs/api-key)
+
+### S64. Supabase — Edge Functions
+
+Official server-side TypeScript function guidance: third-party API calls and small AI orchestration fit; heavy long-running jobs should move to background workers.
+
+[Open primary source](https://supabase.com/docs/guides/functions)
+
+### S65. Supabase — Edge Function secrets
+
+Official project-secret and environment-variable guidance. Local secret files remain uncommitted and production secrets are configured through the deployment environment.
+
+[Open primary source](https://supabase.com/docs/guides/functions/secrets)
+
 ## 27. Readout before implementation
 
-A reader should now be able to explain the business problem; the human-led and bounded-hybrid scopes; native Mac/Windows deployment; company and team identity; raw-source retrieval versus cache summaries versus approved briefs; task-specific constraints; product-wide priority; capacity-feasible multitasking; where Z3 fits; bounded solver-guided repair; disclosure and schedule authority; shared-state commitment; durable updates and private refresh signals; operational/familiarity/skill learning; optional agent runs; and the exact evaluation procedure.
+A reader should now be able to explain the business problem; the human-led and bounded-hybrid scopes; native Mac/Windows deployment; the Gemini model boundary and Supabase backend topology; company and team identity; raw-source retrieval versus cache summaries versus approved briefs; task-specific constraints; product-wide priority; capacity-feasible multitasking; where Z3 fits; bounded solver-guided repair; disclosure and schedule authority; shared-state commitment; durable updates and private refresh signals; operational/familiarity/skill learning; optional agent runs; and the exact evaluation procedure.
 
 Before coding, identify the unresolved policy values from Section 24 and inspect the existing repository. Before presenting, identify which capabilities are implemented, simulated or future work. Before claiming impact, fill the evaluation template with actual observations.
