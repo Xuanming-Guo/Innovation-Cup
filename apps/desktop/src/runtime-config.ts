@@ -58,21 +58,23 @@ export function createPublicRuntimeConfig(
 }
 
 export function getPublicRuntimeConfig(env: ImportMetaEnv = import.meta.env): PublicRuntimeConfig {
-  const supabaseUrl = env.VITE_SUPABASE_URL?.trim() || null;
+  const rawSupabaseUrl = env.VITE_SUPABASE_URL?.trim() || null;
   const supabasePublishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || null;
-  if ((supabaseUrl === null) !== (supabasePublishableKey === null)) {
+  const defaultCompanyId = env.VITE_DEFAULT_COMPANY_ID?.trim() || null;
+  if ((rawSupabaseUrl === null) !== (supabasePublishableKey === null)) {
     throw new Error("Supabase URL and publishable key must be configured together");
   }
-  if (supabaseUrl !== null && new URL(supabaseUrl).protocol !== "https:") {
-    throw new Error("VITE_SUPABASE_URL must use HTTPS");
+  if (defaultCompanyId !== null && !COMPANY_ID_PATTERN.test(defaultCompanyId)) {
+    throw new Error("VITE_DEFAULT_COMPANY_ID must be a UUID");
   }
+  const supabaseUrl = rawSupabaseUrl === null ? null : normaliseSupabaseUrl(rawSupabaseUrl);
   return {
     apiOrigin: normaliseOrigin(env.VITE_API_ORIGIN),
     productName: env.VITE_PRODUCT_NAME?.trim() || "Coordination Engine",
     supabaseConfigured: supabaseUrl !== null,
     supabaseUrl,
     supabasePublishableKey,
-    defaultCompanyId: env.VITE_DEFAULT_COMPANY_ID?.trim() || null,
+    defaultCompanyId,
   };
 }
 

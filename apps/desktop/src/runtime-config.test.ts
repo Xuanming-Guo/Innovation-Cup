@@ -38,6 +38,14 @@ describe("getPublicRuntimeConfig", () => {
     ).toThrow("configured together");
   });
 
+  it("rejects an invalid compiled company identifier", () => {
+    expect(() => getPublicRuntimeConfig({
+      VITE_SUPABASE_URL: "https://example.supabase.co",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "public-key",
+      VITE_DEFAULT_COMPANY_ID: "wrong-company",
+    } as ImportMetaEnv)).toThrow("must be a UUID");
+  });
+
   it("persists a validated public deployment override", () => {
     let storedValue: string | null = null;
     const storage = {
