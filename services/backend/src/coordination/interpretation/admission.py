@@ -101,6 +101,15 @@ def admit_candidate(
         issue("duplicate_task_key", "tasks", "candidate task keys must be unique", "reject")
     task_key_set = set(task_keys)
 
+    for index, task in enumerate(contract.tasks):
+        if task.deadline is not None and task.deadline.flexibility == "unknown":
+            issue(
+                "deadline_authority_unknown",
+                f"tasks[{index}].deadline.flexibility",
+                "deadline flexibility requires an explicit authority decision",
+                "clarify",
+            )
+
     assumption_ids = [assumption.assumption_id for assumption in contract.assumptions]
     if len(assumption_ids) != len(set(assumption_ids)):
         issue("duplicate_assumption", "assumptions", "assumption IDs must be unique", "reject")

@@ -203,6 +203,21 @@ def test_material_assumptions_and_unverified_authority_require_clarification() -
     }
 
 
+def test_unknown_deadline_flexibility_requires_authority_clarification() -> None:
+    task_payload = contract().tasks[0].model_dump(mode="json")
+    task_payload["deadline"] = {
+        "requested_at": "2026-09-30T17:00:00+00:00",
+        "timezone": "UTC",
+        "flexibility": "unknown",
+        "bases": task_payload["bases"],
+    }
+
+    result = admit_candidate(contract(tasks=[task_payload]), projection(), now=NOW)
+
+    assert result.status == "clarification_required"
+    assert "deadline_authority_unknown" in {issue.code for issue in result.issues}
+
+
 def test_dependency_cycles_and_unknown_source_versions_are_rejected() -> None:
     task_payload = contract().tasks[0].model_dump(mode="json")
     second_task = {**task_payload, "task_key": "review_guide", "title": "Review guide"}

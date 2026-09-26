@@ -4,7 +4,7 @@
 
 Coordination Engine is a human-led company coordination system proposed for the Recruit Holdings Innovation Cup 2026. It turns an authorised organisational decision into a source-grounded, capacity-feasible and permission-aware change to existing work.
 
-> **Current status:** buildable application foundation with identity/tenancy and typed interpretation slices. The repository contains a Tauri/React desktop shell, FastAPI service, separate Python worker boundary, ordered Supabase migrations, fail-closed company membership resolution, private Storage ticketing, natural-language planning intake, one server-side Gemini adapter, deterministic candidate admission, locked toolchains and Cloud Run definitions. The migrations and provider path are repository-tested but are not claimed as applied to hosted Supabase or exercised with a live Gemini credential. Z3 planning, approval/commitment, employee workflows, signed native releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
+> **Current status:** buildable application foundation with identity/tenancy, typed interpretation and finite planning slices. The repository contains a Tauri/React desktop shell, FastAPI service, separate Python worker boundary, ordered Supabase migrations, fail-closed company membership resolution, private Storage ticketing, natural-language planning intake, one server-side Gemini adapter, deterministic candidate admission, an allowlisted Z3 compiler, bounded repair, independent schedule validation, immutable solver ledgers, locked toolchains and Cloud Run definitions. These paths are repository-tested but are not claimed as applied to hosted Supabase, exercised with a live Gemini credential or yet connected through the durable worker. Approval/commitment, employee workflows, signed native releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
 
 ## Product idea
 
@@ -51,6 +51,7 @@ The initial demonstration connects software and HR operations teams through one 
 | [GitHub workflow](docs/development/github-workflow.md) | Issue, branch, commit, pull-request, merge and repository-rules conventions. |
 | [Tenant and Storage boundary](docs/security/tenant-and-storage-boundary.md) | JWT, current-membership, RLS, private-file and hosted-secret boundaries. |
 | [Interpretation boundary](docs/architecture/interpretation-boundary.md) | Permission-bounded retrieval, Gemini gateway, candidate admission and failure behavior. |
+| [Planning boundary](docs/architecture/planning-boundary.md) | Validated constraints, immutable snapshots, Z3 scopes, diagnosis and independent validation. |
 | [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
 
 ## Delivery priorities

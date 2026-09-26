@@ -13,6 +13,9 @@ manual-application guidance. It contains no linked-project metadata or credentia
 - Private quarantine/final buckets and a short authenticated Storage-ticket Edge Function.
 - Manager planning requests, pinned source selections, bounded excerpts, retrieval/model run
   ledgers, immutable candidate contracts, clarifications and viewer-safe trace steps.
+- Immutable validated constraints and canonical planning snapshots, solver runs with native and
+  application status, source-linked diagnoses, independently validated proposals, placements and
+  concrete schedule blocks.
 - Deterministic synthetic company anchors and a guarded demo reset.
 
 The Edge Function validates a real user session, runs only the narrow ticket functions as the

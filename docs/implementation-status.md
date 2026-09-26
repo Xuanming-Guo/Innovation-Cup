@@ -9,9 +9,9 @@ changes capability state.
 | Desktop foundation | Implemented and Windows build-tested | Tauri/React source, frontend tests, Rust tests, native CI, and local Windows release build | Installed Windows/macOS smoke tests |
 | API foundation and company context | Implemented locally | FastAPI health/version/session endpoints, asymmetric Supabase JWT verification and current-membership tests | Hosted deployment and live Supabase evaluation |
 | Worker foundation | Implemented locally, queue disabled | Separate worker command and tests | Durable queue/lease implementation in #12 |
-| Supabase identity/tenant/storage/interpretation schema | Implemented and repository-tested | Five ordered migrations, migration manifest, pgTAP isolation tests, private ticket Edge Function and boundary tests | Founder applies migrations/functions and provisions runtime secrets; live hosted isolation test |
+| Supabase identity/tenant/storage/interpretation/planning schema | Implemented and repository-tested | Six ordered migrations, migration manifest, pgTAP isolation tests, private ticket Edge Function, immutable planning ledger and boundary tests | Founder applies migrations/functions and provisions runtime secrets; live hosted isolation test |
 | Gemini interpretation | Implemented and fixture-tested locally | Pinned official SDK adapter, strict candidate schema, bounded projection, deterministic admission, run ledger and failure tests | Live credential/provider evaluation; durable worker dispatch in #12 |
-| Z3 planning/validation | Not implemented | Specification only | #9 tests and solver evidence |
+| Z3 planning/validation | Implemented and fixture-tested locally | Pinned native solver, typed allowlist, canonical snapshots/model digests, finite limits, pinned insertion, one bounded authorised repair, stable diagnostics, independent validator and immutable result ledger | Durable worker/API orchestration in #12; hosted performance/evaluation evidence in #13 |
 | Approval/commitment | Not implemented | Specification only | #10 |
 | Employee submission/review | Not implemented | Specification only | #11 |
 | Connected demo/evaluation | Not implemented | Specification only | #13 |

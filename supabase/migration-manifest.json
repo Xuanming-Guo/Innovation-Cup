@@ -25,6 +25,11 @@
       "file": "20260926014000_interpretation_pipeline.sql",
       "sha256": "cbbc078b45ab2553838d8d28dbf5d665cd218195eae04050ef1759c00c4ab359",
       "version": "20260926014000"
+    },
+    {
+      "file": "20260926015000_planning_solver_ledger.sql",
+      "sha256": "26dc91254fddde275705cade5a45660a340d3281ca5c5b12972cf24e9824cd7b",
+      "version": "20260926015000"
     }
   ]
 }

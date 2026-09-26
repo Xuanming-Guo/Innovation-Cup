@@ -18,3 +18,13 @@ fresh permission-bounded projection, calls the server-only Gemini adapter and pe
 untrusted candidate plus deterministic admission result. This call is synchronous in the
 current slice; issue #12 moves dispatch and retry ownership to the durable worker queue. No
 Gemini call occurs unless the interpret operation is invoked and a server-side key is present.
+
+The `coordination.planning` package implements the trusted post-interpretation boundary:
+`ValidatedConstraint` records are frozen into a canonical `PlanningSnapshot`, compiled through
+an allowlisted finite-domain registry, solved with the pinned native Z3 package and checked by
+a separate validator that does not import or trust Z3. It distinguishes malformed input,
+infeasibility, timeout/resource exhaustion, unknown and validated feasible/optimal-within-model
+results. Existing authorised work is pinned first; at most one unchanged-snapshot repair scope is
+tried, and only constraints explicitly marked movable are unpinned. The planning ledger persists
+the immutable artifacts and concrete rows. Durable dispatch and public plan workflow endpoints
+are intentionally deferred to issue #12 rather than running long solves in an API request.
