@@ -27,7 +27,7 @@
     "test:backend": "node scripts/backend.mjs pytest -c services/backend/pyproject.toml services/backend/tests",
     "test:desktop": "npm run test --workspace @coordination/desktop",
     "test:supabase:db": "supabase test db",
-    "test:supabase:functions": "deno test --config supabase/deno.json --lock=supabase/deno.lock --frozen --allow-env supabase/functions/tests",
+    "test:supabase:functions": "deno test --config supabase/functions/deno.json --lock=supabase/deno.lock --frozen --allow-env supabase/functions/tests",
     "typecheck": "npm run typecheck --workspace @coordination/desktop && node scripts/backend.mjs mypy --config-file services/backend/pyproject.toml services/backend/src services/backend/tests"
   },
   "devDependencies": {

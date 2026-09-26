@@ -25,6 +25,7 @@ REQUIRED_PATHS = (
     "docs/coordination_engine_master_v2.md",
     "docs/implementation_master_prompt_v2.md",
     "docs/development/github-workflow.md",
+    "supabase/functions/deno.json",
 )
 
 FORBIDDEN_ROOT_DOCS = (
@@ -57,6 +58,12 @@ def check_required_paths(errors: list[str]) -> None:
     for relative in FORBIDDEN_ROOT_DOCS:
         if (ROOT / relative).exists():
             errors.append(f"project document must live under docs/: {relative}")
+
+    if (ROOT / "supabase/deno.json").exists():
+        errors.append(
+            "Edge Function Deno config must live at supabase/functions/deno.json "
+            "so the Supabase bundler discovers its imports"
+        )
 
 
 def check_embedded_spec(errors: list[str]) -> None:

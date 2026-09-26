@@ -4,6 +4,10 @@ This is the only canonical Supabase tree in the repository. It contains local co
 ordered migrations, deterministic reference seed data, database tests, Edge Functions and
 manual-application guidance. It contains no linked-project metadata or credential value.
 
+The Edge Function dependency map lives at `functions/deno.json`, where both Deno and the
+Supabase deployment bundler discover it. The pinned dependency lock remains `deno.lock` at this
+directory root and is passed explicitly by repository checks.
+
 ## What this slice implements
 
 - Supabase Auth identities resolved to current company membership in FastAPI.

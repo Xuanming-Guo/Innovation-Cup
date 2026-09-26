@@ -67,10 +67,10 @@ jobs:
         run: deno fmt --check supabase/functions
 
       - name: Lint Edge Functions
-        run: deno lint --config supabase/deno.json supabase/functions
+        run: deno lint --config supabase/functions/deno.json supabase/functions
 
       - name: Type-check Edge Functions
-        run: deno check --config supabase/deno.json --lock=supabase/deno.lock --frozen supabase/functions/storage-ticket/index.ts
+        run: deno check --config supabase/functions/deno.json --lock=supabase/deno.lock --frozen supabase/functions/storage-ticket/index.ts
 
       - name: Test Edge Function boundaries
-        run: deno test --config supabase/deno.json supabase/functions/tests
+        run: deno test --config supabase/functions/deno.json supabase/functions/tests
