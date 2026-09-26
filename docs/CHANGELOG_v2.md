@@ -57,6 +57,12 @@ authorised digest readback, corrected demo-reset dependency ordering, and aligne
 volatility with its use of wall-clock time. CI now runs the cross-layer local workflow in addition
 to pgTAP so role/query incompatibilities cannot be hidden by mocked persistence tests.
 
+Desktop session bootstrap now treats private Supabase Realtime as the optional invalidation hint
+defined by the architecture. A blocked or unsupported Realtime channel no longer prevents Auth,
+authenticated host discovery or the initial API refetch; focus, online and interval refetches stay
+active as the fallback. Connected member accounts land on the employee workspace and are not
+shown manager-only navigation; manager and company-administrator roles retain planning access.
+
 The founder subsequently selected a no-hosting-bill Innovation Cup deployment: exactly one cloned
 laptop runs the API, durable worker, a free HTTPS Quick Tunnel and a lease registrar. Installed
 manager and employee clients authenticate with Supabase before resolving the current host

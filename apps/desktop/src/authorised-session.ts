@@ -121,68 +121,61 @@ export function startAuthorisedSession(
       onState({ status: "signed_out" });
       return;
     }
-    if (config.defaultCompanyId === null) {
+    const companyId = config.defaultCompanyId;
+    if (companyId === null) {
       onState({ status: "company_required", userId: session.user.id });
       return;
     }
 
-    void client.realtime
-      .setAuth(session.access_token)
-      .then(() => {
-        if (stopped || currentGeneration !== generation) return;
-        const refetch = async () => {
-          activeController?.abort();
-          const controller = new AbortController();
-          activeController = controller;
-          const apiOrigin = config.apiMode === "supabase-discovery"
-            ? await resolveHostApiOrigin(client, config.defaultCompanyId as string)
-            : config.apiOrigin;
-          const state = await refetchAuthorisedState(
-            apiOrigin,
-            config.defaultCompanyId as string,
-            session,
-            controller.signal,
-          );
-          if (stopped || currentGeneration !== generation) return;
-          onState({
-            status: "connected",
-            userId: state.session.user_id,
-            unreadNotifications: state.notifications.filter((item) => item.seen_at === null).length,
-            administrativeRole: state.session.administrative_role,
-            employeeId: state.session.employee_id,
-            api: {
-              apiOrigin,
-              companyId: state.session.company_id,
-              accessToken: session.access_token,
-            },
-          });
-        };
-        stopRefresh = startAuthorisedRefresh({
-          client,
-          userId: session.user.id,
-          refetch,
-          onError: () => {
-            if (!stopped && currentGeneration === generation) {
-              onState({
-                status: "unreachable",
-                userId: session.user.id,
-                detail: config.apiMode === "supabase-discovery"
-                  ? "Host computer is offline or still starting"
-                  : "Configured API is unreachable",
-              });
-            }
-          },
-        });
-      })
-      .catch(() => {
+    const refetch = async () => {
+      activeController?.abort();
+      const controller = new AbortController();
+      activeController = controller;
+      const apiOrigin = config.apiMode === "supabase-discovery"
+        ? await resolveHostApiOrigin(client, companyId)
+        : config.apiOrigin;
+      const state = await refetchAuthorisedState(
+        apiOrigin,
+        companyId,
+        session,
+        controller.signal,
+      );
+      if (stopped || currentGeneration !== generation) return;
+      onState({
+        status: "connected",
+        userId: state.session.user_id,
+        unreadNotifications: state.notifications.filter((item) => item.seen_at === null).length,
+        administrativeRole: state.session.administrative_role,
+        employeeId: state.session.employee_id,
+        api: {
+          apiOrigin,
+          companyId: state.session.company_id,
+          accessToken: session.access_token,
+        },
+      });
+    };
+    stopRefresh = startAuthorisedRefresh({
+      client,
+      userId: session.user.id,
+      refetch,
+      onError: () => {
         if (!stopped && currentGeneration === generation) {
           onState({
             status: "unreachable",
             userId: session.user.id,
-            detail: "Authorised realtime connection is unavailable",
+            detail: config.apiMode === "supabase-discovery"
+              ? "Host computer is offline or still starting"
+              : "Configured API is unreachable",
           });
         }
-      });
+      },
+    });
+
+    // Realtime is a private invalidation hint, not a prerequisite for Auth,
+    // authenticated host discovery or API authorization.
+    void Promise.resolve()
+      .then(() => client.realtime.setAuth(session.access_token))
+      .catch(() => undefined);
   };
 
   void client.auth.getSession().then(({ data }) => activate(data.session));
