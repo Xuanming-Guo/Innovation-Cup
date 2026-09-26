@@ -4,7 +4,7 @@
 
 Build Coordination Engine: a human-led coordination system that turns an authorised organisational change into a source-grounded, capacity-feasible, permission-aware and low-disruption update to existing work.
 
-The repository currently contains specifications and repository-governance scaffolding only. Do not infer implementation from document detail. Until code and evidence exist, there is no runnable application, deployed schema, native artifact, live integration, benchmark result or validated customer outcome.
+The repository contains a buildable Tauri/React desktop foundation, FastAPI health/version service, separate Python worker process boundary, locked dependencies and reviewable Cloud Run definitions. It does not yet contain a deployed Supabase schema, Gemini call, Z3 planner, product workflow, native release artifact, live connector, benchmark result or validated customer outcome. Use `docs/implementation-status.md` as the capability ledger and do not infer implementation from document detail or design imagery.
 
 ## Required reading and authority
 

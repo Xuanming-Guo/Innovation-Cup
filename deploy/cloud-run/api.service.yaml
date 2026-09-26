@@ -1,0 +1,57 @@
+apiVersion: serving.knative.dev/v1
+kind: Service
+metadata:
+  name: coordination-api
+  annotations:
+    run.googleapis.com/description: Coordination Engine authenticated API
+spec:
+  template:
+    metadata:
+      annotations:
+        autoscaling.knative.dev/minScale: "0"
+        autoscaling.knative.dev/maxScale: "10"
+    spec:
+      containerConcurrency: 40
+      timeoutSeconds: 60
+      serviceAccountName: coordination-api@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/coordination/backend:COMMIT_SHA
+          ports:
+            - name: http1
+              containerPort: 8080
+          resources:
+            limits:
+              cpu: "1"
+              memory: 512Mi
+          env:
+            - name: COORDINATION_ENVIRONMENT
+              value: production
+            - name: COORDINATION_BUILD_COMMIT
+              value: COMMIT_SHA
+            - name: COORDINATION_GOOGLE_CLOUD_PROJECT
+              value: PROJECT_ID
+            - name: COORDINATION_GOOGLE_CLOUD_REGION
+              value: REGION
+            - name: COORDINATION_SUPABASE_URL
+              value: SUPABASE_PROJECT_URL
+            - name: COORDINATION_SUPABASE_JWT_ISSUER
+              value: SUPABASE_JWT_ISSUER
+            - name: COORDINATION_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: coordination-database-url
+                  key: latest
+            - name: COORDINATION_GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: coordination-gemini-api-key
+                  key: latest
+          startupProbe:
+            httpGet:
+              path: /health/live
+            periodSeconds: 2
+            failureThreshold: 15
+          livenessProbe:
+            httpGet:
+              path: /health/live
+            periodSeconds: 30

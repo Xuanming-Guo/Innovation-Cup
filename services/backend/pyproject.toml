@@ -1,0 +1,42 @@
+[project]
+name = "coordination-backend"
+version = "0.1.0"
+description = "Coordination Engine API, worker and shared domain package"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "fastapi==0.141.1",
+  "pydantic-settings==2.15.0",
+  "uvicorn[standard]==0.54.0",
+]
+
+[dependency-groups]
+dev = [
+  "httpx==0.28.1",
+  "mypy==2.3.1",
+  "pytest==9.1.1",
+  "pytest-cov==7.0.0",
+  "ruff==0.16.9",
+]
+
+[tool.pytest.ini_options]
+addopts = "-q --strict-config --strict-markers"
+pythonpath = ["src"]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "UP", "B", "SIM", "RUF"]
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+packages = ["coordination"]
+mypy_path = "src"
+
+[tool.uv]
+required-version = ">=0.11.18,<0.12"
+package = false

@@ -1,0 +1,42 @@
+apiVersion: run.googleapis.com/v1
+kind: WorkerPool
+metadata:
+  name: coordination-worker
+  annotations:
+    run.googleapis.com/description: Coordination Engine durable job worker
+    run.googleapis.com/manualInstanceCount: "1"
+spec:
+  template:
+    spec:
+      serviceAccountName: coordination-worker@PROJECT_ID.iam.gserviceaccount.com
+      containers:
+        - image: REGION-docker.pkg.dev/PROJECT_ID/coordination/backend:COMMIT_SHA
+          command: ["python"]
+          args: ["-m", "coordination.worker.main"]
+          resources:
+            limits:
+              cpu: "1"
+              memory: 1Gi
+          env:
+            - name: COORDINATION_ENVIRONMENT
+              value: production
+            - name: COORDINATION_BUILD_COMMIT
+              value: COMMIT_SHA
+            - name: COORDINATION_GOOGLE_CLOUD_PROJECT
+              value: PROJECT_ID
+            - name: COORDINATION_GOOGLE_CLOUD_REGION
+              value: REGION
+            - name: COORDINATION_SUPABASE_URL
+              value: SUPABASE_PROJECT_URL
+            - name: COORDINATION_SUPABASE_JWT_ISSUER
+              value: SUPABASE_JWT_ISSUER
+            - name: COORDINATION_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: coordination-database-url
+                  key: latest
+            - name: COORDINATION_GEMINI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: coordination-gemini-api-key
+                  key: latest
