@@ -1,0 +1,19 @@
+# Local runtime, downloads and generated evidence only; no parent ignore changes.
+.venv/
+.cache/
+.tmp/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+runs/
+.env
+.env.*
+!.env.example
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.DS_Store

@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SoraWorks · Coordination benchmark</title>
+<meta name="description" content="Local synthetic benchmark and recorded replay inspector. Coordination Engine product results are NOT_RUN.">
+<link rel="stylesheet" href="/style.css"><script src="/app.js" defer></script></head>
+<body>
+<header><div><span class="eyebrow">COORDINATION ENGINE / EVALUATION HARNESS</span><h1>When plans change.</h1><p>Two connected changes at SoraWorks Japan.</p></div><div class="badge">SYNTHETIC BENCHMARK<br><strong>Product: NOT_RUN</strong></div></header>
+<div class="notice">REPLAY — NOT A PRODUCT RESULT · All five workspace providers are simulated. No live API, model or human productivity result.</div>
+<main>
+<section class="overview"><div><h2>One company. Shared capacity.</h2><p id="scale">Loading recorded evidence…</p><p class="muted">All people and work are fictional. Open the inspector to browse the complete synthetic fixture.</p></div><div class="group"><button id="explorer-toggle">Open company & graph inspector</button><button id="rerun">Reset fixture & run A → B</button></div></section>
+<section class="controls" aria-label="Replay controls">
+<div class="group"><button id="case-a" class="selected">A · Deadline pull-in</button><button id="case-b">B · Critical incident</button><label id="case-picker-label" hidden>All scenarios <select id="case-picker"></select></label></div>
+<div class="group"><button id="reset">Reset replay</button><button id="step">Step</button><button id="resume">Resume</button><button id="pause">Pause</button><button id="finish">Show terminal</button></div>
+<label>Inspect captured POV <select id="viewer"><option value="judge">Judge comparison</option><option value="e0000">Manager · Aoi</option><option value="e0006">Security · Kaito</option><option value="e0008">Delivery · Akari</option></select></label>
+</section>
+<div id="status" role="status" aria-live="polite"></div>
+<section id="explorer" hidden>
+<div class="row"><div><span class="eyebrow">JUDGE / DEVELOPMENT INSPECTOR</span><h2>Synthetic company and coordination graph</h2></div><span class="tag">Complete fictional fixture · not a user POV or authorisation claim</span></div>
+<p id="explorer-notice" class="muted"></p>
+<div id="company-facts" class="fact-grid"></div>
+<div class="inspector-tabs group"><button id="directory-tab" class="selected">Company directory</button><button id="graph-tab">Coordination graph</button></div>
+<div id="directory-panel">
+<div class="filters"><label>Search employees<input id="employee-search" placeholder="Name, ID, skill or team"></label><label>Team<select id="employee-team"><option value="">All teams</option></select></label><label>Role<select id="employee-role"><option value="">All roles</option><option value="manager">Managers</option><option value="employee">Employees</option></select></label></div>
+<p id="employee-count" class="muted"></p><div id="employee-directory" class="profile-grid"></div>
+<div class="group"><button id="employee-prev">Previous profiles</button><button id="employee-next">Next profiles</button><span id="employee-page"></span></div>
+<details><summary>Teams and projects</summary><div id="team-directory" class="profile-grid compact"></div><div id="project-directory" class="profile-grid compact"></div></details>
+<details><summary>All task records</summary><div class="filters"><label>Search tasks<input id="task-search" placeholder="Title, ID, project, owner or skill"></label></div><p id="task-count" class="muted"></p><div id="task-directory" class="profile-grid compact"></div><div class="group"><button id="task-prev">Previous tasks</button><button id="task-next">Next tasks</button><span id="task-page"></span></div></details>
+</div>
+<div id="graph-panel" hidden>
+<div class="graph-controls"><label>Method<select id="graph-method"><option value="naive">Naive coordinator</option><option value="product_replay">Recorded replay</option></select></label><label>Scope<select id="graph-scope"><option value="impact">Direct + changed work</option><option value="considered">All considered work</option></select></label></div>
+<p id="graph-notice" class="muted"></p><div id="graph-stats" class="fact-grid"></div>
+<div class="graph-legend"><span class="direct">Requested / inserted</span><span class="changed">Schedule changed</span><span class="affected">Considered</span></div>
+<div id="graph-canvas" class="graph-canvas" aria-label="Derived coordination graph"></div>
+<details open><summary>Accessible graph records</summary><div id="graph-records" class="graph-records"></div></details>
+<details><summary>Selected graph node</summary><pre id="graph-node-detail">Choose a graph node.</pre></details>
+</div>
+</section>
+<section id="story"><div><span class="eyebrow" id="case-label">CHANGE A</span><h2 id="summary"></h2><p class="muted">A starts from the initial snapshot. B uses each method’s resulting A state. Playback speed is presentation-only; metrics use recorded clocks.</p></div><div id="outcomes"></div></section>
+<section id="playback"><div class="row"><h2>Step through the evidence</h2><span id="progress"></span></div><input id="scrubber" type="range" min="0" max="1" value="0" aria-label="Replay event position"><p id="current-event">Initial snapshot. Step to inspect the first action.</p><div class="group" id="bookmarks"><button data-bookmark="conflict_discovered">Contested capacity</button><button data-bookmark="planning_scope_expanded">Priority & scope</button><button data-bookmark="projection_captured">Privacy projection</button><button data-bookmark="actor_response">Actor response</button><button data-bookmark="approval_requested">Approval</button></div></section>
+<section id="pov" hidden><div class="row"><h2>Captured replay projection</h2><span class="tag">Development POV selector · no authentication claim</span></div><p id="pov-notice"></p><div id="pov-states" class="states"></div><div id="cards" class="cards"></div><div id="pov-graph-wrap"><h3>Authorised visible task graph</h3><p class="muted">Derived only from this stored projection; hidden company facts are not added.</p><div id="pov-graph" class="projection-graph"></div></div><details><summary>Permitted captured facts and opaque reservations</summary><pre id="pov-raw"></pre></details></section>
+<section id="scorecard"><div class="row"><div><span class="eyebrow">20 REQUIRED COMPARISON ASPECTS</span><h2>Measured work. Visible limits.</h2></div><span class="tag">Choose a row for definition & provenance</span></div><div class="table-wrap"><table><thead><tr><th>Metric / aspect</th><th>Naive coordinator</th><th>Recorded replay</th><th>Coordination Engine</th></tr></thead><tbody id="metrics"></tbody></table></div><details id="metric-detail"><summary>Metric definition and evidence</summary><div id="metric-explanation"></div><pre id="metric-json"></pre></details></section>
+<section id="trace-section"><div class="row"><h2>Trace inspector</h2><a href="/api/artifact?path=events.csv" target="_blank" rel="noreferrer">CSV export ↗</a></div><div class="filters"><label>Approach<select id="filter-approach"><option value="">All</option><option>naive</option><option>product_replay</option></select></label><label>Actor<input id="filter-actor" placeholder="Actor ID"></label><label>Role<input id="filter-role" placeholder="Role"></label><label>Phase<input id="filter-phase" placeholder="Phase"></label><label>Action<input id="filter-action" placeholder="Action type"></label><label>Entity<input id="filter-entity" placeholder="Task ID"></label><label>Visibility<input id="filter-visibility" placeholder="Label"></label></div><p class="muted">Judge-only full trace. Persona views display only their stored projections. At most 100 events are rendered per page.</p><div id="trace"></div><div class="group"><button id="trace-prev">Previous page</button><button id="trace-next">Next page</button><span id="trace-count"></span></div><details><summary>Raw selected event</summary><pre id="raw-event"></pre></details></section>
+<footer><p>Source authenticity, scheduling validity, approval, internal commitment, external sync, acknowledgement and work acceptance are separate claims.</p><a href="/api/artifact?path=manifest.json" target="_blank" rel="noreferrer">Run manifest ↗</a> · <a href="/api/artifact?path=aggregate.json" target="_blank" rel="noreferrer">Outcome counts ↗</a> · <a href="/api/artifact?path=metric-registry.json" target="_blank" rel="noreferrer">All metric definitions ↗</a> · <a href="/api/artifact?path=company-inspector.json" target="_blank" rel="noreferrer">Synthetic company data ↗</a><p id="run-id"></p></footer>
+</main></body></html>

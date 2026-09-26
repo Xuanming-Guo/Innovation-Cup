@@ -1,0 +1,25 @@
+{
+  "schema_version": "browser-qa-1",
+  "recorded_on": "2026-09-26",
+  "reviewer": "repository user",
+  "environment": {
+    "url": "http://127.0.0.1:8765",
+    "browser_family": "Chrome",
+    "browser_version": "NOT_RECORDED",
+    "viewport_css_pixels": "NOT_RECORDED",
+    "screenshot_pixels": "3140x2112",
+    "run_id": "benchmark-c7ff2f11b6d3425091fc53a0e8698f84"
+  },
+  "scope": "Pre-inspector 0.2.0 desktop judge replay and captured POV presentation",
+  "checks": [
+    {"id": "loopback-page-load", "status": "PASS", "evidence": ["overview-1.png"]},
+    {"id": "desktop-overview-scorecard-trace", "status": "PASS", "evidence": ["overview-1.png", "overview-2.png", "overview-3.png", "overview-4.png"]},
+    {"id": "manager-projection", "status": "PASS", "evidence": ["manager-pov-1.png", "manager-pov-2.png", "manager-pov-3.png"]},
+    {"id": "security-projection", "status": "PASS", "evidence": ["security-pov-1.png", "security-pov-2.png"]},
+    {"id": "delivery-projection", "status": "PASS", "evidence": ["delivery-pov-1.png", "delivery-pov-2.png"]},
+    {"id": "narrow-layout", "status": "NOT_RUN", "reason": "No narrow/mobile viewport capture was supplied."},
+    {"id": "company-graph-inspector", "status": "NOT_RUN", "reason": "The inspector was implemented after these screenshots were captured."}
+  ],
+  "attestation": "The repository user stated that the displayed POVs looked correct and that the local replay worked. Screenshots substantiate rendered states; they do not independently prove every control transition.",
+  "claims_excluded": ["native desktop QA", "product result", "live connector", "mobile layout", "access-control enforcement"]
+}
