@@ -43,7 +43,7 @@ The initial demonstration connects software and HR operations teams through one 
 | [Implementation master prompt](docs/implementation_master_prompt_v2.md) | Self-contained engineering handoff. Part A is the build contract; Part B embeds the complete specification. |
 | [Product and architecture specification](docs/coordination_engine_master_v2.md) | Authoritative product reasoning, policies, architecture, schema, evaluation protocol and evidence register. |
 | [Version 2 changelog](docs/CHANGELOG_v2.md) | Maps substantive revisions and later clarifications. |
-| [Formatted specification](docs/coordination_engine_master_v2.docx) | Word edition for reading and presentation. Markdown remains the reviewable source. |
+| [Formatted specification](docs/coordination_engine_master_v2.docx) | Formatted Version 2 snapshot for reading and presentation. The Markdown specification is authoritative and contains the current clarification. |
 | [GitHub workflow](docs/development/github-workflow.md) | Issue, branch, commit, pull-request, merge and repository-rules conventions. |
 | [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
 

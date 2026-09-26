@@ -17,6 +17,8 @@ Before planning or implementing product behaviour, read:
 
 Part A is the implementation contract. The standalone specification is the authoritative Part B source and must remain byte-equivalent to the text between the embedded-specification markers in the implementation prompt. CI enforces this.
 
+The DOCX is a formatted Version 2 snapshot, not an independently maintained source of truth. Regenerate and review it from the authoritative Markdown before external distribution; never copy newer policy from the DOCX back over the Markdown without comparison.
+
 Use the document status labels precisely:
 
 - **CONFIRMED:** founder-selected requirement.
