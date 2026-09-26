@@ -1,0 +1,28 @@
+{
+  "name": "coordination-engine",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Native human-led coordination workspace",
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": ">=24.0.0 <25",
+    "npm": ">=11.0.0 <12"
+  },
+  "workspaces": [
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @coordination/desktop",
+    "check": "npm run lint && npm run typecheck && npm run test && npm run build && python scripts/check_repository.py",
+    "dev:api": "node scripts/backend.mjs uvicorn coordination.api.main:app --reload",
+    "dev:desktop": "npm run tauri --workspace @coordination/desktop -- dev",
+    "dev:web": "npm run dev --workspace @coordination/desktop",
+    "dev:worker": "node scripts/backend.mjs python -m coordination.worker.main",
+    "doctor": "node scripts/doctor.mjs",
+    "lint": "npm run lint --workspace @coordination/desktop && node scripts/backend.mjs ruff check services/backend/src services/backend/tests",
+    "test": "npm run test:desktop && npm run test:backend",
+    "test:backend": "node scripts/backend.mjs pytest -c services/backend/pyproject.toml services/backend/tests",
+    "test:desktop": "npm run test --workspace @coordination/desktop",
+    "typecheck": "npm run typecheck --workspace @coordination/desktop && node scripts/backend.mjs mypy --config-file services/backend/pyproject.toml services/backend/src services/backend/tests"
+  }
+}

@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Coordination Engine mark">
+  <rect width="512" height="512" rx="112" fill="#0b4d57"/>
+  <path d="M128 164h116a92 92 0 0 1 0 184H128V164Z" fill="none" stroke="#f8f3e8" stroke-width="40"/>
+  <path d="M384 164H268a92 92 0 0 0 0 184h116V164Z" fill="none" stroke="#d77a61" stroke-width="40"/>
+  <circle cx="256" cy="256" r="26" fill="#f8f3e8"/>
+</svg>

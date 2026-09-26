@@ -1,0 +1,35 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Coordination Engine",
+  "version": "0.1.0",
+  "identifier": "com.coordination.engine",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Coordination Engine",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 920,
+        "minHeight": 640,
+        "resizable": true,
+        "fullscreen": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8000 https:"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "category": "Business",
+    "copyright": "Copyright (c) 2026 Coordination Engine contributors",
+    "shortDescription": "Permission-aware company coordination",
+    "targets": "all"
+  }
+}

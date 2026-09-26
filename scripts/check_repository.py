@@ -82,25 +82,35 @@ def check_embedded_spec(errors: list[str]) -> None:
 
 def check_markdown_links(errors: list[str]) -> None:
     ignored_prefixes = ("http://", "https://", "mailto:", "#", "app://")
-    for markdown in ROOT.rglob("*.md"):
-        if ".git" in markdown.parts:
-            continue
-        text = markdown.read_text(encoding="utf-8")
-        for raw_target in MARKDOWN_LINK.findall(text):
-            target = raw_target.strip().strip("<>")
-            if not target or target.startswith(ignored_prefixes):
+    excluded_directories = {".git", ".venv", "dist", "node_modules", "simulation", "target"}
+    for directory, child_directories, filenames in os.walk(ROOT):
+        child_directories[:] = [
+            name for name in child_directories if name not in excluded_directories
+        ]
+        for filename in filenames:
+            if not filename.lower().endswith(".md"):
                 continue
-            target = unquote(target.split("#", 1)[0])
-            if not target:
-                continue
-            resolved = (markdown.parent / target).resolve()
-            try:
-                resolved.relative_to(ROOT)
-            except ValueError:
-                errors.append(f"{markdown.relative_to(ROOT)}: link escapes repository: {raw_target}")
-                continue
-            if not resolved.exists():
-                errors.append(f"{markdown.relative_to(ROOT)}: broken relative link: {raw_target}")
+            markdown = Path(directory, filename)
+            text = markdown.read_text(encoding="utf-8")
+            for raw_target in MARKDOWN_LINK.findall(text):
+                target = raw_target.strip().strip("<>")
+                if not target or target.startswith(ignored_prefixes):
+                    continue
+                target = unquote(target.split("#", 1)[0])
+                if not target:
+                    continue
+                resolved = (markdown.parent / target).resolve()
+                try:
+                    resolved.relative_to(ROOT)
+                except ValueError:
+                    errors.append(
+                        f"{markdown.relative_to(ROOT)}: link escapes repository: {raw_target}"
+                    )
+                    continue
+                if not resolved.exists():
+                    errors.append(
+                        f"{markdown.relative_to(ROOT)}: broken relative link: {raw_target}"
+                    )
 
 
 def check_branch_and_pr_title(errors: list[str]) -> None:

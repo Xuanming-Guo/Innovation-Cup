@@ -1,0 +1,54 @@
+name: Native shell checks
+
+on:
+  pull_request:
+    paths:
+      - "apps/desktop/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/native-build.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-shell:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+          - os: macos-latest
+            target: aarch64-apple-darwin
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 25
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@4305c38b25d97ef35a8ad1f985ccf2d2242004f2
+        with:
+          toolchain: 1.94.0
+          targets: ${{ matrix.target }}
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Check native Rust boundary
+        working-directory: apps/desktop/src-tauri
+        run: cargo check --locked --target ${{ matrix.target }}

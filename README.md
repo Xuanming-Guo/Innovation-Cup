@@ -4,7 +4,7 @@
 
 Coordination Engine is a human-led company coordination system proposed for the Recruit Holdings Innovation Cup 2026. It turns an authorised organisational decision into a source-grounded, capacity-feasible and permission-aware change to existing work.
 
-> **Current status:** specification and repository foundation only. No runnable application, migration, native installer, live connector, benchmark result or customer validation exists in this repository yet.
+> **Current status:** buildable application foundation. The repository now contains a Tauri/React desktop shell, FastAPI health/version service, separate Python worker boundary, locked toolchains and Cloud Run definitions. Product workflows, Supabase migrations, Gemini calls, Z3 planning, native release artifacts, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
 
 ## Product idea
 
@@ -64,7 +64,10 @@ The initial demonstration connects software and HR operations teams through one 
 docs/                    Product, architecture and implementation specifications
   development/           Repository workflow and engineering process
 scripts/                 Dependency-free repository checks
-supabase/                Planned canonical home for migrations, seeds, tests and Edge Functions
+apps/desktop/            Tauri 2 and React/TypeScript native desktop foundation
+services/backend/        FastAPI API and separate durable-worker process boundary
+deploy/cloud-run/        Reviewable API service and worker-pool definitions
+supabase/                Canonical home for future migrations, seeds, tests and Edge Functions
 AGENTS.md                 Agent operating context
 README.md                 Project entry point and honest status
 ```
@@ -88,7 +91,25 @@ Run the current repository contract locally with:
 python scripts/check_repository.py
 ```
 
-Application commands such as `npm test` will be added only when their implementations exist. See the [complete GitHub workflow](docs/development/github-workflow.md).
+Install the locked foundation dependencies and inspect local prerequisites:
+
+```powershell
+npm.cmd ci
+uv sync --project services/backend --locked
+npm.cmd run doctor
+```
+
+Run the API, worker and native desktop in separate terminals:
+
+```powershell
+npm.cmd run dev:api
+npm.cmd run dev:worker
+npm.cmd run dev:desktop
+```
+
+Run the issue-level application check with `npm.cmd run check`. The worker currently reports
+foundation status and deliberately does not consume jobs. See [local development](docs/development/local-development.md),
+the [Cloud Run boundary](docs/development/cloud-run.md) and the [complete GitHub workflow](docs/development/github-workflow.md).
 
 ## Security and evidence
 

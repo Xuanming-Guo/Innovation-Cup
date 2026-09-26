@@ -1,0 +1,55 @@
+name: Application checks
+
+on:
+  pull_request:
+    paths:
+      - "apps/**"
+      - "services/**"
+      - "deploy/**"
+      - "scripts/**"
+      - "package.json"
+      - "package-lock.json"
+      - "tsconfig.base.json"
+      - ".github/workflows/application.yml"
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: application-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  application:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v7.2.3
+        with:
+          version: "0.11.18"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
+      - name: Install JavaScript dependencies
+        run: npm ci
+
+      - name: Synchronize locked Python environment
+        run: uv sync --project services/backend --locked
+
+      - name: Run application checks
+        run: npm run check
