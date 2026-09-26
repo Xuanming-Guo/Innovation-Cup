@@ -140,7 +140,7 @@ def smoke(seed: int = 17, example: Path = EXAMPLE, run_id: str | None = None) ->
     write_json(target / "metric.json", observation)
     event("metric_recorded", f"Recorded bootstrap metric as {observation.status}.", "succeeded",
           observation.source_event_or_artifact_refs, ("metric.json",))
-    event("run_completed", f"Replay smoke ended {terminal}; Coordination Engine remains NOT_RUN.",
+    event("run_completed", f"Replay smoke ended {terminal}; ALTO remains NOT_RUN.",
           "succeeded" if terminal == "COMPLETED" else "failed", ("metric.json",), ("manifest.json",))
     with (target / "timeline.txt").open("x", encoding="utf-8") as stream:
         stream.write(REPLAY_LABEL + "\n")
@@ -196,6 +196,6 @@ def main() -> int:
     metric = json.loads((target / "metric.json").read_text())
     print(REPLAY_LABEL)
     print(f"{manifest['status']}: {metric['metric_id']}={metric['value']} ({metric['status']})")
-    print("Coordination Engine: NOT_RUN")
+    print("ALTO: NOT_RUN")
     print(target.relative_to(ROOT))
     return 0 if manifest["status"] == "COMPLETED" else 1

@@ -1,6 +1,8 @@
-# Coordination Engine simulation — implementation prompt
+# ALTO simulation — implementation prompt
 
-**Purpose:** Build a deterministic, inspectable simulation environment and evaluation harness that can drive the real Coordination Engine product when it becomes available, compare its observed outcomes with a reproducible naive coordinator, and demonstrate task-management impact under the synthetic workload defined in `simulation/coordination_engine_simulation_context_v2.docx`.
+**Product name:** ALTO. Use ALTO in newly authored prompts, scripts and visible labels. Preserve legacy package/method identifiers, source filenames and historical evidence; older source branding does not override this name.
+
+**Purpose:** Build a deterministic, inspectable simulation environment and evaluation harness that can drive the real ALTO product when it becomes available, compare its observed outcomes with a reproducible naive coordinator, and demonstrate task-management impact under the synthetic workload defined in `simulation/coordination_engine_simulation_context_v2.docx`.
 
 **Status:** This is an implementation prompt, not a claim that the simulation, product backend, solver, integrations, benchmarks, or measured efficiency results already exist.
 
@@ -64,13 +66,13 @@ Do not stop after writing a plan or broad scaffold. Do not report success while 
 Build a runnable, product-independent simulation environment and evaluation harness that lets judges observe, step by step, how the same organisational changes are handled by:
 
 1. A transparent naive coordinator using local greedy assignment, conflict-by-conflict cascade repair, and hierarchical communication relays.
-2. The actual Coordination Engine system under test, connected through a stable adapter and expected to use its product implementation of bounded authorised context, typed constraints, affected-subgraph planning, Z3 schedule construction, independent validation, approval, commitment, synchronisation and permission-safe communication.
+2. The actual ALTO system under test, connected through a stable adapter and expected to use its product implementation of bounded authorised context, typed constraints, affected-subgraph planning, Z3 schedule construction, independent validation, approval, commitment, synchronisation and permission-safe communication.
 
-The simulation owns the synthetic environment, scenario injection, fixture workspaces, deterministic actors, naive baseline, independent scoring validator, observation/trace capture, metrics and judge replay. It must **not** implement a second Coordination Engine inside `simulation/`. In particular, do not duplicate the product's interpretation pipeline, trusted constraint compiler, Z3 planner, approval policy, transaction/commit service, outbox worker, notification service, learning service or manager/employee task application.
+The simulation owns the synthetic environment, scenario injection, fixture workspaces, deterministic actors, naive baseline, independent scoring validator, observation/trace capture, metrics and judge replay. It must **not** implement a second ALTO inside `simulation/`. In particular, do not duplicate the product's interpretation pipeline, trusted constraint compiler, Z3 planner, approval policy, transaction/commit service, outbox worker, notification service, learning service or manager/employee task application.
 
-Until the product integration exists, provide a clearly labelled recorded-replay or contract-stub adapter so the environment, baseline, validator, metrics and judge interface can be developed. Stub/replay output is plumbing evidence only and may not be shown as measured Coordination Engine performance. Product metrics remain `NOT_RUN` until a real product build executes the scenario through the adapter.
+Until the product integration exists, provide a clearly labelled recorded-replay or contract-stub adapter so the environment, baseline, validator, metrics and judge interface can be developed. Stub/replay output is plumbing evidence only and may not be shown as measured ALTO performance. Product metrics remain `NOT_RUN` until a real product build executes the scenario through the adapter.
 
-Both approaches must start from semantically equivalent immutable initial state and receive the same authorised facts, effort estimates, skills, permissions, priority policy, deadlines, and allowed flexibility. Preserve a canonical input manifest and product-mapping report proving equivalence. Do not disadvantage the baseline by withholding facts or granting Coordination Engine freedoms the baseline does not have.
+Both approaches must start from semantically equivalent immutable initial state and receive the same authorised facts, effort estimates, skills, permissions, priority policy, deadlines, and allowed flexibility. Preserve a canonical input manifest and product-mapping report proving equivalence. Do not disadvantage the baseline by withholding facts or granting ALTO freedoms the baseline does not have.
 
 The simulation must demonstrate efficiency in the narrow, defensible sense defined by the study: fewer unnecessary changes, replans, coordination relays, duplicate transmissions, invalid delegations, overload minutes, dependency violations, and lower-priority collateral changes, plus faster service to Critical work where the shared constraints permit it. These are synthetic benchmark outcomes, not measured human productivity, customer value, or real-world time savings.
 
@@ -124,7 +126,7 @@ Required actors include:
 - Required reviewers.
 - Naive coordinator.
 - Scenario driver and deterministic human-response policy for clarifications, approvals, acknowledgements and review.
-- Coordination Engine system-under-test adapter and observer; product-internal planner/orchestrator actions are imported when exposed, not recreated.
+- ALTO system-under-test adapter and observer; product-internal planner/orchestrator actions are imported when exposed, not recreated.
 - Neutral benchmark validator, independent of both the naive baseline and product validator.
 - Simulated workspace providers/delivery environment for source reads and external-action outcomes.
 - Benchmark observer/collector.
@@ -185,7 +187,7 @@ The current local implementation may persist JSON, JSONL, and CSV artifacts. Do 
 
 ### 4.3 System-under-test and planner boundary
 
-The product specification assigns Z3 planning and independent product-side candidate validation to the real Coordination Engine. Do not implement Z3 compilation, solving, diagnostic repair or product candidate validation in this simulation package.
+The product specification assigns Z3 planning and independent product-side candidate validation to the real ALTO. Do not implement Z3 compilation, solving, diagnostic repair or product candidate validation in this simulation package.
 
 When the connected product exposes the required trace, observe and preserve:
 
@@ -360,7 +362,7 @@ Implement this comparator in the harness exactly enough to be fair and reproduci
 
 Do not let the baseline call the neutral validator iteratively as a repair oracle. Record deterministic tie-breakers, iteration cap and version. Do not portray this synthetic comparator as a complete measured representation of a customer's current manual process.
 
-### 6.2 Coordination Engine system-under-test path
+### 6.2 ALTO system-under-test path
 
 Implement the driver/observer, not the product workflow:
 
@@ -400,13 +402,13 @@ For tiny cases, add a brute-force or otherwise independent oracle where practica
 
 ### 6.4 Evaluation layers and product-controlled variants
 
-The required judge comparison remains the reproducible naive coordinator versus Coordination Engine. Build the runner and manifests so the following master-spec evaluation layers can also be measured without contaminating the main comparison:
+The required judge comparison remains the reproducible naive coordinator versus ALTO. Build the runner and manifests so the following master-spec evaluation layers can also be measured without contaminating the main comparison:
 
 | Layer | Required or conditional comparison |
 |---|---|
 | Interpretation | Generator-authored expected constraints versus observed product interpretation; score only when the product exposes the necessary evidence and a real model/fixture mode is identified |
 | Retrieval | Bounded product retrieval versus full **permitted** context only if the product exposes a controlled evaluation mode; never build a second interpreter or create an unrestricted-secret condition |
-| Scheduling | Required naive greedy/cascade baseline versus the actual Coordination Engine on equivalent inputs; optional LLM-only or other planner ablations exist only if the product itself exposes them |
+| Scheduling | Required naive greedy/cascade baseline versus the actual ALTO on equivalent inputs; optional LLM-only or other planner ablations exist only if the product itself exposes them |
 | Stability | Product stability-aware repair versus an unconstrained-rescheduling product mode only if supported with identical hard constraints/freedoms |
 | Execution | Inject stale revisions, competing commits, duplicate jobs/provider events, timeouts, human edits and partial provider failure; measure wrong/duplicate effects and recovery |
 | End to end | Naive synthetic coordination versus the connected product path, including clarification, approval, commit, communication and terminal failure |
@@ -550,7 +552,7 @@ The captured manager POV/judge panel must show, when the product exposes it:
 - Source-linked constraint and policy basis.
 - Required approvals and their state.
 - Interpretation, source freshness, feasibility, candidate validation, disclosure approval, schedule approval, internal commitment, external synchronisation, notification/refetch, employee acknowledgement and work-acceptance states separately.
-- Side-by-side naive versus Coordination Engine metrics.
+- Side-by-side naive versus ALTO metrics.
 - Metric definitions, evidence class, numerator/denominator, source trace links and `NOT_MEASURED` reasons.
 - A trace/log inspector with filtered and raw-event views.
 
@@ -915,7 +917,7 @@ Drive these through `SystemUnderTestPort`; do not implement their behavior in th
 
 ### 13.2 Product-connected comparison gate
 
-A side-by-side Coordination Engine result may be shown to judges only when:
+A side-by-side ALTO result may be shown to judges only when:
 
 - A real adapter identifies the exact product commit/build, API/schema versions and supported capabilities.
 - The semantic input-mapping check proves the product and naive baseline received equivalent facts, permissions, estimates, policies, deadlines and freedoms.
@@ -949,10 +951,10 @@ Deliver:
 
 ## 15. Final implementation directive
 
-Build the smallest complete and inspectable environment that can evaluate the product rather than recreating it. The harness must generate realistic authorised conditions, run the fixed naive comparator, drive and observe the real Coordination Engine through a thin adapter, independently score both outcomes and explain every reported number. Make no change outside `simulation/` while doing so.
+Build the smallest complete and inspectable environment that can evaluate the product rather than recreating it. The harness must generate realistic authorised conditions, run the fixed naive comparator, drive and observe the real ALTO through a thin adapter, independently score both outcomes and explain every reported number. Make no change outside `simulation/` while doing so.
 
 The simulation should make this claim—and only this claim:
 
-> Under the declared synthetic company, policies, inputs and workload, the identified Coordination Engine product build produced the recorded outcomes relative to the reproducible naive coordinator.
+> Under the declared synthetic company, policies, inputs and workload, the identified ALTO product build produced the recorded outcomes relative to the reproducible naive coordinator.
 
 This claim may be made only after a real product-connected run. Replay mode must instead state that the harness is ready and product results are not yet measured. Neither mode may claim measured human productivity, customer validation or guaranteed performance in a real company.

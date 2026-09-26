@@ -1,4 +1,4 @@
-"""Synthetic harness only. This package contains no Coordination Engine implementation."""
+"""Synthetic harness only. This package contains no ALTO implementation."""
 
 SPEC_VERSION = "0.5.0"
 HARNESS_VERSION = "0.1.0"

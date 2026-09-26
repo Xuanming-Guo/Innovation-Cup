@@ -183,3 +183,15 @@ supplied eleven screenshots. Preserve that as real pre-inspector desktop and
 loopback evidence. It does not establish a narrow viewport or the subsequently
 added company/graph inspector. Browser discovery for the updated pass still
 returns `[]`; §13.1 therefore remains BLOCKED on those two precise checks.
+
+## D019 — 2026-09-26 — CONFIRMED: ALTO product name
+
+The founder renamed the product **ALTO** and explicitly requested propagation through
+simulation and demo prompts/scripts. Use ALTO for current prose, narration, exports,
+CLI output and judge UI labels. Keep `coordination_sim`, `coordination_engine_product`,
+reference filenames, immutable source DOCX and archived evidence unchanged. This is a
+naming revision, not a change to specification 0.5.0's evaluation or product contracts.
+
+The implementation prompt is revised under that explicit authorisation. Its original
+bootstrap SHA-256 remains recorded in STATUS; the boundary guard pins the revised file.
+No historical results or capability status are reclassified by the rename.

@@ -1,8 +1,12 @@
-# Coordination Engine simulation harness
+# ALTO simulation harness
+
+Current product name: **ALTO**. Existing `coordination_sim` package names,
+`coordination_engine_product` method identifiers and source filenames remain stable;
+archived runs retain their original labels and evidence.
 
 Specification **0.5.0**; current benchmark harness **0.3.0** (`benchmark-2`).
 The original `bootstrap-1` smoke path remains compatible. **Section 13.2: NOT_RUN.**
-This package evaluates synthetic work; it contains no Coordination Engine backend.
+This package evaluates synthetic work; it contains no ALTO backend.
 
 The offline core runs: coherent fixtures → five simulated workspaces → mandatory
 naive greedy/cascade comparator or authored replay → independent neutral checks →

@@ -11,7 +11,8 @@ ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_HEAD = "d0bf6fe30b48aab20047f4b254b97f4d6195a5bb"
 EXPECTED_BRANCH = "feat/13-simulation"
 IMMUTABLE = {
-    "simulation_implementation_prompt.md": "efd849f8e7064a2da3f91c43de17ad6ece6e999a57617f1ee246dc562fe7a8e8",
+    # Founder-authorised ALTO naming revision; the original prompt hash is in STATUS.md.
+    "simulation_implementation_prompt.md": "1600901a010a64dc04786046b91b0ce5ce1d03616fe63d7658f638944b369328",
     "coordination_engine_simulation_context_v2.docx": "7fb753efa9a798855d3e5c56fa85e2e468cadff7139b47b8609be2e82dc72eae",
 }
 

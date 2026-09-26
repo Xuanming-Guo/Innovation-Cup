@@ -1,4 +1,4 @@
-"""Version 2 benchmark environment. No Coordination Engine business services."""
+"""Version 2 benchmark environment. No ALTO business services."""
 
 VERSION = "0.3.0"
 CONTRACT = "benchmark-2"
