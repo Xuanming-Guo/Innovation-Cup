@@ -31,3 +31,12 @@ Apple Developer ID signing/notarisation and Windows Authenticode signing need fo
 certificates and CI secrets that are not present in the repository. These artifacts are suitable
 for controlled internal/demo distribution; they are not represented as frictionless public-store
 releases. Do not tell users to disable operating-system protections globally.
+
+## Latest build evidence
+
+Workflow [run 1](https://github.com/Xuanming-Guo/Innovation-Cup/actions/runs/36256960403)
+completed successfully for commit `ec45bcbc35a5b912b0e27178f48f2e29a1df46f0` on 26 September
+2026. It uploaded `coordination-engine-windows-x64`, `coordination-engine-macos-arm64` and
+`coordination-engine-macos-x64`, each with a verified `release-manifest.json`. GitHub retains this
+manual-run artifact set until 26 October 2026. Compilation and upload passed; installed-app and
+connected cross-platform smoke tests remain not run.
