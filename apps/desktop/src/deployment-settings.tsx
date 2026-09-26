@@ -38,6 +38,8 @@ export function DeploymentSettings({ config, onReset, onSave }: DeploymentSettin
           <p>
             Production installers already contain these public values. This local override is for
             development, operator recovery, or intentionally connecting a different deployment.
+            {config.apiMode === "supabase-discovery" &&
+              " This installer currently discovers the laptop host after sign-in; saving here switches this device to a static API origin."}
           </p>
         </div>
         <span className={`connection-state ${config.supabaseConfigured && config.defaultCompanyId ? "configured" : "not_configured"}`}>

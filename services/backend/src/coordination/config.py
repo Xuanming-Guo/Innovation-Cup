@@ -3,6 +3,7 @@ from __future__ import annotations
 from functools import lru_cache
 from pathlib import Path
 from typing import Literal
+from uuid import UUID
 
 from pydantic import Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -52,12 +53,36 @@ class Settings(BaseSettings):
     worker_renewal_seconds: float = Field(default=30.0, ge=5.0, le=300.0)
     worker_instance_name: str | None = Field(default=None, max_length=200)
 
+    # Single-laptop hosted-demo registrar. These values are supplied only to the
+    # host registrar container and are never exposed to desktop clients.
+    host_company_id: UUID | None = None
+    host_actor_id: UUID | None = None
+    host_instance_id: UUID | None = None
+    host_tunnel_log_path: Path = Path("/state/cloudflared.log")
+    host_ready_path: Path = Path("/tmp/coordination-host-registrar.ready")
+    host_poll_seconds: float = Field(default=2.0, ge=0.5, le=30.0)
+    host_heartbeat_seconds: float = Field(default=30.0, ge=10.0, le=60.0)
+    host_ttl_seconds: int = Field(default=120, ge=60, le=300)
+    host_health_timeout_seconds: float = Field(default=10.0, ge=1.0, le=30.0)
+
     @property
     def worker_configuration_valid(self) -> bool:
         return (
             self.database_url is not None
             and self.worker_renewal_seconds < self.worker_lease_seconds
             and not (self.interpretation_mode == "fixture" and self.environment == "production")
+        )
+
+    @property
+    def host_registrar_configuration_valid(self) -> bool:
+        return (
+            self.database_url is not None
+            and self.host_company_id is not None
+            and self.host_actor_id is not None
+            and self.host_instance_id is not None
+            and self.host_heartbeat_seconds < self.host_ttl_seconds
+            and len(self.build_commit) == 40
+            and all(character in "0123456789abcdef" for character in self.build_commit)
         )
 
     @property

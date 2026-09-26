@@ -27,11 +27,13 @@ the connected cross-platform smoke procedure in
 [production and hosted-demo setup](development/production-setup.md). Do not change
 `installedAppSmokeTest` from `not-run` without recording real machine/OS evidence.
 
-Before compilation, the workflow requires the repository Actions variables `VITE_API_ORIGIN`,
-`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_DEFAULT_COMPANY_ID`. It accepts
-only HTTPS origins, an `sb_publishable_...` client key and a UUID. These are public build inputs,
-not Actions secrets. A missing or privileged-looking key fails the job rather than producing an
-installer that asks employees to configure deployment coordinates.
+Before compilation, the workflow requires the repository Actions variables `VITE_API_MODE`,
+`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_DEFAULT_COMPANY_ID`. The selected
+laptop-host build uses `VITE_API_MODE=supabase-discovery` and omits `VITE_API_ORIGIN`; a static
+deployment must provide a canonical HTTPS origin. The validator accepts only an
+`sb_publishable_...` client key and a UUID. These are public build inputs, not Actions secrets. A
+missing or privileged-looking key fails the job rather than producing an installer that asks
+employees to configure deployment coordinates.
 
 Apple Developer ID signing/notarisation and Windows Authenticode signing need founder-owned
 certificates and CI secrets that are not present in the repository. These artifacts are suitable

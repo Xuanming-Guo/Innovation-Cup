@@ -4,7 +4,7 @@ const COMPANY_ID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const REQUIRED_VARIABLES = [
-  "VITE_API_ORIGIN",
+  "VITE_API_MODE",
   "VITE_SUPABASE_URL",
   "VITE_SUPABASE_PUBLISHABLE_KEY",
   "VITE_DEFAULT_COMPANY_ID",
@@ -39,10 +39,13 @@ function requireHttpsOrigin(value, name) {
 }
 
 export function validatePublicReleaseConfig(environment) {
-  const apiOrigin = requireHttpsOrigin(
-    required(environment, "VITE_API_ORIGIN"),
-    "VITE_API_ORIGIN",
-  );
+  const apiMode = required(environment, "VITE_API_MODE");
+  if (apiMode !== "static" && apiMode !== "supabase-discovery") {
+    throw new Error("VITE_API_MODE must be static or supabase-discovery");
+  }
+  const apiOrigin = apiMode === "static"
+    ? requireHttpsOrigin(required(environment, "VITE_API_ORIGIN"), "VITE_API_ORIGIN")
+    : null;
   const supabaseUrl = requireHttpsOrigin(
     required(environment, "VITE_SUPABASE_URL"),
     "VITE_SUPABASE_URL",
@@ -62,7 +65,7 @@ export function validatePublicReleaseConfig(environment) {
     throw new Error("VITE_DEFAULT_COMPANY_ID must be a UUID");
   }
 
-  return { apiOrigin, supabaseUrl, supabasePublishableKey, defaultCompanyId };
+  return { apiMode, apiOrigin, supabaseUrl, supabasePublishableKey, defaultCompanyId };
 }
 
 function isMainModule() {

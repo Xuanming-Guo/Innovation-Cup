@@ -36,14 +36,20 @@ export function App() {
   const sessionController = useRef<AuthorisedSessionController | null>(null);
 
   useEffect(() => {
+    const activeOrigin = authorisedSession.status === "connected"
+      ? authorisedSession.api.apiOrigin
+      : config.apiMode === "static"
+        ? config.apiOrigin
+        : null;
+    if (activeOrigin === null) return;
     const controller = new AbortController();
     const timeout = window.setTimeout(() => controller.abort(), 4_000);
-    void getServiceStatus(config, controller.signal)
+    void getServiceStatus({ ...config, apiOrigin: activeOrigin }, controller.signal)
       .then(setServiceStatus)
       .catch(() => setServiceStatus({ state: "unreachable", detail: "API health check timed out" }))
       .finally(() => window.clearTimeout(timeout));
     return () => { window.clearTimeout(timeout); controller.abort(); };
-  }, [config]);
+  }, [authorisedSession, config]);
 
   useEffect(() => {
     const controller = startAuthorisedSession(config, setAuthorisedSession);
@@ -95,6 +101,15 @@ export function App() {
   const workspaceKey = authorisedSession.status === "connected"
     ? `${authorisedSession.userId}:${authorisedSession.api.companyId}`
     : "disconnected";
+  const displayedServiceStatus = config.apiMode === "supabase-discovery"
+    && authorisedSession.status !== "connected"
+    ? {
+        state: authorisedSession.status === "unreachable" ? "unreachable" : "checking",
+        detail: authorisedSession.status === "unreachable"
+          ? authorisedSession.detail
+          : "Sign in to discover the active host computer",
+      } satisfies ServiceStatus
+    : serviceStatus;
 
   return (
     <div className="app-shell">
@@ -131,7 +146,7 @@ export function App() {
                   : `Session ${authorisedSession.status.replace("_", " ")}`}
               </span>
             )}
-            <span className={`service-chip ${serviceStatus.state}`} title={serviceStatus.detail}><span className="status-dot" aria-hidden="true" />API {serviceStatus.state}</span>
+            <span className={`service-chip ${displayedServiceStatus.state}`} title={displayedServiceStatus.detail}><span className="status-dot" aria-hidden="true" />API {displayedServiceStatus.state}</span>
           </div>
         </header>
         {authorisedSession.status === "signed_out" && (
@@ -145,6 +160,12 @@ export function App() {
         {authorisedSession.status === "connected" && (
           <section className="connected-banner">
             <span>Connected as {authorisedSession.administrativeRole.replaceAll("_", " ")}</span>
+            <button className="text-action" onClick={() => void signOut()}>Sign out</button>
+          </section>
+        )}
+        {authorisedSession.status === "unreachable" && (
+          <section className="connected-banner">
+            <span>{authorisedSession.detail}</span>
             <button className="text-action" onClick={() => void signOut()}>Sign out</button>
           </section>
         )}

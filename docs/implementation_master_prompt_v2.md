@@ -156,6 +156,17 @@ Server configuration includes Supabase Auth issuer/audience/JWKS settings, least
 
 Provide two clearly documented developer paths: hosted development Supabase with a local API/worker; and an optional local Supabase environment requiring developer Docker/CLI tooling. Installed users connect to the hosted environment and do not need Docker. Never use a real customer database as the demo reset target.
 
+For the founder-selected no-hosting-bill Innovation Cup demo, support one laptop as the only
+API/worker host. Run the existing portable image through Docker Compose with a free HTTPS tunnel
+and a separate registrar. Publish only a canonical, publicly healthy endpoint under a short-lived
+single-host lease. Installed clients authenticate with Supabase first, then resolve that endpoint
+through a narrow active-membership RPC; a changing temporary tunnel URL must not require rebuilding
+the installers. Persist the host instance ID, reject a second live host, expire discovery when the
+laptop sleeps or disconnects, and keep separate API/worker database passwords exclusively on the
+host. This is a controlled demo mode, not an SLA-backed production topology. End users still need
+only the native installer and login credentials; the one host operator needs Docker, Node, Git and
+the cloned repository.
+
 Create cross-platform root scripts with these intended behaviours:
 
 ```text
@@ -164,6 +175,9 @@ npm run doctor         # inspect tools/env/architecture; redact secrets
 npm run dev:desktop    # launch Tauri/Vite against configured API
 npm run dev:api        # run local FastAPI through the locked Python environment
 npm run dev:worker     # run the durable planning/action worker
+npm run host:start     # start the selected one-laptop hosted-demo stack
+npm run host:status    # inspect the host stack without printing secrets
+npm run host:stop      # gracefully release discovery and stop the host stack
 npm run seed:demo      # idempotently seed only the explicitly configured demo tenant
 npm run reset:demo     # refuse non-demo tenants and require confirmation
 npm run test           # run accessible unit/contract tests; report prerequisites

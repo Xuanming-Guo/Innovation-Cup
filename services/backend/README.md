@@ -5,10 +5,17 @@ This package exposes two separate processes over one shared Python package:
 - `python -m uvicorn coordination.api.main:app` runs the FastAPI service.
 - `python -m coordination.worker.main` verifies the durable schema, leases queued work, renews exact
   attempt tokens and records bounded terminal/retry outcomes plus worker heartbeats.
+- `python -m coordination.hosting.registrar` verifies a public Quick Tunnel endpoint and maintains
+  the short-lived single-laptop discovery lease used by authenticated desktop clients.
 
 No hosted database or model provider is contacted merely by importing or starting the package.
 The repository runner adds `src/` to `PYTHONPATH`; this is an application, not a published
 Python distribution.
+
+The selected hosted-demo stack is under `deploy/local-host/`. It runs all three backend commands
+from this image plus a pinned `cloudflared` sidecar. The registrar uses the API runtime database
+identity with an explicit company-administrator context; it never accepts endpoint publication
+from a desktop client. See `docs/development/production-setup.md` for the exact host-only values.
 
 Manager planning intake is available at
 `POST /v1/companies/{company_id}/planning-requests` with a bearer token, matching

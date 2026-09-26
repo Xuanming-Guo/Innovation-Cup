@@ -88,6 +88,7 @@ jobs:
 
       - name: Validate baked public configuration
         env:
+          VITE_API_MODE: ${{ vars.VITE_API_MODE }}
           VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
@@ -102,6 +103,7 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
           MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '13.0' || '' }}
           VITE_PRODUCT_NAME: ${{ vars.VITE_PRODUCT_NAME }}
+          VITE_API_MODE: ${{ vars.VITE_API_MODE }}
           VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
           VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
           VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}

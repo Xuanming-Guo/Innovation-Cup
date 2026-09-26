@@ -34,7 +34,12 @@ def test_liveness_and_version_expose_no_secrets() -> None:
 
 def test_production_readiness_fails_closed_when_configuration_is_missing() -> None:
     application = create_app()
-    application.dependency_overrides[get_settings] = lambda: Settings(environment="production")
+    application.dependency_overrides[get_settings] = lambda: Settings(
+        environment="production",
+        database_url=None,
+        supabase_jwt_issuer=None,
+        supabase_url=None,
+    )
 
     with TestClient(application) as client:
         response = client.get("/health/ready")

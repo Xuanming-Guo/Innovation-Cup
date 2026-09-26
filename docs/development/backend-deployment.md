@@ -11,6 +11,14 @@ available to lease durable jobs. The host may be Fly.io, Railway, Render, Azure,
 Cloud Run or another OCI-compatible service. Provider choice is operational, not part of the
 product authority model.
 
+For the Innovation Cup hosted demo, the selected provider is one operator laptop running
+`deploy/local-host/compose.yaml`. It starts the API, worker, a pinned Cloudflare Quick Tunnel and a
+registrar from one launcher. The registrar verifies the public `/health/ready` response and
+maintains a short Supabase endpoint lease. Native clients authenticate first and resolve the lease,
+so a changed Quick Tunnel URL does not require a new installer. This path is free but demo-grade:
+the laptop must stay awake, online and running Docker Desktop. See
+[ADR 0003](../adr/0003-single-laptop-hosted-demo.md).
+
 Both processes need their own least-privileged Postgres connection capable of assuming only the
 appropriate `coordination_api` or `coordination_worker` group role. The API also needs the
 Supabase URL and JWT issuer. Neither process needs a deployment-wide Gemini credential in
@@ -30,7 +38,8 @@ production.
    `company_gemini_not_configured`.
 
 `COORDINATION_GEMINI_API_KEY` is an optional local/test fallback and is ignored in production.
-The desktop contains only the API origin, Supabase URL, Supabase publishable key and user session.
+In static mode the desktop contains the API origin. In laptop-host mode it contains only the
+discovery-mode flag, Supabase URL, Supabase publishable key, company UUID and user session.
 
 ## Required production configuration
 

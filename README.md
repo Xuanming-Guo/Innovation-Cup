@@ -4,7 +4,7 @@
 
 Coordination Engine is a human-led company coordination system proposed for the Recruit Holdings Innovation Cup 2026. It turns an authorised organisational decision into a source-grounded, capacity-feasible and permission-aware change to existing work.
 
-> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, trusted candidate materialisation, finite planning, exact approval/commitment, employee execution and durable coordination slices. It includes company-scoped Gemini BYOK through Supabase Vault, connected manager/employee/company-settings surfaces, leased Postgres jobs, bounded retry/review/cancellation, durable Gemini/Z3 dispatch, transactional outbox delivery, notifications and private Realtime refresh. Native CI has produced checksummed Windows x64, macOS arm64 and macOS Intel artifacts for commit `ec45bcbc35a5b912b0e27178f48f2e29a1df46f0`; they are unsigned/ad-hoc and have not been installed-smoke-tested. The connected paths are repository-tested but are not claimed as applied to hosted Supabase or exercised with a live company credential. File scanning remains fail-closed until a real scanner is configured. Signed/notarised public releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
+> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, trusted candidate materialisation, finite planning, exact approval/commitment, employee execution and durable coordination slices. It includes company-scoped Gemini BYOK through Supabase Vault, connected manager/employee/company-settings surfaces, leased Postgres jobs, bounded retry/review/cancellation, durable Gemini/Z3 dispatch, transactional outbox delivery, notifications, private Realtime refresh and a single-laptop hosted-demo mode with authenticated endpoint discovery. Native CI has produced checksummed Windows x64, macOS arm64 and macOS Intel artifacts for commit `ec45bcbc35a5b912b0e27178f48f2e29a1df46f0`; they are unsigned/ad-hoc and have not been installed-smoke-tested. The connected paths are repository-tested but are not claimed as applied to hosted Supabase or exercised with a live company credential. File scanning remains fail-closed until a real scanner is configured. Signed/notarised public releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
 
 
 ## Product idea
@@ -32,14 +32,14 @@ Authorised sources
 |---|---|
 | Desktop | Tauri 2 with React, TypeScript and Vite |
 | Backend | Python, FastAPI and Pydantic with separate API and worker processes |
-| Hosted compute | Portable OCI container: one request-serving FastAPI process and one continuously available durable Python worker on the operator's chosen host |
+| Hosted compute | Portable OCI image with separate FastAPI and durable-worker processes; the selected demo mode runs them on one laptop behind a free HTTPS tunnel |
 | Planning | Server-side `z3-solver` with deterministic compilation and validation |
 | Model API | Google Gemini Developer API through a typed server-side adapter; each company supplies its own key and the initial model default is configurable |
 | Platform | Supabase backend: Auth, Postgres, Vault, private Storage, Realtime and durable queue/job state |
 | Jobs and writes | Durable jobs, transactional outbox, idempotent connector actions and reconciliation |
 | Native targets | Windows 11 x64 and macOS 13+ on Apple Silicon and Intel |
 
-Supabase is the shared backend platform and system of record. FastAPI and the durable Python worker run from the same portable container image with different commands on any suitable container host. A company administrator verifies and installs that company's Gemini key through the authenticated Connections screen; Vault encrypts the secret, and only the worker can resolve it under current tenant context. Employees call the application API, never Gemini directly. The worker retrieves a permission-bounded source projection, calls Gemini with the company's key, validates the structured output, compiles trusted constraints, runs Z3 and persists the result to Supabase. No provider key is shipped in the desktop application.
+Supabase is the shared backend platform and system of record. FastAPI and the durable Python worker run from the same portable container image with different commands. For the selected no-hosting-bill demo, one cloned Windows or macOS laptop runs the Docker Compose host bundle; installed clients authenticate with Supabase and discover its current HTTPS tunnel through a short-lived company lease. A company administrator verifies and installs that company's Gemini key through the authenticated Connections screen; Vault encrypts the secret, and only the worker can resolve it under current tenant context. Employees call the application API, never Gemini directly. No database or provider key is shipped in the desktop application.
 
 The initial demonstration connects software and HR operations teams through one shared specialist. Cross-team capacity may be used without disclosing another team's private context.
 
@@ -60,6 +60,7 @@ The initial demonstration connects software and HR operations teams through one 
 | [Durable coordination boundary](docs/architecture/durable-coordination-boundary.md) | Leases, retries, outbox delivery, notifications, private refresh and operational health. |
 | [Backend deployment](docs/development/backend-deployment.md) | Portable API/worker hosting, Supabase connectivity and company BYOK operations. |
 | [Production and hosted-demo setup](docs/development/production-setup.md) | Exact Supabase, runtime-role, Edge Function, API/worker, environment and desktop setup order. |
+| [Single-laptop hosted-demo ADR](docs/adr/0003-single-laptop-hosted-demo.md) | Why the free demo uses one Docker laptop, a Quick Tunnel and authenticated endpoint discovery. |
 | [Native release matrix](docs/release-matrix.md) | Windows/macOS artifact targets, checksums, signing state and honest smoke-test boundary. |
 | [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
 
@@ -79,6 +80,7 @@ scripts/                 Dependency-free repository checks
 apps/desktop/            Tauri 2 and React/TypeScript native desktop foundation
 services/backend/        FastAPI API and separate durable-worker process boundary
 deploy/cloud-run/        Optional provider-specific example; not a product dependency
+deploy/local-host/       Selected single-laptop hosted-demo Compose bundle and safe env template
 supabase/                Migrations, seeds, database tests, Edge Functions and safe operator tooling
 AGENTS.md                 Agent operating context
 README.md                 Project entry point and honest status
@@ -119,10 +121,11 @@ npm.cmd run dev:worker
 npm.cmd run dev:desktop
 ```
 
-Production desktop installers bake in the HTTPS API origin, Supabase project URL, publishable key
-and company UUID as public build-time values, so employees do not configure them. The release
-workflow refuses to build when any required public value is missing or malformed. **Deployment**
-remains an advanced local/operator override; no privileged credential belongs in the desktop.
+Laptop-host desktop installers bake in discovery mode, the Supabase project URL, publishable key
+and company UUID, so employees do not configure them and tunnel restarts do not require a rebuild.
+Static hosted deployments may still bake a stable HTTPS API origin. The release workflow refuses
+to build when required public values are missing or malformed. **Deployment** remains an advanced
+local/operator override; no privileged credential belongs in the desktop.
 Follow the
 [production setup runbook](docs/development/production-setup.md) before a connected demo.
 

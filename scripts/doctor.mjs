@@ -15,9 +15,11 @@ const commands = [
 ];
 
 const environment = [
+  ["VITE_API_MODE", false],
   ["VITE_API_ORIGIN", false],
   ["VITE_SUPABASE_URL", false],
   ["VITE_SUPABASE_PUBLISHABLE_KEY", false],
+  ["VITE_DEFAULT_COMPANY_ID", false],
   ["COORDINATION_DATABASE_URL", true],
   ["COORDINATION_GEMINI_API_KEY", true],
 ];

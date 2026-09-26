@@ -46,7 +46,9 @@ export async function getServiceStatus(
 
     return {
       state: "unreachable",
-      detail: "Start the local API or configure VITE_API_ORIGIN",
+      detail: config.apiMode === "supabase-discovery"
+        ? "The host computer is offline or still starting"
+        : "Start the local API or configure VITE_API_ORIGIN",
     };
   }
 }
