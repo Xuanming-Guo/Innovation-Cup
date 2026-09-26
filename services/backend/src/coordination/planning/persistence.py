@@ -291,11 +291,13 @@ class PostgresPlanningLedger:
             ) as connection:
                 stored_snapshot = connection.execute(
                     """
-                    select snapshot.request_id, candidate.interpretation_run_id
+                    select snapshot.request_id, candidate.interpretation_run_id,
+                           company.policy_revision
                     from app.planning_snapshots as snapshot
                     join app.candidate_contracts as candidate
                       on candidate.company_id = snapshot.company_id
                      and candidate.id = snapshot.candidate_contract_id
+                    join app.companies as company on company.id = snapshot.company_id
                     where snapshot.company_id = %s
                       and snapshot.id = %s
                       and snapshot.snapshot_digest = %s
@@ -526,6 +528,166 @@ class PostgresPlanningLedger:
                         raise PlanningStateConflictError(
                             "plan block conflicts with the proposal digest"
                         )
+                connection.execute(
+                    """
+                    insert into app.plan_approval_requirements (
+                      company_id, plan_id, approval_domain, requirement_kind,
+                      authority_kind, artifact_digest, proposal_digest, snapshot_digest,
+                      source_manifest_digest, base_company_revision, policy_revision,
+                      policy_version, reason
+                    ) values (
+                      %s, %s, 'planning', 'plan_commit', 'company_manager',
+                      %s, %s, %s, %s, %s, %s, %s,
+                      'A manager must approve the exact independently validated proposal.'
+                    ) on conflict do nothing
+                    """,
+                    (
+                        context.company_id,
+                        plan_id,
+                        proposal_digest,
+                        proposal_digest,
+                        bytes.fromhex(snapshot.snapshot_digest),
+                        bytes.fromhex(snapshot.source_manifest_digest),
+                        snapshot.base_company_revision,
+                        stored_snapshot["policy_revision"],
+                        snapshot.policy.policy_version,
+                    ),
+                )
+                placements_by_task = {
+                    placement.task_id: placement for placement in selected.placements
+                }
+                for constraint in snapshot.constraints:
+                    payload = constraint.payload
+                    if payload.family == "deadline":
+                        deadline_placement = placements_by_task.get(payload.task_id)
+                        if (
+                            deadline_placement is not None
+                            and payload.agreed_finish_slot is not None
+                            and deadline_placement.end_slot != payload.agreed_finish_slot
+                        ):
+                            connection.execute(
+                                """
+                                insert into app.plan_changes (
+                                  company_id, plan_id, change_kind, summary,
+                                  before_value, after_value, supporting_constraint_keys
+                                ) values (
+                                  %s, %s, 'deadline', %s, %s, %s, %s
+                                ) on conflict do nothing
+                                """,
+                                (
+                                    context.company_id,
+                                    plan_id,
+                                    "The proposed finish differs from the agreed deadline.",
+                                    Jsonb({"agreed_finish_slot": payload.agreed_finish_slot}),
+                                    Jsonb(
+                                        {
+                                            "proposed_finish_slot": deadline_placement.end_slot
+                                        }
+                                    ),
+                                    Jsonb([constraint.constraint_id]),
+                                ),
+                            )
+                            connection.execute(
+                                """
+                                insert into app.plan_approval_requirements (
+                                  company_id, plan_id, approval_domain, requirement_kind,
+                                  authority_kind, artifact_digest, proposal_digest,
+                                  snapshot_digest, source_manifest_digest,
+                                  base_company_revision, policy_revision, policy_version, reason
+                                ) values (
+                                  %s, %s, 'planning', 'deadline_change', 'company_manager',
+                                  %s, %s, %s, %s, %s, %s, %s,
+                                  'Confirm the proposed movement of an agreed deadline.'
+                                ) on conflict do nothing
+                                """,
+                                (
+                                    context.company_id,
+                                    plan_id,
+                                    proposal_digest,
+                                    proposal_digest,
+                                    bytes.fromhex(snapshot.snapshot_digest),
+                                    bytes.fromhex(snapshot.source_manifest_digest),
+                                    snapshot.base_company_revision,
+                                    stored_snapshot["policy_revision"],
+                                    snapshot.policy.policy_version,
+                                ),
+                            )
+                    if payload.family == "movement" and payload.movement == "authorized":
+                        movement_placement = placements_by_task.get(payload.task_id)
+                        proposed_slots = tuple(
+                            sorted(
+                                {
+                                    slot
+                                    for block in selected.blocks
+                                    if block.task_id == payload.task_id
+                                    and block.role == "owner"
+                                    for slot in range(block.start_slot, block.end_slot)
+                                }
+                            )
+                        )
+                        if movement_placement is not None and (
+                            movement_placement.owner_resource_id
+                            != payload.existing_resource_id
+                            or proposed_slots != payload.existing_slots
+                        ):
+                            connection.execute(
+                                """
+                                insert into app.plan_changes (
+                                  company_id, plan_id, change_kind, summary,
+                                  before_value, after_value, supporting_constraint_keys
+                                ) values (
+                                  %s, %s, 'cross_team_displacement', %s, %s, %s, %s
+                                ) on conflict do nothing
+                                """,
+                                (
+                                    context.company_id,
+                                    plan_id,
+                                    "Authorized existing work is displaced by this proposal.",
+                                    Jsonb(
+                                        {
+                                            "owner_resource_id": str(
+                                                payload.existing_resource_id
+                                            ),
+                                            "slots": list(payload.existing_slots),
+                                        }
+                                    ),
+                                    Jsonb(
+                                        {
+                                            "owner_resource_id": str(
+                                                movement_placement.owner_resource_id
+                                            ),
+                                            "slots": list(proposed_slots),
+                                        }
+                                    ),
+                                    Jsonb([constraint.constraint_id]),
+                                ),
+                            )
+                            connection.execute(
+                                """
+                                insert into app.plan_approval_requirements (
+                                  company_id, plan_id, approval_domain, requirement_kind,
+                                  authority_kind, artifact_digest, proposal_digest,
+                                  snapshot_digest, source_manifest_digest,
+                                  base_company_revision, policy_revision, policy_version, reason
+                                ) values (
+                                  %s, %s, 'planning', 'cross_team_displacement',
+                                  'company_admin', %s, %s, %s, %s, %s, %s, %s,
+                                  'Affected-team mapping is absent; ' ||
+                                  'company-admin authority is required.'
+                                ) on conflict do nothing
+                                """,
+                                (
+                                    context.company_id,
+                                    plan_id,
+                                    proposal_digest,
+                                    proposal_digest,
+                                    bytes.fromhex(snapshot.snapshot_digest),
+                                    bytes.fromhex(snapshot.source_manifest_digest),
+                                    snapshot.base_company_revision,
+                                    stored_snapshot["policy_revision"],
+                                    snapshot.policy.policy_version,
+                                ),
+                            )
                 connection.execute(
                     """
                     insert into app.trace_steps (

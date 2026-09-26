@@ -28,3 +28,11 @@ results. Existing authorised work is pinned first; at most one unchanged-snapsho
 tried, and only constraints explicitly marked movable are unpinned. The planning ledger persists
 the immutable artifacts and concrete rows. Durable dispatch and public plan workflow endpoints
 are intentionally deferred to issue #12 rather than running long solves in an API request.
+
+The `coordination.approval` package exposes review/evidence and explicit approve, reject and commit
+operations for an existing validated proposal. Decisions bind proposal, snapshot, source,
+base-revision and policy digests. The database rechecks current authority and source freshness,
+serializes commits under the company planning revision, copies the exact independently validated
+candidate to committed work/schedule rows, and writes audit plus outbox intent in the same
+transaction. Planning approval never substitutes for the separately hashed employee-brief
+disclosure approval.

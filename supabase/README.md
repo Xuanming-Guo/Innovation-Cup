@@ -16,6 +16,9 @@ manual-application guidance. It contains no linked-project metadata or credentia
 - Immutable validated constraints and canonical planning snapshots, solver runs with native and
   application status, source-linked diagnoses, independently validated proposals, placements and
   concrete schedule blocks.
+- Exact planning/disclosure approval requirements, immutable decisions with expiry, current
+  authority checks, revision-serialized atomic plan commitment, exclusion-protected committed
+  human effort, approval-use evidence, audit events and transactional outbox intents.
 - Deterministic synthetic company anchors and a guarded demo reset.
 
 The Edge Function validates a real user session, runs only the narrow ticket functions as the

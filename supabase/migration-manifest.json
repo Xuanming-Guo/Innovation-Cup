@@ -30,6 +30,11 @@
       "file": "20260926015000_planning_solver_ledger.sql",
       "sha256": "26dc91254fddde275705cade5a45660a340d3281ca5c5b12972cf24e9824cd7b",
       "version": "20260926015000"
+    },
+    {
+      "file": "20260926016000_plan_approval_commit.sql",
+      "sha256": "577614dd930dd303d8be663a8f8c1ba2a9717fd216cda22cc69b9a83d333cabd",
+      "version": "20260926016000"
     }
   ]
 }
