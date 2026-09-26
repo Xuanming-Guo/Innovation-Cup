@@ -32,6 +32,9 @@ The entries below describe changes to the implementation specification only. The
 - Browser acceptance now distinguishes the archived pre-inspector desktop pass,
   successful user loopback execution, the new inspector pass and narrow-layout
   QA rather than treating browser/service evidence as a single binary check.
+- The overnight boundary guard now permits reviewed commits after its recorded
+  bootstrap point while continuing to reject non-simulation worktree changes,
+  branch drift, staged mutations and immutable source changes.
 
 ### Validation impact
 

@@ -5,7 +5,9 @@ browser interaction for the company/graph inspector and a narrow viewport.
 Archived pre-inspector desktop Chrome and loopback evidence now PASS.
 **§13.2: NOT_RUN**. No real product adapter, model, live-provider, native artifact
 or customer result exists.
-All implementation writes remain under simulation; no Git mutation was performed.
+All implementation writes remain under simulation. The repository user created
+commit `beba9d3` after the implementation verification; the subsequent push/PR
+workflow is recorded separately from the historical no-Git bootstrap phase.
 
 The available automated acceptance checks pass: **58 Python tests**, **5 JavaScript
 logic tests**, eight manually reviewed development goldens, 16 tiny oracle
