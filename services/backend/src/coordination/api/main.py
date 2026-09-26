@@ -9,6 +9,25 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from coordination import __version__
+from coordination.approval.contracts import (
+    ApprovalCommand,
+    ApprovalDecisionResult,
+    CommitCommand,
+    CommitResult,
+    PlanBinding,
+    PlanEvidence,
+    PlanReview,
+)
+from coordination.approval.dependencies import ApprovalStoreDependency
+from coordination.approval.persistence import (
+    ApprovalAuthorityError,
+    ApprovalIdempotencyConflictError,
+    ApprovalIncompleteError,
+    ApprovalStaleError,
+    ApprovalStoreError,
+    PlanNotFoundError,
+    ScheduleConflictError,
+)
 from coordination.auth.dependencies import CompanyContextDependency
 from coordination.config import Settings, get_settings
 from coordination.interpretation.dependencies import (
@@ -110,6 +129,19 @@ class PlanningRequestDetailResponse(StrictResponse):
     latest_outcome: str | None
     candidate_digest: str | None
     clarifications: tuple[ClarificationResponse, ...]
+
+
+class PlanDecisionRequest(StrictResponse):
+    requirement_id: UUID
+    artifact_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    binding: PlanBinding
+    explanation: str = Field(default="", max_length=2000)
+    correlation_id: UUID
+
+
+class PlanCommitRequest(StrictResponse):
+    binding: PlanBinding
+    correlation_id: UUID
 
 
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -334,7 +366,204 @@ def create_app() -> FastAPI:
             issue_codes=tuple(issue.code for issue in outcome.admission.issues),
         )
 
+    @application.get(
+        "/v1/companies/{company_id}/plans/{plan_id}",
+        response_model=PlanReview,
+    )
+    def get_plan_review(
+        company_id: UUID,
+        plan_id: UUID,
+        context: CompanyContextDependency,
+        store: ApprovalStoreDependency,
+    ) -> PlanReview:
+        _require_manager_company(company_id, context)
+        try:
+            return store.get_review(context=context, plan_id=plan_id)
+        except PlanNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="plan was not found"
+            ) from error
+        except ApprovalStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="plan review is unavailable",
+            ) from error
+
+    @application.get(
+        "/v1/companies/{company_id}/plans/{plan_id}/evidence",
+        response_model=PlanEvidence,
+    )
+    def get_plan_evidence(
+        company_id: UUID,
+        plan_id: UUID,
+        context: CompanyContextDependency,
+        store: ApprovalStoreDependency,
+    ) -> PlanEvidence:
+        _require_manager_company(company_id, context)
+        try:
+            return store.get_evidence(context=context, plan_id=plan_id)
+        except PlanNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="plan was not found"
+            ) from error
+        except ApprovalStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="plan evidence is unavailable",
+            ) from error
+
+    def record_plan_decision(
+        *,
+        decision: Literal["approved", "rejected"],
+        company_id: UUID,
+        plan_id: UUID,
+        body: PlanDecisionRequest,
+        context: CompanyContextDependency,
+        store: ApprovalStoreDependency,
+        idempotency_key: str,
+    ) -> ApprovalDecisionResult:
+        _require_manager_company(company_id, context)
+        try:
+            return store.decide(
+                context=context,
+                plan_id=plan_id,
+                command=ApprovalCommand(
+                    requirement_id=body.requirement_id,
+                    decision=decision,
+                    explanation=body.explanation,
+                    artifact_digest=body.artifact_digest,
+                    binding=body.binding,
+                    idempotency_key=idempotency_key,
+                    correlation_id=body.correlation_id,
+                ),
+            )
+        except PlanNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="plan was not found"
+            ) from error
+        except ApprovalAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="required approval authority is absent",
+            ) from error
+        except (ApprovalStaleError, ApprovalIdempotencyConflictError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="approval binding is stale or conflicts with an earlier command",
+            ) from error
+        except ApprovalStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="approval decision could not be stored",
+            ) from error
+
+    @application.post(
+        "/v1/companies/{company_id}/plans/{plan_id}/approve",
+        response_model=ApprovalDecisionResult,
+    )
+    def approve_plan_requirement(
+        company_id: UUID,
+        plan_id: UUID,
+        body: PlanDecisionRequest,
+        context: CompanyContextDependency,
+        store: ApprovalStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> ApprovalDecisionResult:
+        return record_plan_decision(
+            decision="approved",
+            company_id=company_id,
+            plan_id=plan_id,
+            body=body,
+            context=context,
+            store=store,
+            idempotency_key=idempotency_key,
+        )
+
+    @application.post(
+        "/v1/companies/{company_id}/plans/{plan_id}/reject",
+        response_model=ApprovalDecisionResult,
+    )
+    def reject_plan_requirement(
+        company_id: UUID,
+        plan_id: UUID,
+        body: PlanDecisionRequest,
+        context: CompanyContextDependency,
+        store: ApprovalStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> ApprovalDecisionResult:
+        return record_plan_decision(
+            decision="rejected",
+            company_id=company_id,
+            plan_id=plan_id,
+            body=body,
+            context=context,
+            store=store,
+            idempotency_key=idempotency_key,
+        )
+
+    @application.post(
+        "/v1/companies/{company_id}/plans/{plan_id}/commit",
+        response_model=CommitResult,
+    )
+    def commit_plan(
+        company_id: UUID,
+        plan_id: UUID,
+        body: PlanCommitRequest,
+        context: CompanyContextDependency,
+        store: ApprovalStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> CommitResult:
+        _require_manager_company(company_id, context)
+        try:
+            return store.commit(
+                context=context,
+                plan_id=plan_id,
+                command=CommitCommand(
+                    binding=body.binding,
+                    idempotency_key=idempotency_key,
+                    correlation_id=body.correlation_id,
+                ),
+            )
+        except PlanNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="plan was not found"
+            ) from error
+        except (ApprovalAuthorityError, ApprovalIncompleteError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="all current planning approvals are required",
+            ) from error
+        except (
+            ApprovalStaleError,
+            ApprovalIdempotencyConflictError,
+            ScheduleConflictError,
+        ) as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="shared state changed; replan and approve the new proposal",
+            ) from error
+        except ApprovalStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="plan could not be committed",
+            ) from error
+
     return application
+
+
+def _require_manager_company(company_id: UUID, context: CompanyContextDependency) -> None:
+    if company_id != context.company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="company was not found")
+    if context.administrative_role not in ("manager", "company_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail="manager authority is required"
+        )
 
 
 app = create_app()

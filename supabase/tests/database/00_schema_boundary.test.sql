@@ -69,7 +69,7 @@ select ok(
 
 select is(
   (select count(*)::integer from app_private.migration_contract),
-  6,
+  7,
   'all ordered repository migrations registered their version'
 );
 
