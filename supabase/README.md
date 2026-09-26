@@ -22,6 +22,10 @@ manual-application guidance. It contains no linked-project metadata or credentia
 - Task-scoped employee access, exact approved-brief binding, lifecycle events, immediate workload
   state, versioned reviewer policies and submissions, worker-only file-scan evidence, exact-version
   review, correction privacy and accepted familiarity/effort evidence.
+- One durable Postgres job state machine with exact-token leases, immutable attempts, bounded retry,
+  cancellation, dead-letter/review states, worker heartbeats and transactional enqueue triggers.
+- Idempotent internal outbox delivery to recipient-specific persisted notifications plus a constant
+  private `user:<auth.uid>` Realtime invalidation signal; application tables are not published.
 - Deterministic synthetic company anchors and a guarded demo reset.
 
 The Edge Function validates a real user session, runs only the narrow ticket functions as the

@@ -4,7 +4,7 @@
 
 Coordination Engine is a human-led company coordination system proposed for the Recruit Holdings Innovation Cup 2026. It turns an authorised organisational decision into a source-grounded, capacity-feasible and permission-aware change to existing work.
 
-> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, finite planning, exact approval/commitment and employee execution slices. The repository contains Tauri/React manager and employee surfaces, a FastAPI service, a separate Python worker boundary, ordered Supabase migrations, fail-closed company membership resolution, private Storage ticketing, natural-language planning intake, one server-side Gemini adapter, deterministic candidate admission, an allowlisted Z3 compiler, bounded repair, independent schedule validation, immutable exact approvals, atomic revision-checked commitment, versioned employee submissions/reviews, locked toolchains and Cloud Run definitions. These paths are repository-tested but are not claimed as applied to hosted Supabase, exercised with a live Gemini credential or yet connected through the durable worker/authenticated desktop session. Durable scanner/outbox processing, signed native releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
+> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, finite planning, exact approval/commitment, employee execution and durable coordination slices. The repository now includes leased Postgres jobs, bounded retry/review/cancellation, worker heartbeats and structured events, durable Gemini/Z3 dispatch, transactional internal outbox delivery, recipient notifications, private constant Realtime refresh and authorised desktop refetch. These paths are repository-tested but are not claimed as applied to hosted Supabase or exercised with a live Gemini credential. The desktop still presents fixture workflow records, the trusted candidate-to-snapshot stage and connected scenario remain, and file scanning deliberately stops for review until a real scanner is configured. Signed native releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
 
 ## Product idea
 
@@ -56,6 +56,7 @@ The initial demonstration connects software and HR operations teams through one 
 | [Planning boundary](docs/architecture/planning-boundary.md) | Validated constraints, immutable snapshots, Z3 scopes, diagnosis and independent validation. |
 | [Approval and commitment boundary](docs/architecture/approval-commit-boundary.md) | Exact digest binding, authority rechecks, concurrency, atomic commit and disclosure separation. |
 | [Employee workflow boundary](docs/architecture/employee-workflow-boundary.md) | Permission-safe task views, lifecycle concurrency, private submissions and exact-version review. |
+| [Durable coordination boundary](docs/architecture/durable-coordination-boundary.md) | Leases, retries, outbox delivery, notifications, private refresh and operational health. |
 | [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
 
 ## Delivery priorities
@@ -114,8 +115,8 @@ npm.cmd run dev:worker
 npm.cmd run dev:desktop
 ```
 
-Run the issue-level application check with `npm.cmd run check`. The worker currently reports
-foundation status and deliberately does not consume jobs. See [local development](docs/development/local-development.md),
+Run the issue-level application check with `npm.cmd run check`. With its database and Gemini
+environment configured, the worker verifies the durable schema and consumes leased jobs. See [local development](docs/development/local-development.md),
 the [Cloud Run boundary](docs/development/cloud-run.md) and the [complete GitHub workflow](docs/development/github-workflow.md).
 
 ## Security and evidence

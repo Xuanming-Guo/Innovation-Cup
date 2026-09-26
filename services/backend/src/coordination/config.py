@@ -40,6 +40,18 @@ class Settings(BaseSettings):
     google_cloud_region: str | None = None
 
     worker_poll_seconds: float = Field(default=5.0, ge=0.5, le=60.0)
+    worker_batch_size: int = Field(default=4, ge=1, le=32)
+    worker_lease_seconds: int = Field(default=120, ge=15, le=900)
+    worker_renewal_seconds: float = Field(default=30.0, ge=5.0, le=300.0)
+    worker_instance_name: str | None = Field(default=None, max_length=200)
+
+    @property
+    def worker_configuration_valid(self) -> bool:
+        return (
+            self.database_url is not None
+            and self.gemini_api_key is not None
+            and self.worker_renewal_seconds < self.worker_lease_seconds
+        )
 
     @property
     def supabase_jwks_url(self) -> str:

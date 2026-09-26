@@ -138,6 +138,19 @@ code {
   border-bottom: 1px solid var(--line);
 }
 
+.topbar-status {
+  align-items: center;
+  display: flex;
+  gap: 0.65rem;
+}
+
+.session-chip {
+  color: var(--muted);
+  font-size: 0.76rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
 h1,
 h2,
 h3,

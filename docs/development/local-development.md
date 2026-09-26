@@ -24,15 +24,15 @@ npm.cmd run doctor
 ```
 
 Copy the relevant `.env.example` file to an untracked `.env` only when a runtime needs it.
-The API and all non-provider tests run without provider credentials. A live interpretation call
-requires `COORDINATION_GEMINI_API_KEY` only in the backend process environment. Never place a
+The API and all non-provider tests run without provider credentials. A live interpretation job
+requires `COORDINATION_GEMINI_API_KEY` only in the worker process environment. Never place a
 Gemini key or privileged Supabase credential in `apps/desktop` or any `VITE_` variable.
 
 For local identity and database work, copy `services/backend/.env.example` and
 `supabase/.env.example` to untracked environment files and fill only local values. The desktop
-may eventually contain the Supabase project URL and publishable key, which are public client
-configuration, but it must never contain the database URL, secret/service-role key or Gemini
-credential.
+contains only the Supabase project URL, publishable key and optional non-secret default company ID
+for Auth/private Realtime. It must never contain the database URL, secret/service-role key or
+Gemini credential.
 
 ## Run the foundation
 
@@ -43,6 +43,10 @@ npm.cmd run dev:api
 npm.cmd run dev:worker
 npm.cmd run dev:desktop
 ```
+
+The worker fails readiness until the durable migration is present. With a cached Supabase desktop
+session, private Realtime signals cause the desktop to refetch current session and notifications
+through FastAPI; signals themselves contain no plan/task details.
 
 For a browser-only component preview use `npm.cmd run dev:web`; that is not evidence that the
 native app works.

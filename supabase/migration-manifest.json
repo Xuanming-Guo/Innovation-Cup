@@ -40,6 +40,11 @@
       "file": "20260926017000_employee_workflow.sql",
       "sha256": "3ddf286cdcca070f94b7a446082311a4dff98b6d355265fec3ac31b66ff65754",
       "version": "20260926017000"
+    },
+    {
+      "file": "20260926018000_durable_jobs_outbox_realtime.sql",
+      "sha256": "6ecf1feea7146a8613acc34a2d49279306ce5cfbbbe592540a60b692e2c4fa84",
+      "version": "20260926018000"
     }
   ]
 }
