@@ -6,6 +6,12 @@
 
 The revision rewrites the relevant original sections, schema entries and acceptance criteria. It does not simply append a contradictory list of new suggestions. Original page references below identify the founder's comments; pagination changes in the revised Word edition. Use the numbered sections to locate the revisions.
 
+## 0. Repository-foundation clarification
+
+The master specification and implementation handoff now state the complete pre-solver trust boundary explicitly: authorised and versioned sources become bounded evidence, schema-constrained candidate task contracts, deterministically validated constraints, an immutable planning snapshot and finally a trusted compiled Z3 model. Raw source content and model-generated code never enter Z3. Z3 constructs or checks a schedule within the admitted model; a separate deterministic validator checks the concrete result before approval or commitment.
+
+The repository guidance now also requires protected-main pull-request development, consistent branch and commit naming, issue and PR templates, automated repository checks, reviewable merges and honest capability documentation. These governance additions do not constitute application implementation or test results.
+
 ## 1. Page-by-page feedback incorporated
 
 | Original passage / feedback | Version 2 decision | Main locations |

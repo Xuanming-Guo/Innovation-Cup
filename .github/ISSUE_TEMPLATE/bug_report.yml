@@ -1,0 +1,53 @@
+name: Bug report
+description: Report reproducible incorrect behaviour or a regression.
+title: "fix: "
+labels:
+  - "type: bug"
+body:
+  - type: markdown
+    attributes:
+      value: Do not include secrets, customer data, employee data or vulnerability details. Use the private security process for security reports.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What happened, and what should have happened instead?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Provide the smallest safe, deterministic reproduction.
+      placeholder: |
+        1. Configure ...
+        2. Run ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment and versions
+      description: Include commit, OS/architecture and relevant dependency or service versions.
+    validations:
+      required: true
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact and boundaries
+      description: Note tenant, authority, privacy, data-integrity, scheduling or native-platform effects.
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Evidence
+      description: Add redacted logs, screenshots or failing test names where safe.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: What observable outcomes will establish that the defect is fixed?
+    validations:
+      required: true

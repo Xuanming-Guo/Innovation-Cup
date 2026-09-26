@@ -1,1 +1,92 @@
-# Innovation-Cup
+# Coordination Engine
+
+[![Repository quality](https://github.com/Xuanming-Guo/Innovation-Cup/actions/workflows/quality.yml/badge.svg)](https://github.com/Xuanming-Guo/Innovation-Cup/actions/workflows/quality.yml)
+
+Coordination Engine is a human-led company coordination system proposed for the Recruit Holdings Innovation Cup 2026. It turns an authorised organisational decision into a source-grounded, capacity-feasible and permission-aware change to existing work.
+
+> **Current status:** specification and repository foundation only. No runnable application, migration, native installer, live connector, benchmark result or customer validation exists in this repository yet.
+
+## Product idea
+
+A manager supplies an outcome, context, priority, deadline and employee-shareable brief. The system retrieves permitted current facts, proposes typed task contracts, compiles validated constraints into a finite Z3 scheduling model, explains the proposed changes, obtains the required authority and commits approved changes consistently. Employees then receive appropriate instructions, submit work and participate in later replanning.
+
+The product is not an all-knowing AI manager. Models interpret and explain; trusted code enforces identity, authority and supported constraint types; Z3 constructs or checks schedules inside the admitted model; an independent validator checks the concrete schedule; humans or explicitly configured policy authorise material changes.
+
+```text
+Authorised sources
+  -> versioned evidence
+  -> candidate task contracts
+  -> validated constraints
+  -> immutable planning snapshot
+  -> trusted Z3 model
+  -> independently validated schedule
+  -> approval and atomic commitment
+```
+
+## Intended architecture
+
+| Area | Planned technology and boundary |
+|---|---|
+| Desktop | Tauri 2 with React, TypeScript and Vite |
+| Backend | Python, FastAPI and Pydantic with separate API and worker processes |
+| Planning | Server-side `z3-solver` with deterministic compilation and validation |
+| Platform | Supabase Auth, Postgres and private Storage with a non-exposed business schema |
+| Jobs and writes | Durable jobs, transactional outbox, idempotent connector actions and reconciliation |
+| Native targets | Windows 11 x64 and macOS 13+ on Apple Silicon and Intel |
+
+The initial demonstration connects software and HR operations teams through one shared specialist. Cross-team capacity may be used without disclosing another team's private context.
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [Implementation master prompt](docs/implementation_master_prompt_v2.md) | Self-contained engineering handoff. Part A is the build contract; Part B embeds the complete specification. |
+| [Product and architecture specification](docs/coordination_engine_master_v2.md) | Authoritative product reasoning, policies, architecture, schema, evaluation protocol and evidence register. |
+| [Version 2 changelog](docs/CHANGELOG_v2.md) | Maps substantive revisions and later clarifications. |
+| [Formatted specification](docs/coordination_engine_master_v2.docx) | Word edition for reading and presentation. Markdown remains the reviewable source. |
+| [GitHub workflow](docs/development/github-workflow.md) | Issue, branch, commit, pull-request, merge and repository-rules conventions. |
+| [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
+
+## Delivery priorities
+
+- **P0:** authenticated human workflow, tenant isolation, profiles and capacity, shareable briefs, typed interpretation, Z3 scheduling, independent validation, exact approval binding, atomic commitment, durable actions, employee submission/review, evaluation fixtures and native Windows/macOS delivery.
+- **P1:** narrowly authorised automatic repairs, richer estimates, Japanese localisation, additional live connectors, evaluated alternatives and one bounded drafting executor with a human owner and reviewer.
+- **Deferred:** unrestricted autonomous agents, recruitment decisions, payroll, surveillance, global employee ranking, arbitrary code execution and universal enterprise ingestion.
+
+## Repository layout
+
+```text
+.github/                 Issue forms, PR template, ownership and CI
+docs/                    Product, architecture and implementation specifications
+  development/           Repository workflow and engineering process
+scripts/                 Dependency-free repository checks
+AGENTS.md                 Agent operating context
+README.md                 Project entry point and honest status
+```
+
+The target application layout is defined in the implementation master prompt and will be introduced through reviewed vertical slices rather than an unverified scaffold.
+
+## Contributing
+
+Development follows short-lived branches and pull requests:
+
+1. Open or select an issue with explicit acceptance criteria.
+2. Create a branch such as `feat/123-plan-review`, `fix/456-tenant-check` or `docs/source-to-z3`.
+3. Use Conventional Commit subjects such as `feat(planner): add typed eligibility constraints`.
+4. Open a focused PR, link the issue, complete the template and include actual test evidence.
+5. Resolve required checks and review comments.
+6. Squash-merge to protected `main` and delete the branch.
+
+Run the current repository contract locally with:
+
+```powershell
+python scripts/check_repository.py
+```
+
+Application commands such as `npm test` will be added only when their implementations exist. See the [complete GitHub workflow](docs/development/github-workflow.md).
+
+## Security and evidence
+
+Do not commit credentials, customer data or real employee information. Use synthetic fixtures until the necessary access, privacy and retention decisions are approved. Report security concerns through the process in [.github/SECURITY.md](.github/SECURITY.md), not a public issue containing exploit details.
+
+Every implementation claim must be tied to observable evidence. Labels such as implemented, live, tested, supported or optimal must not be used when the capability is only specified, simulated, compiled or not run on the stated platform.

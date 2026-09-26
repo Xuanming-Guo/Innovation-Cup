@@ -565,6 +565,26 @@ Record accepted contributions, recent component/project familiarity and optional
 
 New authorised decisions, source changes, task delays and employee availability changes become versioned events. Re-evaluate affected commitments, coalesce noisy events and avoid plan thrashing. If the current plan is invalid, show that state while a repair is pending rather than claiming continuous perfect feasibility.
 
+### 12.1 Source-to-constraint admission pipeline
+
+Z3 never receives raw documents, chat messages, model prose or executable model-generated expressions. It receives only a finite typed model compiled by trusted application code from an immutable, validated planning snapshot. Z3 is also not the final checker: a separately implemented deterministic validator checks every concrete schedule returned by the solver.
+
+The pre-solver pipeline has seven explicit stages and durable boundary artifacts:
+
+1. **Authorise and version sources.** Resolve company, actor, purpose and current access before content retrieval. Materialise a `SourceVersionRef` containing source and provider identity, external version, retrieval time, authority classification, access snapshot, freshness/revocation state and permitted structured fields or bounded excerpts. A source's existence, recency or popularity does not make it authoritative.
+2. **Build the bounded evidence manifest.** Traverse the relevant project/task/resource graph, include reduced cross-team capacity facts without private context, and prefer current structured fields over excerpts and optional summary caches. Record selected, omitted, missing, stale and deliberately inaccessible sources. Never search a broad corpus first and filter after a model has seen it.
+3. **Interpret into candidate work contracts.** The language model may propose tasks, deliverables, acceptance criteria, active-effort estimates, timing type, dependencies, reviewer needs, capability/permission requirements, priority interpretation, assumptions and source references. Its output is a `CandidateTaskContract`, not a solver program and not an approved fact.
+4. **Validate semantics, evidence and authority.** Trusted code verifies tenant-scoped identifiers, units, timezones, dates, cycles, supported constraint kinds, evidence linkage, source authority, current permissions and policy authority. It converts admitted items into `ValidatedConstraint` records with stable ID, typed payload, scope, hard/preferred status, evidence and authority references, confidentiality, negotiability and confirmation state. Unsupported or materially ambiguous items stop for clarification; the compiler never guesses a permissive fallback.
+5. **Confirm material interpretations.** A person with the relevant authority confirms critical inferred requirements, estimates, priority, deadline flexibility or disclosure where authoritative evidence is insufficient. Suggestions remain suggestions. Shareable-brief approval remains separate from planning-constraint approval.
+6. **Normalise and freeze the planning snapshot.** Convert confirmed facts to canonical units and UTC-aligned finite slots while preserving original timezone meaning. Separate ownership, flexible windows, exclusive effort, fixed attendance and passive waits. Freeze the task graph, eligibility domain, availability, reservations, requested/agreed/forecast dates, policies, profile/estimate versions, source manifest, base company revision, horizon, slot size and a canonical digest in an immutable `PlanningSnapshot`.
+7. **Compile through an allowlisted registry.** Deterministic compilers translate only supported `ValidatedConstraint` types into Z3 integers, booleans and explicit alternatives. Each assertion retains its stable constraint ID for diagnostics. Pre-solve validation rejects negative durations, invalid domains, unresolved hard assumptions, dependency cycles, inconsistent windows and genuinely empty eligible-resource sets before invoking Z3.
+
+The minimum trace is therefore `SourceVersionRef -> CandidateTaskContract -> ValidatedConstraint -> PlanningSnapshot -> CompiledModel`. Store artifact versions and digests so an approved proposal can be reproduced and stale inputs detected. Logs and user-facing evidence show these inspectable artifacts and actual checks, never hidden chain-of-thought.
+
+The compiler may admit only the following initial families: eligibility, effort, working windows, capacity and budgets, fixed attendance, dependencies and lag, acceptance/review, locked or started work, requested/agreed/forecast deadlines, explicit deadline flexibility, priority policy, shared-resource reservations and authorised displacement. New constraint families require a typed schema, deterministic validator, compiler implementation, independent candidate checks and tests before use.
+
+After compilation, run the restricted no-disruption insertion first. A failed pinned insertion does not establish global infeasibility. Broader repair may unpin only explicitly authorised freedoms. After any solver result, the independent candidate validator recomputes capacity, eligibility, effort, ordering, reviews, dates, budgets and approval requirements from the concrete returned rows; solver status alone never authorises commitment.
+
 ## 13. Z3 specification: scheduling, repair and truthful guarantees
 
 ### 13.1 What Z3 is responsible for

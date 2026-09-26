@@ -299,6 +299,22 @@ Send only a private refresh signal after storing the notification. The signal me
 
 ## A11. Formal scheduling and Z3 implementation
 
+### A11.0 Source-to-constraint admission pipeline
+
+Implement a strict typed admission path before any Z3 call:
+
+`SourceVersionRef -> CandidateTaskContract -> ValidatedConstraint -> PlanningSnapshot -> CompiledModel`
+
+1. Authorise source access and record provider/source version, retrieval time, freshness, authority and access snapshot before retrieval.
+2. Retrieve a bounded evidence manifest from the relevant task/resource graph. Prefer current structured fields, then necessary authorised excerpts; summaries are optional caches and never approved facts.
+3. Ask the interpretation model only for schema-constrained candidate work contracts with evidence references, assumptions and clarification flags. Never accept generated Python, SQL, SMT-LIB or arbitrary solver expressions.
+4. In trusted code, validate tenant-scoped IDs, supported kinds, units, timezone/date meaning, cycles, evidence linkage, authority, confidentiality, negotiability and current permission. Unsupported or materially ambiguous hard items must stop for clarification or confirmation.
+5. Admit only typed `ValidatedConstraint` records with stable IDs, typed payloads, hard/preferred status, evidence/authority references and confirmation state. Disclosure approval and schedule/constraint approval remain separate.
+6. Normalise confirmed facts into an immutable `PlanningSnapshot` containing the task graph, resource domain, availability, reservations, policies, profile/estimate/source versions, requested/agreed/forecast dates, finite horizon, slot size, base revision and canonical digest.
+7. Compile allowlisted constraint families deterministically to Z3 integers, booleans and explicit alternatives while preserving constraint IDs for diagnosis. Reject invalid domains, negative effort, cycles, inconsistent windows, unresolved hard assumptions and validated empty eligibility before solving.
+
+Z3 consumes only `CompiledModel`; it does not consume raw sources or decide whether an interpretation is true or authorised. Run pinned insertion before authorised repair. After solving, `validate_candidate` independently recomputes the concrete schedule's capacity, eligibility, effort, ordering, reviews, dates, budgets and approval requirements. Solver status is neither business approval nor permission to commit.
+
 ### A11.1 Separate interpretation, compilation, solving and validation
 
 Never execute model-generated Python, SQL or SMT-LIB. Use a restricted typed constraint registry with deterministic compilers. Supported types include eligibility, effort, working windows, capacity, fixed attendance, dependencies, review, locked work, deadline flexibility, priority and approved displacement. Unsupported conditions trigger clarification or a documented unsupported result.
@@ -486,13 +502,7 @@ Finish with a requirements-to-evidence matrix, not a generic 'all done'. The hea
 
 The following is embedded verbatim from `coordination_engine_master_v2.md`. It is the authoritative detailed specification for this version. Section and source identifiers inside this part refer to this embedded specification. No earlier chat transcript or version 1 file is needed to understand it. Where implementation evidence contradicts a DEFAULT, record a reviewed decision; do not silently weaken a CONFIRMED privacy, authority or native-platform requirement.
 
----
-
----
-
-# Part B — Complete revised product and architecture specification
-
-The following is the complete Version 2.0 specification. Its source identifiers resolve within its bibliography. Part A and Part B describe the same product; do not ignore the detailed policy and data requirements below.
+<!-- BEGIN EMBEDDED SPECIFICATION -->
 
 # Coordination Engine
 ## Master prompt, product explanation and implementation specification
@@ -1060,6 +1070,26 @@ Record accepted contributions, recent component/project familiarity and optional
 ### Step 20: Monitor, reconcile and repair
 
 New authorised decisions, source changes, task delays and employee availability changes become versioned events. Re-evaluate affected commitments, coalesce noisy events and avoid plan thrashing. If the current plan is invalid, show that state while a repair is pending rather than claiming continuous perfect feasibility.
+
+### 12.1 Source-to-constraint admission pipeline
+
+Z3 never receives raw documents, chat messages, model prose or executable model-generated expressions. It receives only a finite typed model compiled by trusted application code from an immutable, validated planning snapshot. Z3 is also not the final checker: a separately implemented deterministic validator checks every concrete schedule returned by the solver.
+
+The pre-solver pipeline has seven explicit stages and durable boundary artifacts:
+
+1. **Authorise and version sources.** Resolve company, actor, purpose and current access before content retrieval. Materialise a `SourceVersionRef` containing source and provider identity, external version, retrieval time, authority classification, access snapshot, freshness/revocation state and permitted structured fields or bounded excerpts. A source's existence, recency or popularity does not make it authoritative.
+2. **Build the bounded evidence manifest.** Traverse the relevant project/task/resource graph, include reduced cross-team capacity facts without private context, and prefer current structured fields over excerpts and optional summary caches. Record selected, omitted, missing, stale and deliberately inaccessible sources. Never search a broad corpus first and filter after a model has seen it.
+3. **Interpret into candidate work contracts.** The language model may propose tasks, deliverables, acceptance criteria, active-effort estimates, timing type, dependencies, reviewer needs, capability/permission requirements, priority interpretation, assumptions and source references. Its output is a `CandidateTaskContract`, not a solver program and not an approved fact.
+4. **Validate semantics, evidence and authority.** Trusted code verifies tenant-scoped identifiers, units, timezones, dates, cycles, supported constraint kinds, evidence linkage, source authority, current permissions and policy authority. It converts admitted items into `ValidatedConstraint` records with stable ID, typed payload, scope, hard/preferred status, evidence and authority references, confidentiality, negotiability and confirmation state. Unsupported or materially ambiguous items stop for clarification; the compiler never guesses a permissive fallback.
+5. **Confirm material interpretations.** A person with the relevant authority confirms critical inferred requirements, estimates, priority, deadline flexibility or disclosure where authoritative evidence is insufficient. Suggestions remain suggestions. Shareable-brief approval remains separate from planning-constraint approval.
+6. **Normalise and freeze the planning snapshot.** Convert confirmed facts to canonical units and UTC-aligned finite slots while preserving original timezone meaning. Separate ownership, flexible windows, exclusive effort, fixed attendance and passive waits. Freeze the task graph, eligibility domain, availability, reservations, requested/agreed/forecast dates, policies, profile/estimate versions, source manifest, base company revision, horizon, slot size and a canonical digest in an immutable `PlanningSnapshot`.
+7. **Compile through an allowlisted registry.** Deterministic compilers translate only supported `ValidatedConstraint` types into Z3 integers, booleans and explicit alternatives. Each assertion retains its stable constraint ID for diagnostics. Pre-solve validation rejects negative durations, invalid domains, unresolved hard assumptions, dependency cycles, inconsistent windows and genuinely empty eligible-resource sets before invoking Z3.
+
+The minimum trace is therefore `SourceVersionRef -> CandidateTaskContract -> ValidatedConstraint -> PlanningSnapshot -> CompiledModel`. Store artifact versions and digests so an approved proposal can be reproduced and stale inputs detected. Logs and user-facing evidence show these inspectable artifacts and actual checks, never hidden chain-of-thought.
+
+The compiler may admit only the following initial families: eligibility, effort, working windows, capacity and budgets, fixed attendance, dependencies and lag, acceptance/review, locked or started work, requested/agreed/forecast deadlines, explicit deadline flexibility, priority policy, shared-resource reservations and authorised displacement. New constraint families require a typed schema, deterministic validator, compiler implementation, independent candidate checks and tests before use.
+
+After compilation, run the restricted no-disruption insertion first. A failed pinned insertion does not establish global infeasibility. Broader repair may unpin only explicitly authorised freedoms. After any solver result, the independent candidate validator recomputes capacity, eligibility, effort, ordering, reviews, dates, budgets and approval requirements from the concrete returned rows; solver status alone never authorises commitment.
 
 ## 13. Z3 specification: scheduling, repair and truthful guarantees
 
@@ -2160,3 +2190,5 @@ Participant information, optional recording, data use and consent process. Not a
 A reader should now be able to explain the business problem; the human-led and bounded-hybrid scopes; native Mac/Windows deployment; company and team identity; raw-source retrieval versus cache summaries versus approved briefs; task-specific constraints; product-wide priority; capacity-feasible multitasking; where Z3 fits; bounded solver-guided repair; disclosure and schedule authority; shared-state commitment; durable updates and private refresh signals; operational/familiarity/skill learning; optional agent runs; and the exact evaluation procedure.
 
 Before coding, identify the unresolved policy values from Section 24 and inspect the existing repository. Before presenting, identify which capabilities are implemented, simulated or future work. Before claiming impact, fill the evaluation template with actual observations.
+
+<!-- END EMBEDDED SPECIFICATION -->
