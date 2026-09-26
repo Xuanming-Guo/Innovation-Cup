@@ -43,6 +43,20 @@ snapshot reads, a plain insert inside a savepoint and a tenant-authorised digest
 preserves concurrent idempotency and conflict detection without row locks, conflict updates or
 runtime privilege expansion.
 
+The same connected workflow then exposed two durable-handoff defects hidden by mocked API tests.
+The forward repair qualifies the durable-job conflict constraint so PL/pgSQL output-column names
+cannot make the command ambiguous, and gives the interpretation worker a deliberately narrow
+worker-role reconciliation read instead of attempting to assume the API role. Runtime role
+separation and tenant RLS remain unchanged; database tests now execute the trigger-plus-explicit
+ensure path that previously failed only against real PostgreSQL.
+
+A full clean-database and separated-login audit extended that repair through materialisation,
+real Z3 planning, approval, commitment and employee review. It removed worker reads that requested
+write-level row locks, replaced an RLS-unsafe employee-brief conflict insert with a savepoint and
+authorised digest readback, corrected demo-reset dependency ordering, and aligned durable metrics
+volatility with its use of wall-clock time. CI now runs the cross-layer local workflow in addition
+to pgTAP so role/query incompatibilities cannot be hidden by mocked persistence tests.
+
 The founder subsequently selected a no-hosting-bill Innovation Cup deployment: exactly one cloned
 laptop runs the API, durable worker, a free HTTPS Quick Tunnel and a lease registrar. Installed
 manager and employee clients authenticate with Supabase before resolving the current host

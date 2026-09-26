@@ -125,6 +125,12 @@ class PlanningRequestView:
 
 
 @dataclass(frozen=True, slots=True)
+class WorkerPlanningRequestState:
+    status: str
+    candidate_digest: str | None
+
+
+@dataclass(frozen=True, slots=True)
 class PlanningSourceOption:
     source_id: UUID
     title: str
@@ -499,6 +505,51 @@ class PostgresInterpretationStore:
             interpretation_job_state=cast(str | None, row["interpretation_job_state"]),
             materialization_job_state=cast(str | None, row["materialization_job_state"]),
             planning_job_state=cast(str | None, row["planning_job_state"]),
+        )
+
+    def get_worker_request_state(
+        self, *, context: CompanyContext, request_id: UUID
+    ) -> WorkerPlanningRequestState:
+        """Read only the reconciliation state needed by an interpretation worker."""
+
+        try:
+            with company_transaction(
+                self._dsn,
+                role="coordination_worker",
+                actor_id=context.actor.user_id,
+                company_id=context.company_id,
+                purpose="planning-request:worker-reconcile",
+                connect_timeout_seconds=self._connect_timeout_seconds,
+            ) as connection:
+                row = connection.execute(
+                    """
+                    select request.status,
+                           latest_candidate.candidate_digest
+                    from app.planning_requests as request
+                    left join lateral (
+                      select encode(candidate.contract_digest, 'hex') as candidate_digest
+                      from app.interpretation_runs as interpretation
+                      join app.candidate_contracts as candidate
+                        on candidate.company_id = interpretation.company_id
+                       and candidate.interpretation_run_id = interpretation.id
+                      where interpretation.company_id = request.company_id
+                        and interpretation.request_id = request.id
+                      order by interpretation.started_at desc, interpretation.id desc
+                      limit 1
+                    ) as latest_candidate on true
+                    where request.company_id = %s and request.id = %s
+                    """,
+                    (context.company_id, request_id),
+                ).fetchone()
+        except psycopg.Error as error:
+            raise InterpretationStoreUnavailableError(
+                "interpretation store is unavailable"
+            ) from error
+        if row is None:
+            raise PlanningRequestNotFoundError("planning request was not found")
+        return WorkerPlanningRequestState(
+            status=cast(str, row["status"]),
+            candidate_digest=cast(str | None, row["candidate_digest"]),
         )
 
     def load_projection(

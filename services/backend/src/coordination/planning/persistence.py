@@ -25,6 +25,11 @@ class PlanningStateConflictError(ValueError):
     """Raised when an artifact conflicts with current authoritative state."""
 
 
+EMPLOYEE_BRIEF_VERSION_CONSTRAINT = (
+    "employee_brief_versions_company_id_plan_id_version_key"
+)
+
+
 class PlanningLedger(Protocol):
     def load_snapshot(
         self, *, context: CompanyContext, snapshot_id: UUID
@@ -109,7 +114,6 @@ class PostgresPlanningLedger:
                     where candidate.company_id = %s
                       and candidate.id = %s
                       and candidate.admission_status = 'admitted'
-                    for share of candidate, company
                     """,
                     (context.company_id, snapshot.candidate_contract_id),
                 ).fetchone()
@@ -345,7 +349,6 @@ class PostgresPlanningLedger:
                     where snapshot.company_id = %s
                       and snapshot.id = %s
                       and snapshot.snapshot_digest = %s
-                    for share of snapshot
                     """,
                     (
                         context.company_id,
@@ -789,23 +792,29 @@ class PostgresPlanningLedger:
                     )
                 )
                 brief_id = uuid5(plan_id, "employee-brief:v1")
-                connection.execute(
-                    """
-                    insert into app.employee_brief_versions (
-                      id, company_id, plan_id, version, brief_payload,
-                      audience_scope, brief_digest
-                    ) values (%s, %s, %s, 1, %s, %s, %s)
-                    on conflict (company_id, plan_id, version) do nothing
-                    """,
-                    (
-                        brief_id,
-                        context.company_id,
-                        plan_id,
-                        Jsonb(brief_payload),
-                        Jsonb(audience_scope),
-                        brief_digest,
-                    ),
-                )
+                try:
+                    # A plain insert avoids applying self-referential brief SELECT
+                    # policies to a not-yet-visible ON CONFLICT target row.
+                    with connection.transaction():
+                        connection.execute(
+                            """
+                            insert into app.employee_brief_versions (
+                              id, company_id, plan_id, version, brief_payload,
+                              audience_scope, brief_digest
+                            ) values (%s, %s, %s, 1, %s, %s, %s)
+                            """,
+                            (
+                                brief_id,
+                                context.company_id,
+                                plan_id,
+                                Jsonb(brief_payload),
+                                Jsonb(audience_scope),
+                                brief_digest,
+                            ),
+                        )
+                except psycopg.errors.UniqueViolation as error:
+                    if error.diag.constraint_name != EMPLOYEE_BRIEF_VERSION_CONSTRAINT:
+                        raise
                 stored_brief = connection.execute(
                     """
                     select brief_digest from app.employee_brief_versions

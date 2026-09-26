@@ -4,6 +4,8 @@ on:
   pull_request:
     paths:
       - "supabase/**"
+      - "services/backend/**"
+      - "scripts/backend.mjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/supabase.yml"
@@ -11,6 +13,8 @@ on:
     branches: [main]
     paths:
       - "supabase/**"
+      - "services/backend/**"
+      - "scripts/backend.mjs"
       - "package.json"
       - "package-lock.json"
       - ".github/workflows/supabase.yml"
@@ -38,8 +42,20 @@ jobs:
           node-version: 24
           cache: npm
 
+      - name: Set up uv
+        uses: astral-sh/setup-uv@e92bafb6253dcd438e0484186d7669ea7a8ca1cc # v7.2.3
+        with:
+          version: "0.11.18"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.13
+
       - name: Install locked dependencies
         run: npm ci
+
+      - name: Synchronize locked Python environment
+        run: uv sync --project services/backend --locked
 
       - name: Verify immutable migration manifest
         run: python supabase/scripts/verify_migrations.py
@@ -49,6 +65,12 @@ jobs:
 
       - name: Run database tests
         run: npm run test:supabase:db
+
+      - name: Lint database functions and schemas
+        run: npm exec supabase -- db lint --local --level warning --fail-on error
+
+      - name: Verify separated API and worker runtime roles
+        run: npm run test:supabase:runtime
 
   edge-functions:
     name: edge-function-contract

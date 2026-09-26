@@ -65,7 +65,6 @@ class PostgresCandidateMaterializer:
                     where candidate.company_id = %s and candidate.id = %s
                       and candidate.admission_status = 'admitted'
                       and request.status = 'interpreted'
-                    for share of candidate, request, company
                     """,
                     (context.company_id, candidate_contract_id),
                 ).fetchone()
