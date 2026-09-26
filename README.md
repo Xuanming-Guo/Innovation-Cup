@@ -8,7 +8,7 @@ Coordination Engine is a human-led company coordination system proposed for the 
 
 ## Product idea
 
-A manager supplies an outcome, context, priority, deadline and employee-shareable brief. The system retrieves permitted current facts, uses the Gemini API to propose typed task contracts, compiles validated constraints into a finite Z3 scheduling model, explains the proposed changes, obtains the required authority and commits approved changes consistently. Employees then receive appropriate instructions, submit work and participate in later replanning.
+A manager describes the desired outcome or change in natural language. The system retrieves the permitted commitments, sources, priorities, deadlines, dependencies and capacity it already knows, then asks only for genuinely missing information or decisions that require explicit human authority, including approval of an employee-shareable brief. Gemini proposes typed task contracts; trusted code validates their evidence, meaning and authority before compiling admitted constraints into a finite Z3 scheduling model. The system explains the proposed changes, obtains the required authority and commits approved changes consistently. Employees then receive appropriate instructions, submit work and participate in later replanning.
 
 The product is not an all-knowing AI manager. Models interpret and explain; trusted code enforces identity, authority and supported constraint types; Z3 constructs or checks schedules inside the admitted model; an independent validator checks the concrete schedule; humans or explicitly configured policy authorise material changes.
 

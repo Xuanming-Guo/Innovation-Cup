@@ -14,6 +14,8 @@ The repository guidance now also requires protected-main pull-request developmen
 
 The founder has now confirmed Google Gemini as the model API and Supabase as the shared database/backend platform. The documented default topology keeps Gemini credentials server-side: Supabase owns identity, authoritative records, private files, realtime refresh and durable job state, while the Python worker calls Gemini through a typed gateway, validates structured output, compiles the trusted model and runs Z3. Supabase Edge Functions may make short bounded Gemini calls, but they do not replace the durable worker for planning or solver execution.
 
+The manager may now begin with a natural-language outcome or change instead of re-entering facts the system already has. The system first retrieves permitted current commitments, sources, priorities, deadlines, dependencies and capacity, then asks only for missing information or decisions requiring explicit human authority. This clarification does not weaken the trust boundary: Gemini still produces candidate typed contracts, and trusted code must validate evidence, semantics, permissions and authority before any constraint reaches Z3.
+
 ## 1. Page-by-page feedback incorporated
 
 | Original passage / feedback | Version 2 decision | Main locations |
