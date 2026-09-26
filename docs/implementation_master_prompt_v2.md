@@ -77,8 +77,15 @@ services/
 packages/
   contracts/                # generated OpenAPI/JSON Schema types and enums
 supabase/
-  migrations/
+  config.toml              # local CLI configuration; never credentials
+  migrations/              # ordered, source-of-truth SQL migrations
   seed.sql                  # reference data only; no production identities/secrets
+  tests/
+    database/               # pgTAP/SQL migration and policy tests
+  functions/
+    _shared/                # shared Edge Function code
+    tests/                  # Edge Function tests
+    .env.example            # descriptive placeholders only
 fixtures/
   scenarios/                # synthetic company, source and event packs
   expected/                 # labels inaccessible to model/runtime retrieval
@@ -143,9 +150,9 @@ Release gates require a manager on one OS and an employee on the other to comple
 
 ## A5. Environment, local development and hosted runtime
 
-Supply `.env.example` files with descriptive placeholders, not real credentials. Desktop public configuration is limited to API origin, Supabase project URL/publishable key if directly used for Auth/Realtime, product identity and safe feature flags. Any environment variable exposed through Vite is public. No Gemini key, privileged database role, Supabase secret key, provider refresh token or signing identity secret belongs there.
+Supply `.env.example` files with descriptive placeholders, not real credentials. Keep the relevant example beside each runtime, including `supabase/functions/.env.example` for Edge Functions; filled local environment files stay untracked. Desktop public configuration is limited to API origin, Supabase project URL/publishable key if directly used for Auth/Realtime, product identity and safe feature flags. Any environment variable exposed through Vite is public. No Gemini key, privileged database role, Supabase secret key, provider refresh token or signing identity secret belongs there.
 
-Server configuration includes Supabase Auth issuer/audience/JWKS settings, least-privileged Postgres runtime connections, private storage signing credentials, queue settings, `GEMINI_API_KEY`, `GEMINI_MODEL` (initial default `gemini-3.8-flash`), Gemini request budgets/timeouts, connector client configuration, encryption-key reference and worker limits. Use the current supported Gemini authorization-key mechanism and an environment-specific Google Cloud project. Deploy the API as a Google Cloud Run service and the durable processor as a Cloud Run worker pool, with secrets supplied through the deployment secret store. Keep every key out of committed files and client-readable database records. Keep migration-owner credentials separate from runtime credentials.
+Server configuration includes Supabase Auth issuer/audience/JWKS settings, least-privileged Postgres runtime connections, private storage signing credentials, queue settings, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_REGION`, `GEMINI_API_KEY`, `GEMINI_MODEL` (initial default `gemini-3.8-flash`), Gemini request budgets/timeouts, connector client configuration, encryption-key reference and worker limits. These values remain environment variables or deployment-secret references with committed placeholders only; the founder will supply environment-specific values later. Use the current supported Gemini authorization-key mechanism and an environment-specific Google Cloud project. Deploy the API as a Google Cloud Run service and the durable processor as a Cloud Run worker pool, with secrets supplied through the deployment secret store. Prefer Cloud Run workload identity/service accounts over committed or long-lived Google service-account key files. Supply Edge Function secrets through Supabase project secrets. Keep every key out of committed files and client-readable database records. Keep migration-owner credentials separate from runtime credentials.
 
 Provide two clearly documented developer paths: hosted development Supabase with a local API/worker; and an optional local Supabase environment requiring developer Docker/CLI tooling. Installed users connect to the hosted environment and do not need Docker. Never use a real customer database as the demo reset target.
 
@@ -202,6 +209,10 @@ Private Storage has its own access policies. Authorise uploads and downloads; qu
 ## A7. Supabase migrations and canonical schema implementation
 
 Part B Section 15 is the logical data dictionary, including version 2 additions. Implement reviewed SQL migrations and seeds; do not simply create JSON columns labelled 'everything'. Keep company, membership, task ownership, authority and references relational. JSONB is appropriate only for validated typed payloads, source manifests and solver snapshots with explicit schemas.
+
+The root `supabase/` directory is the only canonical home for Supabase CLI configuration, ordered SQL migrations, reference seeds, database tests, Edge Functions, shared function modules, function tests and their committed environment-variable examples. Do not create a second migration or Edge Function tree under a service. Use timestamped, descriptive migration filenames and treat an applied migration as immutable; correct it with a later migration.
+
+Repository migrations are the source of truth even when the founder applies them manually to hosted Supabase. The coding agent authors and tests exact ordered files but does not change a hosted project without an explicit request. For each manual application, record the environment, repository commit and resulting migration version outside secrets; reconcile migration history before authoring the next change. Never place database owner credentials in the repository. Manual application is an operational boundary, not permission for dashboard-only schema drift.
 
 Required migration groups:
 
@@ -1461,7 +1472,7 @@ Every event has a stable ID, company scope, actor/cause, entity version, occurre
 
 ### 16.3 Repository organisation
 
-Suggested repository modules are `apps/desktop`, `services/backend/src/coordination` (with separate `api` and `worker` entrypoints), `packages/contracts`, `supabase/migrations`, `fixtures`, `evals`, tests and `docs`. Keep source parsers, authorisation, constraint compilation, solver operations, validation, approval policy and connector execution separate inside the shared backend package. The API and worker are separate processes, not duplicated domain code.
+Suggested repository modules are `apps/desktop`, `services/backend/src/coordination` (with separate `api` and `worker` entrypoints), `packages/contracts`, root `supabase/`, `fixtures`, `evals`, tests and `docs`. The root `supabase/` tree is the single home for CLI configuration, ordered migrations, reference seeds, database tests, Edge Functions, shared function code, function tests and committed environment placeholders; do not duplicate those assets inside an application service. Edge Functions handle only short authenticated operations, while durable planning, long Gemini workflows and Z3 stay in the Python worker. Repository migrations remain the source of truth when the founder manually applies them, and each application must be traceable to a repository commit and migration version without committing credentials. Keep source parsers, authorisation, constraint compilation, solver operations, validation, approval policy and connector execution separate inside the shared backend package. The API and worker are separate processes, not duplicated domain code.
 
 The same validated snapshot should be usable by the production planner and offline evaluation harness. Do not copy scheduling logic into the UI. The UI displays and requests; it does not become a second source of scheduling authority.
 

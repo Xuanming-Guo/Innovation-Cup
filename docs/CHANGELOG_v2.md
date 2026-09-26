@@ -18,6 +18,8 @@ The manager may now begin with a natural-language outcome or change instead of r
 
 Phase 0 also confirms the hosted compute choice and initial model configuration: FastAPI runs as a Google Cloud Run service, the durable Python processor runs as a Cloud Run worker pool, and `gemini-3.8-flash` is the initial `GEMINI_MODEL` default. The model remains server-configurable and every run records its actual model/configuration; Supabase remains the shared backend platform and system of record.
 
+The founder has confirmed the repository and deployment boundary for Supabase implementation. Root `supabase/` is the single home for CLI configuration, ordered migrations, reference seeds, database tests, Edge Functions, shared function code, function tests and committed environment placeholders. The founder will manually apply repository migrations to hosted Supabase and supply Google Cloud, Gemini and privileged Supabase environment values later; migration applications remain traceable to a repository commit/version and no real credentials are committed.
+
 ## 1. Page-by-page feedback incorporated
 
 | Original passage / feedback | Version 2 decision | Main locations |

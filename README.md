@@ -64,11 +64,12 @@ The initial demonstration connects software and HR operations teams through one 
 docs/                    Product, architecture and implementation specifications
   development/           Repository workflow and engineering process
 scripts/                 Dependency-free repository checks
+supabase/                Planned canonical home for migrations, seeds, tests and Edge Functions
 AGENTS.md                 Agent operating context
 README.md                 Project entry point and honest status
 ```
 
-The target application layout is defined in the implementation master prompt and will be introduced through reviewed vertical slices rather than an unverified scaffold.
+The target application layout is defined in the implementation master prompt and will be introduced through reviewed vertical slices rather than an unverified scaffold. When that tree is created, all Supabase CLI configuration, migrations, seeds, database tests, Edge Functions, shared function code, function tests and safe environment examples live under root `supabase/`. Google Cloud, Gemini and privileged Supabase values are supplied later through local/deployment environment variables or secret stores; only descriptive placeholders are committed. Repository migrations remain authoritative when the founder applies them manually to hosted Supabase.
 
 ## Contributing
 
