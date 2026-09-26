@@ -1,0 +1,213 @@
+from __future__ import annotations
+
+from collections import defaultdict
+from datetime import datetime
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict
+
+from coordination.interpretation.contracts import (
+    AssumptionBasis,
+    CandidateBasis,
+    CandidateTaskContract,
+    EvidenceBasis,
+)
+from coordination.interpretation.projection import InterpretationProjection
+
+
+class AdmissionIssue(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    code: str
+    path: str
+    message: str
+    disposition: Literal["reject", "clarify"]
+
+
+class AdmissionResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: Literal["admitted", "clarification_required", "rejected"]
+    issues: tuple[AdmissionIssue, ...]
+
+
+def _all_bases(contract: CandidateTaskContract) -> list[tuple[str, CandidateBasis]]:
+    values: list[tuple[str, CandidateBasis]] = []
+    for task_index, task in enumerate(contract.tasks):
+        values.extend((f"tasks[{task_index}].bases", basis) for basis in task.bases)
+        values.extend(
+            (f"tasks[{task_index}].estimate.bases", basis) for basis in task.estimate.bases
+        )
+        if task.deadline is not None:
+            values.extend(
+                (f"tasks[{task_index}].deadline.bases", basis) for basis in task.deadline.bases
+            )
+        for requirement_index, requirement in enumerate(task.requirements):
+            values.extend(
+                (f"tasks[{task_index}].requirements[{requirement_index}].bases", basis)
+                for basis in requirement.bases
+            )
+    for dependency_index, dependency in enumerate(contract.dependencies):
+        values.extend(
+            (f"dependencies[{dependency_index}].bases", basis) for basis in dependency.bases
+        )
+    return values
+
+
+def _cycle_exists(graph: dict[str, set[str]]) -> bool:
+    visiting: set[str] = set()
+    visited: set[str] = set()
+
+    def visit(node: str) -> bool:
+        if node in visiting:
+            return True
+        if node in visited:
+            return False
+        visiting.add(node)
+        for successor in graph.get(node, set()):
+            if visit(successor):
+                return True
+        visiting.remove(node)
+        visited.add(node)
+        return False
+
+    return any(visit(node) for node in graph)
+
+
+def admit_candidate(
+    contract: CandidateTaskContract,
+    projection: InterpretationProjection,
+    *,
+    now: datetime,
+) -> AdmissionResult:
+    issues: list[AdmissionIssue] = []
+
+    def issue(
+        code: str, path: str, message: str, disposition: Literal["reject", "clarify"]
+    ) -> None:
+        issues.append(
+            AdmissionIssue(code=code, path=path, message=message, disposition=disposition)
+        )
+
+    if contract.company_id != projection.company_id:
+        issue("tenant_mismatch", "company_id", "candidate company is not permitted", "reject")
+    if contract.request_id != projection.request_id:
+        issue("request_mismatch", "request_id", "candidate request does not match", "reject")
+    if contract.request_version != projection.request_version:
+        issue("stale_request", "request_version", "candidate request version is stale", "reject")
+
+    task_keys = [task.task_key for task in contract.tasks]
+    if len(task_keys) != len(set(task_keys)):
+        issue("duplicate_task_key", "tasks", "candidate task keys must be unique", "reject")
+    task_key_set = set(task_keys)
+
+    assumption_ids = [assumption.assumption_id for assumption in contract.assumptions]
+    if len(assumption_ids) != len(set(assumption_ids)):
+        issue("duplicate_assumption", "assumptions", "assumption IDs must be unique", "reject")
+    assumption_set = set(assumption_ids)
+
+    source_versions = {source.source_version_id: source for source in projection.sources}
+    for path, basis in _all_bases(contract):
+        if isinstance(basis, EvidenceBasis):
+            source = source_versions.get(basis.source_version_id)
+            if source is None:
+                issue(
+                    "source_not_permitted",
+                    path,
+                    "evidence refers to a source version outside the permitted projection",
+                    "reject",
+                )
+                continue
+            if source.freshness == "stale" or (
+                source.expires_at is not None and source.expires_at <= now
+            ):
+                issue("stale_source", path, "evidence source is stale or expired", "reject")
+            if basis.locator not in {excerpt.locator for excerpt in source.excerpts}:
+                issue("unknown_locator", path, "evidence locator was not retrieved", "reject")
+            if source.authority_status != "authoritative":
+                issue(
+                    "unconfirmed_source_authority",
+                    path,
+                    "material evidence is not marked authoritative",
+                    "clarify",
+                )
+        elif isinstance(basis, AssumptionBasis) and basis.assumption_id not in assumption_set:
+            issue("unknown_assumption", path, "basis refers to an unknown assumption", "reject")
+
+    graph: dict[str, set[str]] = defaultdict(set)
+    for index, dependency in enumerate(contract.dependencies):
+        if dependency.predecessor_task_key not in task_key_set:
+            issue(
+                "unknown_predecessor",
+                f"dependencies[{index}]",
+                "dependency predecessor is not a candidate task",
+                "reject",
+            )
+        if dependency.successor_task_key not in task_key_set:
+            issue(
+                "unknown_successor",
+                f"dependencies[{index}]",
+                "dependency successor is not a candidate task",
+                "reject",
+            )
+        if dependency.predecessor_task_key == dependency.successor_task_key:
+            issue(
+                "self_dependency", f"dependencies[{index}]", "self-dependency is invalid", "reject"
+            )
+        graph[dependency.predecessor_task_key].add(dependency.successor_task_key)
+    if _cycle_exists(graph):
+        issue(
+            "dependency_cycle", "dependencies", "candidate dependencies contain a cycle", "reject"
+        )
+
+    for index, assumption in enumerate(contract.assumptions):
+        if assumption.material:
+            issue(
+                "material_assumption",
+                f"assumptions[{index}]",
+                "material assumptions require explicit human confirmation",
+                "clarify",
+            )
+    for index, clarification in enumerate(contract.clarifications):
+        unknown_related = set(clarification.related_task_keys) - task_key_set
+        if unknown_related:
+            issue(
+                "unknown_clarification_task",
+                f"clarifications[{index}]",
+                "clarification refers to an unknown candidate task",
+                "reject",
+            )
+        if clarification.blocks_planning:
+            issue(
+                "model_clarification",
+                f"clarifications[{index}]",
+                clarification.question,
+                "clarify",
+            )
+    for index, unsupported in enumerate(contract.unsupported):
+        if set(unsupported.related_task_keys) - task_key_set:
+            issue(
+                "unknown_unsupported_task",
+                f"unsupported[{index}]",
+                "unsupported marker refers to an unknown candidate task",
+                "reject",
+            )
+        issue(
+            unsupported.code,
+            f"unsupported[{index}]",
+            unsupported.description,
+            "clarify",
+        )
+
+    if not contract.tasks and not contract.clarifications and not contract.unsupported:
+        issue(
+            "empty_interpretation", "tasks", "candidate contains no work or clarification", "reject"
+        )
+
+    if any(item.disposition == "reject" for item in issues):
+        status: Literal["admitted", "clarification_required", "rejected"] = "rejected"
+    elif any(item.disposition == "clarify" for item in issues):
+        status = "clarification_required"
+    else:
+        status = "admitted"
+    return AdmissionResult(status=status, issues=tuple(issues))
