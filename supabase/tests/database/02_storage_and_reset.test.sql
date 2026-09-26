@@ -148,7 +148,11 @@ select throws_ok(
 reset role;
 
 update app.private_files
-set state = 'available', bucket_id = 'coordination-private'
+set state = 'available', bucket_id = 'coordination-private', scan_state = 'clean',
+    scan_engine_version = 'fixture-scanner-v1',
+    content_sha256 = decode(repeat('ab', 32), 'hex'),
+    scanned_at = clock_timestamp(), detected_mime_type = declared_mime_type,
+    object_path = '11111111-1111-4111-8111-111111111111/eeeeeeee-0000-4000-8000-000000000005/final/brief.txt'
 where id = 'eeeeeeee-0000-4000-8000-000000000005';
 
 set local role authenticated;

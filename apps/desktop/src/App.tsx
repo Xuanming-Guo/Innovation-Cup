@@ -1,15 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
 
+import { EmployeeWorkspace } from "./employee-workspace";
 import { PlanReviewWorkspace } from "./plan-review";
 import { getPublicRuntimeConfig } from "./runtime-config";
 import { getServiceStatus, type ServiceStatus } from "./service-status";
 
-const navigation = ["Manager review", "My work", "Connections"] as const;
 const initialStatus: ServiceStatus = { state: "checking", detail: "Checking configured API origin" };
+type WorkspaceSurface = "manager" | "employee";
 
 export function App() {
   const config = useMemo(() => getPublicRuntimeConfig(), []);
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus>(initialStatus);
+  const [activeSurface, setActiveSurface] = useState<WorkspaceSurface>("manager");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -26,20 +28,26 @@ export function App() {
       <aside className="side-rail" aria-label="Primary navigation">
         <div className="brand"><img src="/brand-mark.svg" alt="" width="28" height="28" /><span>{config.productName}</span></div>
         <nav className="navigation">
-          {navigation.map((surface, index) => (
-            <span className={`nav-item ${index === 0 ? "active" : "disabled"}`} aria-current={index === 0 ? "page" : undefined} aria-disabled={index === 0 ? undefined : "true"} key={surface}>
-              <span className="nav-index">{String(index + 1).padStart(2, "0")}</span>{surface}
-            </span>
-          ))}
+          <button className={`nav-item ${activeSurface === "manager" ? "active" : ""}`} aria-current={activeSurface === "manager" ? "page" : undefined} aria-label="Manager review" onClick={() => setActiveSurface("manager")}>
+            <span className="nav-index">01</span>Manager review
+          </button>
+          <button className={`nav-item ${activeSurface === "employee" ? "active" : ""}`} aria-current={activeSurface === "employee" ? "page" : undefined} aria-label="My work" onClick={() => setActiveSurface("employee")}>
+            <span className="nav-index">02</span>My work
+          </button>
+          <span className="nav-item disabled" aria-disabled="true"><span className="nav-index">03</span>Connections</span>
         </nav>
-        <div className="side-note"><span className="eyebrow">Review boundary</span><strong>Human-led commitment</strong><p>AI proposes. Z3 checks. Authorized people decide. The database commits atomically.</p></div>
+        <div className="side-note">
+          <span className="eyebrow">{activeSurface === "manager" ? "Review boundary" : "Visibility boundary"}</span>
+          <strong>{activeSurface === "manager" ? "Human-led commitment" : "Approved context only"}</strong>
+          <p>{activeSurface === "manager" ? "AI proposes. Z3 checks. Authorized people decide. The database commits atomically." : "Employees see their authorised task facts and approved brief, never the full private planning context."}</p>
+        </div>
       </aside>
       <main className="workspace">
         <header className="topbar">
-          <div><span className="eyebrow">Coordination Engine · Manager workspace</span><h1>Plan review</h1></div>
+          <div><span className="eyebrow">Coordination Engine - {activeSurface === "manager" ? "Manager workspace" : "Employee workspace"}</span><h1>{activeSurface === "manager" ? "Plan review" : "My work"}</h1></div>
           <span className={`service-chip ${serviceStatus.state}`} title={serviceStatus.detail}><span className="status-dot" aria-hidden="true" />API {serviceStatus.state}</span>
         </header>
-        <PlanReviewWorkspace />
+        {activeSurface === "manager" ? <PlanReviewWorkspace /> : <EmployeeWorkspace />}
       </main>
     </div>
   );

@@ -383,7 +383,7 @@ class FakeRecorder:
 
 def test_service_records_admission_and_bounds_projection_size() -> None:
     recorder = FakeRecorder()
-    service = InterpretationService(gateway=FakeGateway(), recorder=recorder)
+    service = InterpretationService(gateway=FakeGateway(), recorder=recorder, clock=lambda: NOW)
     outcome = service.interpret(projection())
     assert outcome.status == "admitted"
     assert len(recorder.started) == 1
@@ -395,6 +395,7 @@ def test_service_records_admission_and_bounds_projection_size() -> None:
         gateway=bounded_gateway,
         recorder=bounded_recorder,
         max_projection_characters=10,
+        clock=lambda: NOW,
     )
     with pytest.raises(InterpretationBudgetExceededError):
         bounded.interpret(projection())

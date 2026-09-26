@@ -35,6 +35,11 @@
       "file": "20260926016000_plan_approval_commit.sql",
       "sha256": "577614dd930dd303d8be663a8f8c1ba2a9717fd216cda22cc69b9a83d333cabd",
       "version": "20260926016000"
+    },
+    {
+      "file": "20260926017000_employee_workflow.sql",
+      "sha256": "3ddf286cdcca070f94b7a446082311a4dff98b6d355265fec3ac31b66ff65754",
+      "version": "20260926017000"
     }
   ]
 }

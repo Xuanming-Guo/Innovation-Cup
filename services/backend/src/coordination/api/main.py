@@ -6,7 +6,7 @@ from uuid import UUID, uuid4
 
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from coordination import __version__
 from coordination.approval.contracts import (
@@ -30,6 +30,28 @@ from coordination.approval.persistence import (
 )
 from coordination.auth.dependencies import CompanyContextDependency
 from coordination.config import Settings, get_settings
+from coordination.employee.contracts import (
+    EmployeeTask,
+    ReviewCommand,
+    ReviewPolicyCommand,
+    ReviewPolicyResult,
+    ReviewResult,
+    SubmissionCommand,
+    SubmissionResult,
+    SubmissionReviewView,
+    TaskCommand,
+    TaskTransitionCommand,
+    TaskTransitionResult,
+    TaskView,
+)
+from coordination.employee.dependencies import EmployeeStoreDependency
+from coordination.employee.persistence import (
+    EmployeeAuthorityError,
+    EmployeeIdempotencyConflictError,
+    EmployeeStateConflictError,
+    EmployeeStoreError,
+    EmployeeTaskNotFoundError,
+)
 from coordination.interpretation.dependencies import (
     InterpretationGatewayDependency,
     InterpretationStoreDependency,
@@ -142,6 +164,84 @@ class PlanDecisionRequest(StrictResponse):
 class PlanCommitRequest(StrictResponse):
     binding: PlanBinding
     correlation_id: UUID
+
+
+class EmployeeTasksResponse(StrictResponse):
+    view: TaskView
+    tasks: tuple[EmployeeTask, ...]
+
+
+class TaskTransitionRequest(StrictResponse):
+    command: TaskCommand
+    expected_task_version: int = Field(gt=0)
+    payload: dict[str, object] = Field(default_factory=dict)
+    correlation_id: UUID
+
+
+class TaskReviewPolicyRequest(StrictResponse):
+    reviewer_employee_id: UUID | None = None
+    self_certifiable: bool = False
+    self_certification_rule: str = Field(default="", max_length=1000)
+    expected_task_version: int = Field(gt=0)
+    correlation_id: UUID
+
+    @model_validator(mode="after")
+    def valid_policy(self) -> TaskReviewPolicyRequest:
+        rule = self.self_certification_rule.strip()
+        if self.self_certifiable != bool(rule):
+            raise ValueError("self-certification requires one explicit deterministic rule")
+        if self.reviewer_employee_id is None and not self.self_certifiable:
+            raise ValueError("a reviewer or self-certification rule is required")
+        return self
+
+
+class TaskSubmissionRequest(StrictResponse):
+    narrative: str = Field(min_length=1, max_length=12000)
+    external_evidence_refs: tuple[str, ...] = Field(default=(), max_length=50)
+    file_ids: tuple[UUID, ...] = Field(default=(), max_length=20)
+    reported_active_minutes: int | None = Field(default=None, ge=0, le=100_000)
+    expected_task_version: int = Field(gt=0)
+    correlation_id: UUID
+
+    @field_validator("narrative")
+    @classmethod
+    def nonblank_narrative(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("narrative must not be blank")
+        return cleaned
+
+    @field_validator("external_evidence_refs")
+    @classmethod
+    def valid_external_refs(cls, values: tuple[str, ...]) -> tuple[str, ...]:
+        cleaned = tuple(value.strip() for value in values)
+        if any(not value or len(value) > 500 for value in cleaned):
+            raise ValueError("external evidence references must be 1 to 500 characters")
+        if len(cleaned) != len(set(cleaned)):
+            raise ValueError("external evidence references must be unique")
+        return cleaned
+
+    @model_validator(mode="after")
+    def unique_files(self) -> TaskSubmissionRequest:
+        if len(self.file_ids) != len(set(self.file_ids)):
+            raise ValueError("file_ids must be unique")
+        return self
+
+
+class SubmissionReviewRequest(StrictResponse):
+    expected_submission_version: int = Field(gt=0)
+    submission_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
+    decision: Literal["accepted", "revision_requested"]
+    criterion_findings: tuple[dict[str, object], ...] = Field(default=(), max_length=100)
+    correction_request: str = Field(default="", max_length=4000)
+    correlation_id: UUID
+
+    @model_validator(mode="after")
+    def valid_decision(self) -> SubmissionReviewRequest:
+        correction = self.correction_request.strip()
+        if (self.decision == "revision_requested") != bool(correction):
+            raise ValueError("only revision requests require correction instructions")
+        return self
 
 
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
@@ -554,16 +654,266 @@ def create_app() -> FastAPI:
                 detail="plan could not be committed",
             ) from error
 
+    @application.get(
+        "/v1/companies/{company_id}/me/tasks",
+        response_model=EmployeeTasksResponse,
+    )
+    def list_employee_tasks(
+        company_id: UUID,
+        view: TaskView,
+        context: CompanyContextDependency,
+        store: EmployeeStoreDependency,
+    ) -> EmployeeTasksResponse:
+        _require_same_company(company_id, context)
+        try:
+            tasks = store.list_tasks(context=context, view=view)
+        except EmployeeAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="an active employee profile is required",
+            ) from error
+        except EmployeeStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="employee tasks are unavailable",
+            ) from error
+        return EmployeeTasksResponse(view=view, tasks=tasks)
+
+    @application.post(
+        "/v1/companies/{company_id}/tasks/{task_id}/events",
+        response_model=TaskTransitionResult,
+    )
+    def transition_employee_task(
+        company_id: UUID,
+        task_id: UUID,
+        body: TaskTransitionRequest,
+        context: CompanyContextDependency,
+        store: EmployeeStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> TaskTransitionResult:
+        _require_same_company(company_id, context)
+        try:
+            return store.transition(
+                context=context,
+                task_id=task_id,
+                command=TaskTransitionCommand(
+                    command=body.command,
+                    expected_task_version=body.expected_task_version,
+                    payload=body.payload,
+                    idempotency_key=idempotency_key,
+                    correlation_id=body.correlation_id,
+                ),
+            )
+        except EmployeeTaskNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="task was not found"
+            ) from error
+        except EmployeeAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="task owner authority is required",
+            ) from error
+        except (EmployeeStateConflictError, EmployeeIdempotencyConflictError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="task state changed or the idempotency key conflicts",
+            ) from error
+        except EmployeeStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="task transition could not be stored",
+            ) from error
+
+    @application.put(
+        "/v1/companies/{company_id}/tasks/{task_id}/review-policy",
+        response_model=ReviewPolicyResult,
+    )
+    def set_task_review_policy(
+        company_id: UUID,
+        task_id: UUID,
+        body: TaskReviewPolicyRequest,
+        context: CompanyContextDependency,
+        store: EmployeeStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> ReviewPolicyResult:
+        _require_manager_company(company_id, context)
+        try:
+            command = ReviewPolicyCommand(
+                reviewer_employee_id=body.reviewer_employee_id,
+                self_certifiable=body.self_certifiable,
+                self_certification_rule=body.self_certification_rule,
+                expected_task_version=body.expected_task_version,
+                idempotency_key=idempotency_key,
+                correlation_id=body.correlation_id,
+            )
+            return store.set_review_policy(context=context, task_id=task_id, command=command)
+        except EmployeeTaskNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="task or reviewer was not found",
+            ) from error
+        except EmployeeAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="manager authority is required",
+            ) from error
+        except (EmployeeStateConflictError, EmployeeIdempotencyConflictError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="task state changed or the idempotency key conflicts",
+            ) from error
+        except EmployeeStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="review policy could not be stored",
+            ) from error
+
+    @application.post(
+        "/v1/companies/{company_id}/tasks/{task_id}/submissions",
+        response_model=SubmissionResult,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def submit_employee_task(
+        company_id: UUID,
+        task_id: UUID,
+        body: TaskSubmissionRequest,
+        response: Response,
+        context: CompanyContextDependency,
+        store: EmployeeStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> SubmissionResult:
+        _require_same_company(company_id, context)
+        try:
+            result = store.submit(
+                context=context,
+                task_id=task_id,
+                command=SubmissionCommand(
+                    narrative=body.narrative,
+                    external_evidence_refs=body.external_evidence_refs,
+                    file_ids=body.file_ids,
+                    reported_active_minutes=body.reported_active_minutes,
+                    expected_task_version=body.expected_task_version,
+                    idempotency_key=idempotency_key,
+                    correlation_id=body.correlation_id,
+                ),
+            )
+        except EmployeeTaskNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="task was not found"
+            ) from error
+        except EmployeeAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="task owner and review policy are required",
+            ) from error
+        except (EmployeeStateConflictError, EmployeeIdempotencyConflictError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="task state changed or the idempotency key conflicts",
+            ) from error
+        except EmployeeStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="submission could not be stored",
+            ) from error
+        if result.replayed:
+            response.status_code = status.HTTP_200_OK
+        return result
+
+    @application.get(
+        "/v1/companies/{company_id}/submissions/{submission_id}",
+        response_model=SubmissionReviewView,
+    )
+    def get_task_submission(
+        company_id: UUID,
+        submission_id: UUID,
+        context: CompanyContextDependency,
+        store: EmployeeStoreDependency,
+    ) -> SubmissionReviewView:
+        _require_same_company(company_id, context)
+        try:
+            return store.get_submission(context=context, submission_id=submission_id)
+        except EmployeeTaskNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="submission was not found",
+            ) from error
+        except EmployeeStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="submission is unavailable",
+            ) from error
+
+    @application.post(
+        "/v1/companies/{company_id}/submissions/{submission_id}/review",
+        response_model=ReviewResult,
+    )
+    def review_task_submission(
+        company_id: UUID,
+        submission_id: UUID,
+        body: SubmissionReviewRequest,
+        context: CompanyContextDependency,
+        store: EmployeeStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> ReviewResult:
+        _require_same_company(company_id, context)
+        try:
+            return store.review(
+                context=context,
+                submission_id=submission_id,
+                command=ReviewCommand(
+                    expected_submission_version=body.expected_submission_version,
+                    submission_digest=body.submission_digest,
+                    decision=body.decision,
+                    criterion_findings=body.criterion_findings,
+                    correction_request=body.correction_request,
+                    idempotency_key=idempotency_key,
+                    correlation_id=body.correlation_id,
+                ),
+            )
+        except EmployeeTaskNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="submission was not found",
+            ) from error
+        except EmployeeAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="assigned reviewer authority is required",
+            ) from error
+        except (EmployeeStateConflictError, EmployeeIdempotencyConflictError) as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="submission changed or the idempotency key conflicts",
+            ) from error
+        except EmployeeStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="submission review could not be stored",
+            ) from error
+
     return application
 
 
 def _require_manager_company(company_id: UUID, context: CompanyContextDependency) -> None:
-    if company_id != context.company_id:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="company was not found")
+    _require_same_company(company_id, context)
     if context.administrative_role not in ("manager", "company_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="manager authority is required"
         )
+
+
+def _require_same_company(company_id: UUID, context: CompanyContextDependency) -> None:
+    if company_id != context.company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="company was not found")
 
 
 app = create_app()
