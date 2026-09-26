@@ -1,0 +1,32 @@
+name: Implementation task
+description: Track a bounded engineering, test, documentation or CI task.
+title: "chore: "
+labels:
+  - "type: task"
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective
+      description: State the concrete outcome and why it is needed.
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: In scope and out of scope
+      description: Define boundaries that prevent unrelated work.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies and decisions
+      description: Link prerequisite issues, source-of-truth sections and unresolved authority decisions.
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria and verification
+      description: List required tests, documentation and observable evidence.
+    validations:
+      required: true

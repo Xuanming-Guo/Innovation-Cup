@@ -1,0 +1,31 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# JavaScript and desktop outputs
+node_modules/
+dist/
+coverage/
+apps/desktop/src-tauri/target/
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Build, evaluation and local runtime artifacts
+artifacts/
+.cache/
+*.log
+
+# Operating systems and editors
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
