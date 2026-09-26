@@ -29,13 +29,14 @@ Authorised sources
 |---|---|
 | Desktop | Tauri 2 with React, TypeScript and Vite |
 | Backend | Python, FastAPI and Pydantic with separate API and worker processes |
+| Hosted compute | Google Cloud Run service for FastAPI and a Cloud Run worker pool for durable Python planning work |
 | Planning | Server-side `z3-solver` with deterministic compilation and validation |
-| Model API | Google Gemini API, called only from trusted server-side code through a typed adapter |
+| Model API | Google Gemini API, called only from trusted server-side code through a typed adapter; configurable initial default `gemini-3.8-flash` |
 | Platform | Supabase backend: Auth, Postgres, private Storage, Realtime and durable queue/job state |
 | Jobs and writes | Durable jobs, transactional outbox, idempotent connector actions and reconciliation |
 | Native targets | Windows 11 x64 and macOS 13+ on Apple Silicon and Intel |
 
-Supabase is the shared backend platform and system of record. The separately hosted FastAPI service and Python worker are the compute tier connected to it: the worker retrieves a permission-bounded source projection, calls Gemini, validates its structured output, compiles trusted constraints, runs Z3 and persists the result to Supabase. A Supabase Edge Function may call Gemini for a short, bounded request, but long-running planning and Z3 work belongs in the durable worker. The Gemini credential is never shipped in the desktop application.
+Supabase is the shared backend platform and system of record. A Google Cloud Run service hosts FastAPI and a Cloud Run worker pool runs the durable Python compute tier connected to it: the worker retrieves a permission-bounded source projection, calls Gemini, validates its structured output, compiles trusted constraints, runs Z3 and persists the result to Supabase. A Supabase Edge Function may call Gemini for a short, bounded request, but long-running planning and Z3 work belongs in the worker pool. The Gemini credential is never shipped in the desktop application.
 
 The initial demonstration connects software and HR operations teams through one shared specialist. Cross-team capacity may be used without disclosing another team's private context.
 

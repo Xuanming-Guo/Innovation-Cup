@@ -35,7 +35,7 @@ At the start of implementation, inspect the repository and report what actually 
 
 Return actual test outputs, unresolved failures and simulated capabilities. Never fabricate an integration connection, solver proof, execution trace, customer quote or benchmark result. Do not claim a feature is implemented merely because a screen exists.
 
-Pin and record library versions, Gemini model identifiers, prompts and configuration when building. Recheck provider documentation before implementing APIs whose permissions or behaviour may have changed. Gemini is the confirmed provider, but the exact model ID remains server configuration; never hard-code or claim an assumed newest model.
+Pin and record library versions, Gemini model identifiers, prompts and configuration when building. Recheck provider documentation before implementing APIs whose permissions or behaviour may have changed. Gemini is the confirmed provider and `gemini-3.8-flash` is the initial configurable default; keep the exact model ID in server configuration, record it per run and never claim that the configured model is permanently the newest.
 
 ### 0.2 Competition boundary
 
@@ -73,8 +73,8 @@ The defensible promise is narrower: **the system exposes assumptions, checks a d
 | Human-led core; hybrid extension | Human task execution remains P0. Version 2 permits a bounded agent-execution extension with a human accountable owner, explicit tool permissions, budgets and acceptance. General autonomous employees remain excluded. |
 | Native Windows and macOS delivery | Use Tauri with shared manager/employee interfaces. Produce and test Windows x64 and Mac Apple Silicon/Intel artifacts; architecture support must be evidenced, not inferred from a browser build. |
 | Supabase database/backend platform | Use Supabase Auth, Postgres, private Storage, Realtime and durable queue/job state as the shared backend platform and system of record. The Python API/worker is the connected application-compute tier. |
-| Gemini model API | Use the Google Gemini API for model-backed interpretation, explanation, risk review and optional bounded agent execution. Calls are server-side through a typed gateway; exact model/configuration is recorded per run. |
-| Hosted processing | A hosted FastAPI service and durable Python worker may process permitted data against Supabase and Gemini. |
+| Gemini model API | Use the Google Gemini API for model-backed interpretation, explanation, risk review and optional bounded agent execution. Calls are server-side through a typed gateway; `gemini-3.8-flash` is the initial configurable default and the exact model/configuration is recorded per run. |
+| Hosted processing | Deploy FastAPI as a Google Cloud Run service and the durable Python processor as a Cloud Run worker pool connected to Supabase and Gemini. |
 | Tasks primarily managed in the app | External systems synchronise selected information; they do not silently become competing owners of every field. |
 | Capacity-aware multitasking | Permit multiple assigned tasks and overlapping completion windows. Reserve feasible effort segments; exclusive active work cannot be double-booked. Fixed meetings remain exact, passive waiting is separate. |
 | Skills, recent familiarity and learning | Track live workload immediately; accepted evidence informs confirmed contributions and estimates. Recent project/component familiarity is a separate correctable signal, not proof of general skill. |
@@ -95,7 +95,7 @@ Treat deadline extension as unauthorised unless a manager supplies an explicit f
 
 Use one Supabase project with isolated company records for the prototype, not a project per customer. Keep business tables in a non-exposed `app` schema behind the backend. Use permissions and RLS as layered controls. Keep protected integration credentials outside employee-visible tables. Supabase Storage must use its own explicit object-access policies, not an assumption that business-table policies cover files. Authorise before signing short-lived links. Already issued signed URLs or downloaded files are not necessarily recalled by a later access change; use short expiry and a re-authorising proxy for high-sensitivity immediate-revocation requirements. [S19]
 
-Use the official Google Gen AI SDK in the Python worker through one provider adapter. Keep `GEMINI_API_KEY` and the configurable `GEMINI_MODEL` in server-side deployment secrets. Ask Gemini for schema-constrained output where appropriate, but validate syntax, semantics, evidence, authority and current permission independently before the output can affect a plan. A Gemini answer is a candidate interpretation, not a trusted constraint. [S61, S62, S63]
+Use the official Google Gen AI SDK in the Python worker through one provider adapter. Keep `GEMINI_API_KEY` and the configurable `GEMINI_MODEL` in server-side deployment secrets; initialise `GEMINI_MODEL` to `gemini-3.8-flash`. Ask Gemini for schema-constrained output where appropriate, but validate syntax, semantics, evidence, authority and current permission independently before the output can affect a plan. A Gemini answer is a candidate interpretation, not a trusted constraint. [S61, S62, S63]
 
 ### 2.2a Version 2 defaults that make the build determinate
 
@@ -109,7 +109,7 @@ Default hybrid mode is disabled. Its schema/API boundaries are designed now, whi
 
 ### 2.3 Open decisions that should remain visible
 
-The final name, exact Gemini model/version and safety configuration, Gemini data-processing region/account arrangement, deployment region, task/priority vocabulary, allowed deadline movement, automated-change envelope, profile-correction process, retention periods, pilot buyer and pricing remain open. Gemini itself and Supabase as the shared database/backend platform are confirmed. Exact live connector scopes and whether the organisers require a browser-accessible companion to the desktop demo also remain open.
+The final name, Gemini safety configuration, Gemini data-processing region/account arrangement, Cloud Run deployment region, task/priority vocabulary, allowed deadline movement, automated-change envelope, profile-correction process, retention periods, pilot buyer and pricing remain open. Gemini, the initial configurable `gemini-3.8-flash` default, Supabase as the shared database/backend platform and the Cloud Run service/worker-pool compute topology are confirmed. Exact live connector scopes and whether the organisers require a browser-accessible companion to the desktop demo also remain open.
 
 No application repository or confirmed implementation state is part of the supplied materials. No claim about build progress should be inferred from the level of detail in this document.
 
@@ -364,14 +364,14 @@ The worker and API may run from the same repository/container image with differe
 | Desktop shell | Tauri 2 with a minimal Rust boundary, native macOS and Windows builds from one codebase |
 | Interface | React, TypeScript and Vite; share typed API contracts and keep visualisation replaceable |
 | Backend | Python/FastAPI with Pydantic validation, explicit authorisation services and typed responses |
-| Model API | Google Gemini API via the official Google Gen AI SDK and one typed server-side gateway; exact model ID is configuration |
+| Model API | Google Gemini API via the official Google Gen AI SDK and one typed server-side gateway; initial `GEMINI_MODEL` default `gemini-3.8-flash`, overridable through server configuration |
 | Planner | Python `z3-solver`; finite scheduling domain; timeout and memory isolation |
 | Database | Supabase Postgres with migrations, constraints, RLS and a non-exposed business schema |
 | Identity | Supabase Auth; validated bearer sessions at the backend |
 | Files | Private Supabase Storage; authorise before upload/download signing |
 | Jobs | Supabase Queues or one durable Postgres job mechanism; do not implement several queues unnecessarily |
 | Notifications | Persisted notification records; private refresh signals trigger authorised refetches; polling/reconnect catches missed signals |
-| Hosting | A container-capable host for API and worker; Google Cloud Run is a candidate, not a confirmed deployment |
+| Hosting | Google Cloud Run service for FastAPI and a Cloud Run worker pool for the durable Python processor |
 | Tests | Python tests for compiler/solver/permissions; frontend unit tests; end-to-end desktop/browser-component tests; connector contract tests |
 | Observability | Structured logs with trace IDs, restricted audit records, job metrics, solver statistics and cost accounting |
 
@@ -379,7 +379,7 @@ FastAPI documents container deployment; Cloud Run provides container execution. 
 
 ### 10.2a Gemini and Supabase execution topology
 
-Gemini is the confirmed provider for model-backed interpretation, explanation, risk review and the optional bounded executor. Supabase is the confirmed shared database/backend platform and system of record. The DEFAULT deployment path is:
+Gemini is the confirmed provider for model-backed interpretation, explanation, risk review and the optional bounded executor. Supabase is the confirmed shared database/backend platform and system of record. FastAPI runs as a Google Cloud Run service and the durable Python processor runs as a Cloud Run worker pool. The deployment path is:
 
 1. The desktop obtains a Supabase user session and sends the request to FastAPI.
 2. FastAPI validates the token plus current company membership/authority, stores the request and creates a durable Supabase queue/job record.
@@ -994,7 +994,7 @@ Record source-claim IDs, projection digest and actual generation/check steps. St
 
 Handle Gemini refusal, invalid output, missing fields, source mismatch, timeout, throttling and exhausted cost budgets. Retry only bounded, meaningful and safe failures. Store the exact Gemini model ID, SDK/API version, prompt/schema/safety configuration, outcome, latency and cost/token metadata. If interpretation remains unsupported, ask a person; do not silently fall back to ungrounded constraints.
 
-Choose the exact Gemini model on measured extraction reliability, structured-output behaviour, latency and total cost. Gemini is confirmed, but no named model is permanently “latest”; verify available models when building, keep the identifier configurable and record the actual choice.
+Start with the configurable `gemini-3.8-flash` default and evaluate it on measured extraction reliability, structured-output behaviour, latency and total cost. No named model is permanently “latest”; verify availability when building, keep the identifier configurable and record the actual choice for every run.
 
 ## 18. Employee learning, recent familiarity and optional AI executors
 
@@ -1306,7 +1306,7 @@ State the exact live and simulated connectors. A fixture is legitimate for testi
 | Open item | Safe default until resolved |
 |---|---|
 | Final name | Use Coordination Engine as a descriptive working label |
-| Exact Gemini model/configuration and processing region | Gemini is confirmed; configure the exact model server-side and review quality, cost, safety, data use and region before real-data use |
+| Gemini safety configuration and processing region | Start with server-configured `gemini-3.8-flash`; review quality, cost, safety, data use and region before real-data use and change the configurable model only through a recorded decision |
 | Automatic-change limits | Disabled until manager configures an explicit versioned envelope |
 | Deadline flexibility | Zero unless an authorised owner declares a window |
 | Started task movement | Locked by default; explicit review needed |

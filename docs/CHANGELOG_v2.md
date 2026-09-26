@@ -16,6 +16,8 @@ The founder has now confirmed Google Gemini as the model API and Supabase as the
 
 The manager may now begin with a natural-language outcome or change instead of re-entering facts the system already has. The system first retrieves permitted current commitments, sources, priorities, deadlines, dependencies and capacity, then asks only for missing information or decisions requiring explicit human authority. This clarification does not weaken the trust boundary: Gemini still produces candidate typed contracts, and trusted code must validate evidence, semantics, permissions and authority before any constraint reaches Z3.
 
+Phase 0 also confirms the hosted compute choice and initial model configuration: FastAPI runs as a Google Cloud Run service, the durable Python processor runs as a Cloud Run worker pool, and `gemini-3.8-flash` is the initial `GEMINI_MODEL` default. The model remains server-configurable and every run records its actual model/configuration; Supabase remains the shared backend platform and system of record.
+
 ## 1. Page-by-page feedback incorporated
 
 | Original passage / feedback | Version 2 decision | Main locations |
