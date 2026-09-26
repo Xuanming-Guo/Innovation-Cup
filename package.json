@@ -20,6 +20,8 @@
     "dev:worker": "node scripts/backend.mjs python -m coordination.worker.main",
     "doctor": "node scripts/doctor.mjs",
     "lint": "npm run lint --workspace @coordination/desktop && node scripts/backend.mjs ruff check services/backend/src services/backend/tests",
+    "release:config:check": "node scripts/validate-public-config.mjs",
+    "release:config:test": "node --test scripts/validate-public-config.test.mjs",
     "release:check": "node scripts/verify-release.mjs artifacts/release",
     "test": "npm run test:desktop && npm run test:backend",
     "test:backend": "node scripts/backend.mjs pytest -c services/backend/pyproject.toml services/backend/tests",

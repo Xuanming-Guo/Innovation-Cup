@@ -1,13 +1,34 @@
 # Production and hosted-demo setup
 
 This runbook turns a reviewed repository commit into one hosted Supabase project, one FastAPI
-service, one continuously running worker and configurable desktop installations. It deliberately
+service, one continuously running worker and preconfigured desktop installations. It deliberately
 keeps schema application, credentials and public deployment actions under the founder's control.
 
-The generic desktop artifacts do not need to contain deployment values. On first launch, open
-**Deployment** and enter the API origin, Supabase project URL, publishable key and company UUID.
-All four are public identifiers. Never enter a database password, Supabase secret key or Gemini
-key there.
+Production installers contain the API origin, Supabase project URL, publishable key and company
+UUID at build time. Employees do not enter them. These values are public identifiers, but the
+publishable key is safe only because Supabase Auth, RLS and least-privilege grants enforce access;
+it is not a substitute for authorization. Never embed a database password, Supabase secret or
+service-role key, migration-owner DSN, runtime-role DSN or Gemini key.
+
+## 0. Exact configuration locations
+
+| Scope | Exact location | Values |
+|---|---|---|
+| GitHub native release | Repository **Settings -> Secrets and variables -> Actions -> Variables** | `VITE_API_ORIGIN`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_DEFAULT_COMPANY_ID`; optional `VITE_PRODUCT_NAME` |
+| Local desktop build | Ignored `apps/desktop/.env.production.local` for a production-mode build, or `apps/desktop/.env.local` for local Vite/Tauri development | The same five public `VITE_` values; use `apps/desktop/.env.example` as the template |
+| API deployment | API service environment settings on the chosen container host | The API column in section 6; `COORDINATION_DATABASE_URL` uses the API login |
+| Worker deployment | Worker service environment settings on the chosen container host | The worker column in section 6; `COORDINATION_DATABASE_URL` uses the worker login |
+| Local API/worker | Ignored `services/backend/.env` | Copy `services/backend/.env.example`; the repository launcher loads this exact file |
+| One-off demo provisioning | Current PowerShell process environment | `COORDINATION_ENVIRONMENT`, `SUPABASE_DB_URL`, `DEMO_MANAGER_USER_ID`, `DEMO_EMPLOYEE_USER_ID`; `supabase/.env.example` is a reference, but the provisioning command does not automatically load `supabase/.env` |
+| Hosted Edge Function | Supabase-managed defaults plus project Edge Function secrets | Supabase injects its own URL/key/JWKS/database variables; set only optional `STORAGE_DOWNLOAD_TTL_SECONDS` with the CLI command in section 4 |
+| Local Edge Function | Ignored `supabase/functions/.env`, passed explicitly with `--env-file` when serving locally | Copy `supabase/functions/.env.example`; never reuse hosted secret values |
+| Company Gemini credential | Authenticated desktop **Connections** screen -> FastAPI -> Supabase Vault | One company-owned Gemini Developer API key; it is not a build variable or production process environment variable |
+| Supabase CLI link | Generated ignored state under `supabase/.temp/`; CLI login is managed outside the repository | Do not edit or commit either; use `supabase link` from repository root |
+
+Committed configuration and templates are `supabase/config.toml`, `supabase/migrations/*.sql`,
+`supabase/seed.sql`, `supabase/functions/storage-ticket/`, `apps/desktop/.env.example`,
+`services/backend/.env.example`, `supabase/.env.example` and
+`supabase/functions/.env.example`. Real credentials never belong in those files.
 
 ## 1. Create and secure the Supabase project
 
@@ -20,6 +41,21 @@ key there.
 4. In Auth, disable anonymous sign-ins. For a controlled demo, disable public sign-up after the
    two synthetic accounts have been created. Email/password is the implemented login path.
 5. Never put the database password, secret key or service-role key into a `VITE_` variable.
+
+### Optional GitHub integration shown in the Dashboard
+
+The CLI workflow below does not require the GitHub integration. If you connect it anyway:
+
+1. Select `Xuanming-Guo/Innovation-Cup`.
+2. Enter `.` in **Working directory** because `supabase/` is directly under repository root.
+3. Leave **Deploy to production** off for this repository's founder-controlled manual workflow.
+4. Automatic preview branching requires the Supabase plan shown by the Dashboard and is not
+   required to apply migrations manually.
+
+If **Deploy to production** is enabled, Supabase automatically applies new migrations and deploys
+configured Edge Functions and Storage buckets when changes reach `main`. That is a different
+operating policy; do not combine it with the manual production push below or assume a merge is
+database-neutral.
 
 ## 2. Apply the repository migrations in order
 
@@ -36,6 +72,13 @@ npm.cmd exec supabase -- migration list --linked
 python supabase/scripts/verify_migrations.py
 git rev-parse HEAD
 ```
+
+Run every command from the repository root (the directory containing `package.json` and the
+`supabase/` folder). Find `<project-ref>` in the Supabase project URL: for
+`https://abcdefgh.supabase.co`, it is `abcdefgh`. `login` authorizes the CLI; `link` may prompt for
+the database password and writes only ignored link metadata. `migration list --linked` identifies
+local/remote drift, `db push --dry-run` previews the target changes, and only the subsequent
+`db push` changes the hosted database.
 
 Stop if hosted history is not an exact prefix before the push, or if the final list does not match
 the eleven files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
@@ -177,25 +220,34 @@ The API and worker do not need a Supabase secret/service-role key.
 After deployment, require successful responses from `/health/live`, `/health/ready` and `/version`.
 `/health/ready` must report both configuration and durable schema ready.
 
-## 7. Configure or preconfigure the desktop
+## 7. Bake the public desktop configuration and build installers
 
-For the generic artifacts, launch the app and enter:
+After the API exists and the company UUID has been provisioned, add these repository Actions
+**Variables** (not Secrets):
 
-- API origin: the HTTPS API origin, with no path suffix;
-- Supabase URL: the project URL;
-- Supabase publishable key: `sb_publishable_...`;
-- company ID: the provisioned company UUID.
+| Variable | Exact value |
+|---|---|
+| `VITE_API_ORIGIN` | Deployed FastAPI HTTPS origin with no path, for example `https://api.example.com` |
+| `VITE_SUPABASE_URL` | Project URL, for example `https://abcdefgh.supabase.co` |
+| `VITE_SUPABASE_PUBLISHABLE_KEY` | The project's `sb_publishable_...` client key |
+| `VITE_DEFAULT_COMPANY_ID` | Provisioned company UUID; the demo value is `11111111-1111-4111-8111-111111111111` |
+| `VITE_PRODUCT_NAME` | Optional display name; defaults to `Coordination Engine` |
 
-These values are stored locally and can be reset under **Deployment**. To bake public defaults
-into a private organisation build, create ignored `apps/desktop/.env.production.local` with the
-five `VITE_` variables shown in `apps/desktop/.env.example`. For GitHub Actions, put the same names
-under **Settings → Secrets and variables → Actions → Variables**. They are variables, not secrets,
-and the release workflow still produces a configurable artifact if they are unset.
+Open GitHub -> repository **Settings -> Secrets and variables -> Actions -> Variables -> New
+repository variable** and create each row. The release workflow validates the four required
+values before compilation and refuses to produce a generic installer. It also rejects HTTP,
+path-bearing origins, malformed company IDs and keys that are not `sb_publishable_...`, which
+prevents accidentally embedding a privileged key.
+
+For a local production build, copy `apps/desktop/.env.example` to the ignored
+`apps/desktop/.env.production.local`, fill the same public values, and run the native build. The
+**Deployment** screen is retained only as an advanced local/operator override and reset path; a
+normally distributed production installer opens ready for sign-in without employee setup.
 
 ## 8. Final connected smoke check
 
 1. Install and launch the platform artifact; record the OS and CPU architecture.
-2. Configure the four public values and sign in as the synthetic manager.
+2. Confirm the baked API/Supabase/company values are active, then sign in as the synthetic manager.
 3. In **Connections**, install and validate the company's Gemini Developer API key.
 4. Create a planning request, wait for interpretation/materialisation/Z3 jobs, review the exact
    proposal and approve/commit it.

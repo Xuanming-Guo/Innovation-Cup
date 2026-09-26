@@ -82,6 +82,11 @@ The app must not deploy functions or change a linked database merely because thi
 present. Hosted schema state, function deployment and Storage bucket state are separate facts
 and must all be recorded.
 
+The Supabase GitHub integration is optional for this manual workflow. If it is connected, enter
+`.` as the working directory because this `supabase/` directory is at repository root, and leave
+**Deploy to production** disabled. Enabling that toggle changes the authority boundary: merges to
+`main` can automatically apply new migrations and deploy the Edge Function/configured buckets.
+
 `functions/.env.example` documents the Edge runtime contract. Supabase injects its URL, key map,
 JWKS and database URL for hosted functions; the only application-specific function value is the
 bounded download TTL. Do not replace the generated hosted values with desktop keys.

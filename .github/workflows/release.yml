@@ -86,6 +86,14 @@ jobs:
             exit 1
           }
 
+      - name: Validate baked public configuration
+        env:
+          VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
+          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          VITE_DEFAULT_COMPANY_ID: ${{ vars.VITE_DEFAULT_COMPANY_ID }}
+        run: npm run release:config:check
+
       - name: Install locked JavaScript dependencies
         run: npm ci
 

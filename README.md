@@ -119,9 +119,11 @@ npm.cmd run dev:worker
 npm.cmd run dev:desktop
 ```
 
-Packaged desktop builds open **Deployment** when no public defaults were compiled. Enter the
-HTTPS API origin, Supabase project URL, publishable key and company UUID there; no privileged
-credential belongs in the desktop. Follow the
+Production desktop installers bake in the HTTPS API origin, Supabase project URL, publishable key
+and company UUID as public build-time values, so employees do not configure them. The release
+workflow refuses to build when any required public value is missing or malformed. **Deployment**
+remains an advanced local/operator override; no privileged credential belongs in the desktop.
+Follow the
 [production setup runbook](docs/development/production-setup.md) before a connected demo.
 
 Run the issue-level application check with `npm.cmd run check`. With its database configured,
