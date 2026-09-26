@@ -72,6 +72,7 @@ class ApprovalRequirementView(StrictApprovalModel):
     kind: str
     authority_kind: str
     authority_team_id: UUID | None
+    artifact_digest: str = Field(pattern=r"^[0-9a-f]{64}$")
     reason: str
     status: ApprovalRequirementStatus
     decided_by_membership_id: UUID | None

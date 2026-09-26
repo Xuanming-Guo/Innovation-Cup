@@ -7,9 +7,22 @@ from uuid import UUID, uuid5
 
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 from coordination import __version__
+from coordination.ai_provider.contracts import AiProviderConfiguration
+from coordination.ai_provider.dependencies import (
+    AiProviderStoreDependency,
+    GeminiCredentialValidatorDependency,
+)
+from coordination.ai_provider.persistence import (
+    AiProviderAuthorityError,
+    AiProviderStoreUnavailableError,
+)
+from coordination.ai_provider.validation import (
+    GeminiCredentialValidationUnavailableError,
+    InvalidGeminiCredentialError,
+)
 from coordination.approval.contracts import (
     ApprovalCommand,
     ApprovalDecisionResult,
@@ -105,6 +118,11 @@ class SessionResponse(StrictResponse):
     employee_id: str | None
 
 
+class GeminiCredentialRequest(StrictResponse):
+    api_key: SecretStr = Field(min_length=20, max_length=512)
+    correlation_id: UUID
+
+
 class PlanningRequestCreate(StrictResponse):
     project_id: UUID | None
     original_request: str = Field(min_length=1, max_length=8000)
@@ -146,6 +164,31 @@ class PlanningRequestDetailResponse(StrictResponse):
     latest_outcome: str | None
     candidate_digest: str | None
     clarifications: tuple[ClarificationResponse, ...]
+    candidate_contract_id: UUID | None
+    snapshot_id: UUID | None
+    plan_id: UUID | None
+    interpretation_job_state: str | None
+    materialization_job_state: str | None
+    planning_job_state: str | None
+
+
+class PlanningSourceResponse(StrictResponse):
+    source_id: UUID
+    title: str
+    classification: str
+    source_kind: str
+
+
+class PlanningRequestSummaryResponse(StrictResponse):
+    request_id: UUID
+    original_request: str
+    status: str
+    created_at: datetime
+
+
+class PlanningContextResponse(StrictResponse):
+    sources: tuple[PlanningSourceResponse, ...]
+    requests: tuple[PlanningRequestSummaryResponse, ...]
 
 
 class PlanDecisionRequest(StrictResponse):
@@ -239,6 +282,10 @@ class SubmissionReviewRequest(StrictResponse):
         return self
 
 
+class PendingReviewsResponse(StrictResponse):
+    reviews: tuple[SubmissionReviewView, ...]
+
+
 class JobCancellationRequest(StrictResponse):
     reason: str = Field(min_length=1, max_length=500)
 
@@ -325,6 +372,95 @@ def create_app() -> FastAPI:
             employee_id=str(context.employee_id) if context.employee_id else None,
         )
 
+    @application.get(
+        "/v1/companies/{company_id}/ai-provider/gemini",
+        response_model=AiProviderConfiguration,
+    )
+    def get_company_gemini_configuration(
+        company_id: UUID,
+        context: CompanyContextDependency,
+        store: AiProviderStoreDependency,
+    ) -> AiProviderConfiguration:
+        _require_company_admin(company_id, context)
+        try:
+            return store.get_configuration(context=context)
+        except AiProviderAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="company administrator authority is required",
+            ) from error
+        except AiProviderStoreUnavailableError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="AI provider configuration is unavailable",
+            ) from error
+
+    @application.put(
+        "/v1/companies/{company_id}/ai-provider/gemini",
+        response_model=AiProviderConfiguration,
+    )
+    def configure_company_gemini(
+        company_id: UUID,
+        body: GeminiCredentialRequest,
+        context: CompanyContextDependency,
+        store: AiProviderStoreDependency,
+        validator: GeminiCredentialValidatorDependency,
+    ) -> AiProviderConfiguration:
+        _require_company_admin(company_id, context)
+        api_key = body.api_key.get_secret_value()
+        try:
+            validation = validator.validate(api_key=api_key)
+            return store.configure(
+                context=context,
+                api_key=api_key,
+                validated_model=validation.model,
+                correlation_id=body.correlation_id,
+            )
+        except InvalidGeminiCredentialError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Gemini rejected the key or the configured model is unavailable",
+            ) from error
+        except GeminiCredentialValidationUnavailableError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Gemini credential validation is temporarily unavailable",
+            ) from error
+        except AiProviderAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="company administrator authority is required",
+            ) from error
+        except AiProviderStoreUnavailableError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="AI provider configuration could not be stored",
+            ) from error
+
+    @application.delete(
+        "/v1/companies/{company_id}/ai-provider/gemini",
+        response_model=AiProviderConfiguration,
+    )
+    def remove_company_gemini(
+        company_id: UUID,
+        correlation_id: UUID,
+        context: CompanyContextDependency,
+        store: AiProviderStoreDependency,
+    ) -> AiProviderConfiguration:
+        _require_company_admin(company_id, context)
+        try:
+            return store.remove(context=context, correlation_id=correlation_id)
+        except AiProviderAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="company administrator authority is required",
+            ) from error
+        except AiProviderStoreUnavailableError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="AI provider configuration could not be removed",
+            ) from error
+
     @application.post(
         "/v1/companies/{company_id}/planning-requests",
         response_model=PlanningRequestResponse,
@@ -384,6 +520,51 @@ def create_app() -> FastAPI:
         )
 
     @application.get(
+        "/v1/companies/{company_id}/planning-context",
+        response_model=PlanningContextResponse,
+    )
+    def get_planning_context(
+        company_id: UUID,
+        context: CompanyContextDependency,
+        store: InterpretationStoreDependency,
+    ) -> PlanningContextResponse:
+        if company_id != context.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="company was not found"
+            )
+        if context.administrative_role not in ("manager", "company_admin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN, detail="manager authority is required"
+            )
+        try:
+            sources, requests = store.list_planning_context(context=context)
+        except InterpretationStoreUnavailableError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="planning context is unavailable",
+            ) from error
+        return PlanningContextResponse(
+            sources=tuple(
+                PlanningSourceResponse(
+                    source_id=value.source_id,
+                    title=value.title,
+                    classification=value.classification,
+                    source_kind=value.source_kind,
+                )
+                for value in sources
+            ),
+            requests=tuple(
+                PlanningRequestSummaryResponse(
+                    request_id=value.request_id,
+                    original_request=value.original_request,
+                    status=value.status,
+                    created_at=value.created_at,
+                )
+                for value in requests
+            ),
+        )
+
+    @application.get(
         "/v1/companies/{company_id}/planning-requests/{request_id}",
         response_model=PlanningRequestDetailResponse,
     )
@@ -431,6 +612,12 @@ def create_app() -> FastAPI:
                 )
                 for question in view.clarifications
             ),
+            candidate_contract_id=view.candidate_contract_id,
+            snapshot_id=view.snapshot_id,
+            plan_id=view.plan_id,
+            interpretation_job_state=view.interpretation_job_state,
+            materialization_job_state=view.materialization_job_state,
+            planning_job_state=view.planning_job_state,
         )
 
     @application.post(
@@ -1055,6 +1242,29 @@ def create_app() -> FastAPI:
                 detail="submission is unavailable",
             ) from error
 
+    @application.get(
+        "/v1/companies/{company_id}/reviews/pending",
+        response_model=PendingReviewsResponse,
+    )
+    def list_pending_reviews(
+        company_id: UUID,
+        context: CompanyContextDependency,
+        store: EmployeeStoreDependency,
+    ) -> PendingReviewsResponse:
+        _require_same_company(company_id, context)
+        try:
+            return PendingReviewsResponse(reviews=store.list_pending_reviews(context=context))
+        except EmployeeAuthorityError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="reviewer authority is required",
+            ) from error
+        except EmployeeStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="pending reviews are unavailable",
+            ) from error
+
     @application.post(
         "/v1/companies/{company_id}/submissions/{submission_id}/review",
         response_model=ReviewResult,
@@ -1113,6 +1323,15 @@ def _require_manager_company(company_id: UUID, context: CompanyContextDependency
     if context.administrative_role not in ("manager", "company_admin"):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="manager authority is required"
+        )
+
+
+def _require_company_admin(company_id: UUID, context: CompanyContextDependency) -> None:
+    _require_same_company(company_id, context)
+    if context.administrative_role != "company_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="company administrator authority is required",
         )
 
 

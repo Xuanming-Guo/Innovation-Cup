@@ -28,10 +28,6 @@ spec:
               value: production
             - name: COORDINATION_BUILD_COMMIT
               value: COMMIT_SHA
-            - name: COORDINATION_GOOGLE_CLOUD_PROJECT
-              value: PROJECT_ID
-            - name: COORDINATION_GOOGLE_CLOUD_REGION
-              value: REGION
             - name: COORDINATION_SUPABASE_URL
               value: SUPABASE_PROJECT_URL
             - name: COORDINATION_SUPABASE_JWT_ISSUER

@@ -2,7 +2,7 @@
 
 Issue #12 moves interpretation, planning and internal notification delivery out of request-bound
 execution. This document records the implemented repository boundary; it is not evidence that the
-migration or Cloud Run resources have been applied to a hosted environment.
+migration or optional deployment resources have been applied to a hosted environment.
 
 ## State and lease model
 
@@ -49,8 +49,10 @@ checks. Extra or malformed broadcast fields are ignored.
 
 The worker emits sanitised JSON job/cycle events and writes heartbeats. Managers can read company
 queue/outbox/notification metrics through FastAPI. API readiness and worker startup verify that the
-lease function exists; liveness remains process-only. API and worker Cloud Run definitions use
-separate database secrets, and only the worker receives the Gemini secret.
+lease function exists; liveness remains process-only. The API and worker use separate database
+secrets on any supported host; the Cloud Run definitions are one optional example. Company Gemini
+keys are encrypted in Supabase Vault, and only the worker may resolve the current tenant's key for
+a leased model job.
 
 The quarantined-file job currently fails closed into `review_required` with
 `file_scanner_not_configured`; no file is declared clean without a real malware scanner and private

@@ -51,18 +51,22 @@ re-authorising download proxy rather than a bearer URL.
 
 ## Secret placement
 
-The native application may receive only the Supabase project URL and publishable client key.
-Those identify the public project API and do not bypass RLS. The following remain server-only
-environment variables or managed deployment secrets:
+The native application may receive only the API origin, Supabase project URL and publishable
+client key. Those identify public endpoints and do not bypass RLS. The following remain
+server-only environment variables, encrypted Vault values or managed deployment secrets:
 
 - database runtime URLs and passwords;
 - Supabase secret/service-role credentials;
-- Gemini API credentials;
+- company Gemini API credentials, encrypted in Supabase Vault and plaintext-readable only by the
+  durable worker under active tenant context;
 - migration-owner credentials.
 
-The migration owner is used only for reviewed schema application. A separately provisioned
-login inherits one least-privileged runtime group role. The Edge Function's admin Storage client
-is used only after the RLS-scoped database function returns an authorised ticket.
+Only a company administrator can submit, rotate or remove that company's key. The API validates
+model access without sending company content and never returns the key. Employees and managers
+without company-admin authority cannot read even its metadata. The migration owner is used only
+for reviewed schema application. A separately provisioned login inherits one least-privileged
+runtime group role. The Edge Function's admin Storage client is used only after the RLS-scoped
+database function returns an authorised ticket.
 
 ## Operations and evidence
 

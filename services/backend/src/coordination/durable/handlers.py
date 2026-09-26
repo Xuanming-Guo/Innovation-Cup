@@ -3,6 +3,13 @@ from __future__ import annotations
 from collections.abc import Callable
 from uuid import UUID, uuid5
 
+from coordination.ai_provider.gateway_factory import CompanyGeminiGatewayFactory
+from coordination.ai_provider.persistence import (
+    AiProviderStoreUnavailableError,
+    CompanyGeminiCredentialNotConfiguredError,
+    PostgresAiProviderStore,
+)
+from coordination.auth.models import CompanyContext
 from coordination.config import Settings
 from coordination.durable.contracts import JobLease, JobResult
 from coordination.durable.persistence import DurableStore, DurableStoreError
@@ -11,7 +18,8 @@ from coordination.durable.runner import (
     PermanentJobError,
     RetryableJobError,
 )
-from coordination.interpretation.gateway import GatewayConfiguration, GoogleGeminiGateway
+from coordination.interpretation.fixture_gateway import FixtureInterpretationGateway
+from coordination.interpretation.gateway import InterpretationGateway
 from coordination.interpretation.persistence import (
     InterpretationStateConflictError,
     InterpretationStoreUnavailableError,
@@ -25,6 +33,11 @@ from coordination.interpretation.service import (
     InterpretationService,
 )
 from coordination.planning.engine import PlanningEngine
+from coordination.planning.materialization_persistence import (
+    CandidateMaterializationConflictError,
+    CandidateMaterializationStoreError,
+    PostgresCandidateMaterializer,
+)
 from coordination.planning.persistence import (
     PlanningPersistenceError,
     PlanningStateConflictError,
@@ -49,17 +62,18 @@ class InterpretationJobHandler:
         *,
         settings: Settings,
         store: PostgresInterpretationStore,
-        gateway: GoogleGeminiGateway,
+        gateway_factory: Callable[[CompanyContext], InterpretationGateway],
     ) -> None:
         self._settings = settings
         self._store = store
-        self._gateway = gateway
+        self._gateway_factory = gateway_factory
 
     def __call__(self, lease: JobLease) -> JobResult:
         context = lease.company_context()
         request_id = _payload_uuid(lease, "request_id")
         retrieval_run_id = uuid5(lease.job_id, f"retrieval:{lease.attempt_count}")
         try:
+            gateway = self._gateway_factory(context)
             current = self._store.get_request(context=context, request_id=request_id)
             if current.status in {"interpreted", "clarification_required"}:
                 return JobResult(
@@ -76,7 +90,7 @@ class InterpretationJobHandler:
                 retrieval_run_id=retrieval_run_id,
             )
             service = InterpretationService(
-                gateway=self._gateway,
+                gateway=gateway,
                 recorder=self._store.recorder(
                     context=context,
                     request_id=request_id,
@@ -90,6 +104,10 @@ class InterpretationJobHandler:
             outcome = service.interpret(bundle.projection)
         except (PlanningRequestNotFoundError, PlanningRequestSourceNotFoundError) as error:
             raise PermanentJobError("planning_request_unavailable") from error
+        except CompanyGeminiCredentialNotConfiguredError as error:
+            raise PermanentJobError("company_gemini_not_configured") from error
+        except AiProviderStoreUnavailableError as error:
+            raise RetryableJobError("company_gemini_credential_unavailable") from error
         except InterpretationBudgetExceededError as error:
             raise PermanentJobError("projection_budget_exhausted") from error
         except InterpretationStateConflictError as error:
@@ -154,6 +172,29 @@ class PlanningJobHandler:
         )
 
 
+class CandidateMaterializationJobHandler:
+    def __init__(self, materializer: PostgresCandidateMaterializer) -> None:
+        self._materializer = materializer
+
+    def __call__(self, lease: JobLease) -> JobResult:
+        context = lease.company_context()
+        candidate_id = _payload_uuid(lease, "candidate_contract_id")
+        try:
+            snapshot_id = self._materializer.materialize(
+                context=context, candidate_contract_id=candidate_id
+            )
+        except CandidateMaterializationConflictError as error:
+            raise PermanentJobError("candidate_materialization_rejected") from error
+        except CandidateMaterializationStoreError as error:
+            raise RetryableJobError("candidate_materialization_store_unavailable") from error
+        return JobResult(
+            values={
+                "candidate_contract_id": str(candidate_id),
+                "snapshot_id": str(snapshot_id),
+            }
+        )
+
+
 class QuarantinedFileHandler:
     """Fail closed until a malware scanner and private-object mover are configured."""
 
@@ -167,27 +208,40 @@ def build_handlers(
 ) -> dict[str, Callable[[JobLease], JobResult]]:
     if settings.database_url is None:
         raise ValueError("database URL is required by the durable worker")
-    if settings.gemini_api_key is None:
-        raise ValueError("Gemini API key is required by the durable interpretation worker")
     dsn = settings.database_url.get_secret_value()
     interpretation_store = PostgresInterpretationStore(
         dsn,
         connect_timeout_seconds=settings.database_connect_timeout_seconds,
     )
-    gateway = GoogleGeminiGateway(
-        api_key=settings.gemini_api_key.get_secret_value(),
-        configuration=GatewayConfiguration(
-            model=settings.gemini_model,
-            timeout_seconds=settings.gemini_timeout_seconds,
-            retry_attempts=1,
-            max_output_tokens=settings.gemini_max_output_tokens,
-        ),
-    )
+    gateway_factory: Callable[[CompanyContext], InterpretationGateway]
+    if settings.interpretation_mode == "fixture":
+        if settings.environment == "production":
+            raise ValueError("fixture interpretation is forbidden in production")
+        gateway = FixtureInterpretationGateway()
+
+        def fixture_gateway_factory(_context: CompanyContext) -> InterpretationGateway:
+            return gateway
+
+        gateway_factory = fixture_gateway_factory
+    else:
+        gateway_factory = CompanyGeminiGatewayFactory(
+            settings=settings,
+            credentials=PostgresAiProviderStore(
+                dsn,
+                connect_timeout_seconds=settings.database_connect_timeout_seconds,
+            ),
+        )
     return {
         "interpretation.run": InterpretationJobHandler(
             settings=settings,
             store=interpretation_store,
-            gateway=gateway,
+            gateway_factory=gateway_factory,
+        ),
+        "planning.materialize": CandidateMaterializationJobHandler(
+            PostgresCandidateMaterializer(
+                dsn,
+                connect_timeout_seconds=settings.database_connect_timeout_seconds,
+            )
         ),
         "planning.run": PlanningJobHandler(
             PostgresPlanningLedger(

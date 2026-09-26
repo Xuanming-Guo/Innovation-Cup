@@ -27,6 +27,8 @@ manual-application guidance. It contains no linked-project metadata or credentia
 - Idempotent internal outbox delivery to recipient-specific persisted notifications plus a constant
   private `user:<auth.uid>` Realtime invalidation signal; application tables are not published.
 - Deterministic synthetic company anchors and a guarded demo reset.
+- Company-scoped Gemini BYOK metadata with encrypted key material in Supabase Vault,
+  administrator-only configure/rotate/remove functions and a worker-only plaintext resolver.
 
 The Edge Function validates a real user session, runs only the narrow ticket functions as the
 `authenticated` database role, and uses its server-only admin client solely to sign the exact
@@ -60,6 +62,18 @@ node scripts/backend.mjs python supabase/scripts/demo_tenant.py seed
 
 The script creates no Auth user and stores no password. Create synthetic `.invalid` accounts
 through Supabase Auth first; never reuse a personal or customer account.
+
+## Company Gemini connection
+
+Do not put a production Gemini key in this directory or an Edge Function secret. After migrations
+are applied, a company administrator signs into the desktop, opens **Connections**, and submits
+that company's key. FastAPI verifies access to the configured model without sending company
+content. The guarded database function encrypts the key in Vault and returns only status,
+validation timestamps and a short SHA-256 hint. Only the `coordination_worker` role can resolve
+plaintext, and only under current actor/company/purpose context.
+
+Rotation updates the existing Vault secret. Removal deletes it. A missing key affects only that
+company's model-backed jobs; identity, non-model workflows and other tenants remain available.
 
 ## Hosted application boundary
 

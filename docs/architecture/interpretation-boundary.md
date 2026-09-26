@@ -14,8 +14,9 @@ schedule, a validated constraint, an approval or a committed task.
    `coordination_worker` RLS role. It builds a bounded projection containing source metadata,
    permitted excerpts, permitted employee identities, known structured facts and explicit
    missing-data markers. It records a canonical SHA-256 digest.
-4. One adapter calls the official `google-genai` SDK. The Gemini key exists only in server
-   configuration. The call has an explicit timeout, at most three configured attempts, a fixed
+4. One adapter calls the official `google-genai` SDK. The worker resolves the current company's
+   encrypted Gemini key from Supabase Vault under the same tenant context and constructs a
+   short-lived client. The call has an explicit timeout, bounded retry, a fixed
    model/prompt/schema/safety profile, no model tools and a supported JSON response schema.
 5. Pydantic rejects fields outside `CandidateTaskContract`. Trusted admission code then checks
    company/request/version identity, current source versions, retrieved locators, source
@@ -58,7 +59,6 @@ only `ValidatedConstraint` records produced by the next trusted boundary, never 
 - Provider error messages and credentials are not returned to clients or stored in the run
   ledger.
 
-The explicit interpret API is synchronous in this slice so the boundary is runnable. Durable
-dispatch, leases and crash-safe retry move to the Cloud Run worker in issue #12. A live Gemini
-call remains **NOT RUN** until the founder supplies a development credential; fixture tests use
-no external model or company data.
+Interpretation runs through the durable worker. A live Gemini call remains **NOT RUN** until a
+company administrator supplies and authorises a key; fixture tests use no external model or
+company data. The worker host is portable and is not required to run on Google Cloud.

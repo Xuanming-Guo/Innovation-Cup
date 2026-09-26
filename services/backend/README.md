@@ -14,9 +14,12 @@ Manager planning intake is available at
 `POST /v1/companies/{company_id}/planning-requests` with a bearer token, matching
 `X-Company-ID`, and an `Idempotency-Key`. The explicit
 `POST /v1/companies/{company_id}/planning-requests/{request_id}/interpret` operation returns a
-durable job with HTTP 202. The worker builds the fresh permission-bounded projection, calls the
-server-only Gemini adapter and persists the untrusted candidate plus deterministic admission
-result. No Gemini call occurs in the API process or without a server-side worker key.
+durable job with HTTP 202. The worker builds the fresh permission-bounded projection, resolves the
+requesting company's Gemini key from Supabase Vault, calls the typed server-only adapter and
+persists the untrusted candidate plus deterministic admission result. A company administrator
+configures the key through `/v1/companies/{company_id}/ai-provider/gemini`; the API validates
+model access without sending company content and never returns the plaintext value. No model call
+occurs from the desktop.
 
 The `coordination.planning` package implements the trusted post-interpretation boundary:
 `ValidatedConstraint` records are frozen into a canonical `PlanningSnapshot`, compiled through
@@ -26,8 +29,9 @@ infeasibility, timeout/resource exhaustion, unknown and validated feasible/optim
 results. Existing authorised work is pinned first; at most one unchanged-snapshot repair scope is
 tried, and only constraints explicitly marked movable are unpinned. The planning ledger persists
 the immutable artifacts and concrete rows. Frozen snapshots enqueue real solver work for the
-durable worker; Z3 never runs in an API request or Edge Function. The trusted
-candidate-to-constraint/snapshot materialiser remains a separate incomplete stage.
+durable worker; Z3 never runs in an API request or Edge Function. The trusted materialiser turns
+admitted evidence-linked contracts and current resource profiles into allowlisted constraints and
+an immutable snapshot.
 
 The `coordination.approval` package exposes review/evidence and explicit approve, reject and commit
 operations for an existing validated proposal. Decisions bind proposal, snapshot, source,

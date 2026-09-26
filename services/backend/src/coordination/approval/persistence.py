@@ -178,7 +178,8 @@ class PostgresApprovalStore:
                     """
                     select requirement.id, requirement.approval_domain,
                            requirement.requirement_kind, requirement.authority_kind,
-                           requirement.authority_team_id, requirement.reason,
+                           requirement.authority_team_id, requirement.artifact_digest,
+                           requirement.reason,
                            decision.decision, decision.actor_membership_id,
                            decision.decided_at, decision.expires_at
                     from app.plan_approval_requirements as requirement
@@ -214,6 +215,7 @@ class PostgresApprovalStore:
                             kind=row["requirement_kind"],
                             authority_kind=row["authority_kind"],
                             authority_team_id=row["authority_team_id"],
+                            artifact_digest=_hex(row["artifact_digest"]),
                             reason=row["reason"],
                             status=requirement_status,
                             decided_by_membership_id=row["actor_membership_id"],

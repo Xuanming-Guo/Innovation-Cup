@@ -45,6 +45,16 @@
       "file": "20260926018000_durable_jobs_outbox_realtime.sql",
       "sha256": "6ecf1feea7146a8613acc34a2d49279306ce5cfbbbe592540a60b692e2c4fa84",
       "version": "20260926018000"
+    },
+    {
+      "file": "20260926019000_connected_demo_materialization.sql",
+      "sha256": "e1db6d6093d51e6716657f4bcac12d35ca1399c52d7e2044f5866e39f5e1f3b1",
+      "version": "20260926019000"
+    },
+    {
+      "file": "20260926020000_company_gemini_byok.sql",
+      "sha256": "9ab9012b839359380ba149e4daf28aeeac66b9f9eee13be1ba2d373e6e343c40",
+      "version": "20260926020000"
     }
   ]
 }

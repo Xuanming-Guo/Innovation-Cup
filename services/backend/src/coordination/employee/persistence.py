@@ -67,6 +67,10 @@ class EmployeeStore(Protocol):
         self, *, context: CompanyContext, submission_id: UUID
     ) -> SubmissionReviewView: ...
 
+    def list_pending_reviews(
+        self, *, context: CompanyContext
+    ) -> tuple[SubmissionReviewView, ...]: ...
+
     def review(
         self, *, context: CompanyContext, submission_id: UUID, command: ReviewCommand
     ) -> ReviewResult: ...
@@ -345,6 +349,34 @@ class PostgresEmployeeStore:
             raise
         except psycopg.Error as error:
             raise EmployeeStoreError("submission could not be loaded") from error
+
+    def list_pending_reviews(
+        self, *, context: CompanyContext
+    ) -> tuple[SubmissionReviewView, ...]:
+        if context.employee_id is None:
+            raise EmployeeAuthorityError("an active reviewer profile is required")
+        try:
+            with self._transaction(context, "employee:pending-reviews") as connection:
+                rows = connection.execute(
+                    """
+                    select submission.id
+                    from app.submissions as submission
+                    join app.task_review_policies as policy
+                      on policy.company_id = submission.company_id
+                     and policy.id = submission.review_policy_id
+                    where submission.company_id = %s
+                      and submission.state = 'submitted'
+                      and policy.reviewer_employee_id = %s
+                    order by submission.submitted_at, submission.id
+                    """,
+                    (context.company_id, context.employee_id),
+                ).fetchall()
+        except psycopg.Error as error:
+            raise EmployeeStoreError("pending reviews could not be loaded") from error
+        return tuple(
+            self.get_submission(context=context, submission_id=row["id"])
+            for row in rows
+        )
 
     def review(
         self, *, context: CompanyContext, submission_id: UUID, command: ReviewCommand

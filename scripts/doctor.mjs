@@ -20,8 +20,6 @@ const environment = [
   ["VITE_SUPABASE_PUBLISHABLE_KEY", false],
   ["COORDINATION_DATABASE_URL", true],
   ["COORDINATION_GEMINI_API_KEY", true],
-  ["COORDINATION_GOOGLE_CLOUD_PROJECT", false],
-  ["COORDINATION_GOOGLE_CLOUD_REGION", false],
 ];
 
 let missingRequired = 0;
@@ -54,5 +52,5 @@ if (strict && missingRequired > 0) {
   console.error(`\n${missingRequired} required tool(s) are unavailable.`);
   process.exitCode = 1;
 } else {
-  console.log("\nDoctor completed. Missing runtime credentials are expected until integration/deployment.");
+  console.log("\nDoctor completed. The Gemini value is an optional local/test fallback; production companies configure BYOK through the authenticated application.");
 }
