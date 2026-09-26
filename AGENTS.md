@@ -68,6 +68,8 @@ Never send raw private cross-team context merely because the planner needs a cap
 - Platform: Supabase is the shared backend platform and system of record: Auth, Postgres, private Storage, Realtime and durable queue/job state. Business tables live in a non-exposed `app` schema behind FastAPI.
 - Runtime boundary: the durable Python worker normally calls Gemini directly through the official Google Gen AI SDK and runs Z3. Supabase Edge Functions may provide short authenticated gateway operations, but must not own long-running planning, unconstrained optimisation or durable agent execution.
 - Credentials: Gemini authorization/API keys and Supabase privileged secrets are server-only, environment-specific secrets. Never place them in Vite variables, desktop code, database rows readable by clients, logs or fixtures.
+- Supabase repository boundary: keep CLI configuration, migrations, seeds, database tests, Edge Functions, shared function modules, function tests and safe environment examples under the root `supabase/` directory. Do not create another migration/function tree under a service.
+- Hosted migration boundary: repository migrations are authoritative. The founder applies them manually unless explicitly delegating a hosted change; record the repository commit and migration version, never credentials or secret values.
 - Runtime roles are least-privileged, non-owner and non-BYPASSRLS. Migration credentials are separate.
 - Tenant-owned relationships use composite tenant-aware integrity, not UUID uniqueness alone.
 - Compute outside database transactions. Commit an exact approved proposal and its outbox intents atomically under a planning revision check.
@@ -115,6 +117,7 @@ Every non-trivial PR links an issue, states acceptance criteria, identifies risk
 - Keep backend schemas, generated contracts, TypeScript types and migrations aligned. Contract drift must fail CI once contracts exist.
 - Use additive, reversible migrations where feasible. Never reset an existing database to simplify a schema change.
 - Keep secrets out of source, Vite variables, fixtures, logs, screenshots and release artifacts. Commit descriptive `.env.example` files only.
+- Treat applied migrations as immutable and use a later migration for corrections. Reconcile recorded hosted migration state before authoring a dependent change.
 - Validate at trust boundaries and preserve security controls, database constraints, idempotency, revision checks and audit history.
 - Use explicit lifecycle transitions and permission-safe errors that do not reveal private object existence.
 - New constraint families require a typed schema, semantic validator, compiler, independent candidate checks, diagnostic mapping and tests.
