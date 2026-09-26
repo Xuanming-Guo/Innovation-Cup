@@ -4,7 +4,7 @@
 
 Build Coordination Engine: a human-led coordination system that turns an authorised organisational change into a source-grounded, capacity-feasible, permission-aware and low-disruption update to existing work.
 
-The repository contains a buildable Tauri/React desktop foundation, FastAPI health/version service, separate Python worker process boundary, locked dependencies and reviewable Cloud Run definitions. It does not yet contain a deployed Supabase schema, Gemini call, Z3 planner, product workflow, native release artifact, live connector, benchmark result or validated customer outcome. Use `docs/implementation-status.md` as the capability ledger and do not infer implementation from document detail or design imagery.
+The repository contains a buildable Tauri/React desktop foundation, FastAPI service, separate Python worker process boundary, ordered Supabase identity/tenancy migrations, private Storage ticketing, locked dependencies and reviewable Cloud Run definitions. The repository schema is not evidence that migrations or functions were deployed to a hosted project. It does not yet contain a Gemini call, Z3 planner, complete product workflow, signed native release, live connector, benchmark result or validated customer outcome. Use `docs/implementation-status.md` as the capability ledger and do not infer implementation from document detail or design imagery.
 
 ## Required reading and authority
 
@@ -29,6 +29,10 @@ Use the document status labels precisely:
 - **TARGET:** proposed threshold, never an achieved result without measurement.
 
 Ask only when an unresolved choice changes authority, privacy, commitments, external access, cost or material scope. Otherwise use the documented conservative default and record the decision.
+
+The root `simulation/` directory is founder-managed reference material outside the application
+implementation. Do not read, modify, format, test, move, delete or include it in repository-wide
+commands. Scope searches and checks so they explicitly leave that tree alone.
 
 ## Product boundary
 

@@ -25,7 +25,10 @@ class Settings(BaseSettings):
     supabase_url: str | None = None
     supabase_jwt_issuer: str | None = None
     supabase_jwt_audience: str = "authenticated"
+    supabase_jwt_algorithms: str = "ES256,RS256"
+    supabase_jwt_leeway_seconds: int = Field(default=30, ge=0, le=120)
     database_url: SecretStr | None = None
+    database_connect_timeout_seconds: int = Field(default=5, ge=1, le=30)
 
     gemini_api_key: SecretStr | None = None
     gemini_model: str = "gemini-3.8-flash"
@@ -33,6 +36,20 @@ class Settings(BaseSettings):
     google_cloud_region: str | None = None
 
     worker_poll_seconds: float = Field(default=5.0, ge=0.5, le=60.0)
+
+    @property
+    def supabase_jwks_url(self) -> str:
+        if self.supabase_jwt_issuer is None:
+            raise ValueError("Supabase JWT issuer is not configured")
+        return f"{self.supabase_jwt_issuer.rstrip('/')}/.well-known/jwks.json"
+
+    @property
+    def supabase_jwt_algorithm_allowlist(self) -> tuple[str, ...]:
+        return tuple(
+            algorithm.strip()
+            for algorithm in self.supabase_jwt_algorithms.split(",")
+            if algorithm.strip()
+        )
 
     @property
     def missing_production_settings(self) -> tuple[str, ...]:
@@ -54,9 +71,7 @@ class Settings(BaseSettings):
             "database_configured": self.database_url is not None,
             "gemini_configured": self.gemini_api_key is not None,
             "gemini_model": self.gemini_model,
-            "cloud_run_configured": bool(
-                self.google_cloud_project and self.google_cloud_region
-            ),
+            "cloud_run_configured": bool(self.google_cloud_project and self.google_cloud_region),
         }
 
 

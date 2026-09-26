@@ -1,0 +1,1 @@
+"""Least-privileged Postgres access."""

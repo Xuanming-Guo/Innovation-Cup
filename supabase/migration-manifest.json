@@ -1,0 +1,25 @@
+{
+  "format": 1,
+  "migrations": [
+    {
+      "file": "20260926010000_bootstrap_security_boundary.sql",
+      "sha256": "b300ad1fb97adc0cad32086b84a6ebb63ee867aabd19d4e907a5f8a823a8bf02",
+      "version": "20260926010000"
+    },
+    {
+      "file": "20260926011000_identity_and_organisation.sql",
+      "sha256": "03703e7ad313aa525289882062c4dc0e6cbf46ed3050d150c42518e4bdfa802d",
+      "version": "20260926011000"
+    },
+    {
+      "file": "20260926012000_sources_and_private_storage.sql",
+      "sha256": "4ee2cd1b787a23bb4a5896870edfb5ef936d51780c669d0eb30c045ac4373f42",
+      "version": "20260926012000"
+    },
+    {
+      "file": "20260926013000_storage_gateway_and_demo_guard.sql",
+      "sha256": "9674cc0b337d3af18f4888cff7dad919a795d10437b4ab7a2b4537d9947fb47f",
+      "version": "20260926013000"
+    }
+  ]
+}

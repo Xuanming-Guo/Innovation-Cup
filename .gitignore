@@ -25,6 +25,8 @@ htmlcov/
 artifacts/
 .cache/
 *.log
+supabase/.branches/
+supabase/.temp/
 
 # Operating systems and editors
 .DS_Store

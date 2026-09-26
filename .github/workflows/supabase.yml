@@ -1,0 +1,76 @@
+name: Supabase checks
+
+on:
+  pull_request:
+    paths:
+      - "supabase/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/supabase.yml"
+  push:
+    branches: [main]
+    paths:
+      - "supabase/**"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/supabase.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: supabase-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  database:
+    name: database-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v5.0.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify immutable migration manifest
+        run: python supabase/scripts/verify_migrations.py
+
+      - name: Start the local database
+        run: npm exec supabase -- db start
+
+      - name: Run database tests
+        run: npm run test:supabase:db
+
+  edge-functions:
+    name: edge-function-contract
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@e95548e56dfa95d4e1a28d6f422fafe75c4c26fb # v2.0.3
+        with:
+          deno-version: v2.9.6
+
+      - name: Check formatting
+        run: deno fmt --check supabase/functions
+
+      - name: Lint Edge Functions
+        run: deno lint --config supabase/deno.json supabase/functions
+
+      - name: Type-check Edge Functions
+        run: deno check --config supabase/deno.json --lock=supabase/deno.lock --frozen supabase/functions/storage-ticket/index.ts
+
+      - name: Test Edge Function boundaries
+        run: deno test --config supabase/deno.json supabase/functions/tests
