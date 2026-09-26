@@ -13,6 +13,7 @@ from coordination.auth.models import AuthenticatedUser, CompanyContext
 
 JobKind = Literal[
     "interpretation.run",
+    "planning.materialize",
     "planning.run",
     "private_file.scan",
     "outbox.deliver",

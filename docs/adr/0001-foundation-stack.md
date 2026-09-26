@@ -1,6 +1,6 @@
 # ADR 0001: Native and hosted application foundation
 
-- **Status:** Accepted
+- **Status:** Superseded in part by [ADR 0002](0002-company-gemini-byok-and-portable-compute.md)
 - **Date:** 26 September 2026
 - **Issue:** [#6](https://github.com/Xuanming-Guo/Innovation-Cup/issues/6)
 
@@ -12,12 +12,14 @@ domain code but remain separately deployable. Both use one backend container ima
 runtime command override.
 
 Target Node 24, Rust 1.94 and Python 3.11–3.13. Commit npm, Cargo and uv lockfiles. The
-desktop receives only public configuration. Hosted credentials are supplied through Cloud Run
-or Supabase deployment secrets and are never bundled into Vite output.
+desktop receives only public configuration. Runtime credentials are supplied through the chosen
+host's secret mechanism or Supabase and are never bundled into Vite output. Per-company Gemini
+keys follow the Vault workflow in ADR 0002.
 
-Cloud Run service YAML defines the request-driven API. Cloud Run WorkerPool YAML defines the
-continuously allocated worker boundary. Queue consumption, Supabase access, Gemini calls and
-Z3 are deliberately absent from this foundation and are added only by their dedicated issues.
+The Cloud Run service and WorkerPool YAML files are optional deployment examples for the
+request-driven API and continuously allocated worker boundary. Queue consumption, Supabase
+access, Gemini calls and Z3 are deliberately absent from this foundation and are added only by
+their dedicated issues.
 
 ## Consequences
 

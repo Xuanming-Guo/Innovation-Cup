@@ -43,8 +43,6 @@ def test_production_readiness_fails_closed_when_configuration_is_missing() -> No
     assert response.json()["status"] == "not_ready"
     assert set(response.json()["missing_configuration"]) == {
         "database_url",
-        "google_cloud_project",
-        "google_cloud_region",
         "supabase_jwt_issuer",
         "supabase_url",
     }

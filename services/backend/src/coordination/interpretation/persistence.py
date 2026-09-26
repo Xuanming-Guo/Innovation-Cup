@@ -112,6 +112,28 @@ class PlanningRequestView:
     latest_outcome: str | None
     candidate_digest: str | None
     clarifications: tuple[ClarificationRecord, ...]
+    candidate_contract_id: UUID | None = None
+    snapshot_id: UUID | None = None
+    plan_id: UUID | None = None
+    interpretation_job_state: str | None = None
+    materialization_job_state: str | None = None
+    planning_job_state: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class PlanningSourceOption:
+    source_id: UUID
+    title: str
+    classification: str
+    source_kind: str
+
+
+@dataclass(frozen=True, slots=True)
+class PlanningRequestSummary:
+    request_id: UUID
+    original_request: str
+    status: str
+    created_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -135,6 +157,10 @@ class InterpretationStore(Protocol):
     ) -> ProjectionBundle: ...
 
     def get_request(self, *, context: CompanyContext, request_id: UUID) -> PlanningRequestView: ...
+
+    def list_planning_context(
+        self, *, context: CompanyContext
+    ) -> tuple[tuple[PlanningSourceOption, ...], tuple[PlanningRequestSummary, ...]]: ...
 
     def recorder(
         self,
@@ -271,6 +297,64 @@ class PostgresInterpretationStore:
             created=cast(bool, row["created"]),
         )
 
+    def list_planning_context(
+        self, *, context: CompanyContext
+    ) -> tuple[tuple[PlanningSourceOption, ...], tuple[PlanningRequestSummary, ...]]:
+        try:
+            with company_transaction(
+                self._dsn,
+                role="coordination_api",
+                actor_id=context.actor.user_id,
+                company_id=context.company_id,
+                purpose="planning-request:context",
+                connect_timeout_seconds=self._connect_timeout_seconds,
+            ) as connection:
+                source_rows = connection.execute(
+                    """
+                    select id, coalesce(title, 'Untitled source') as title,
+                           classification, source_kind
+                    from app.source_records
+                    where company_id = %s and status = 'active'
+                      and authority_status = 'authoritative'
+                      and current_version_id is not null
+                    order by title, id
+                    """,
+                    (context.company_id,),
+                ).fetchall()
+                request_rows = connection.execute(
+                    """
+                    select id, original_prompt, status, created_at
+                    from app.planning_requests
+                    where company_id = %s
+                    order by created_at desc, id desc limit 20
+                    """,
+                    (context.company_id,),
+                ).fetchall()
+        except psycopg.Error as error:
+            raise InterpretationStoreUnavailableError(
+                "planning context is unavailable"
+            ) from error
+        return (
+            tuple(
+                PlanningSourceOption(
+                    source_id=cast(UUID, row["id"]),
+                    title=cast(str, row["title"]),
+                    classification=cast(str, row["classification"]),
+                    source_kind=cast(str, row["source_kind"]),
+                )
+                for row in source_rows
+            ),
+            tuple(
+                PlanningRequestSummary(
+                    request_id=cast(UUID, row["id"]),
+                    original_request=cast(str, row["original_prompt"]),
+                    status=cast(str, row["status"]),
+                    created_at=cast(datetime, row["created_at"]),
+                )
+                for row in request_rows
+            ),
+        )
+
     def get_request(self, *, context: CompanyContext, request_id: UUID) -> PlanningRequestView:
         try:
             with company_transaction(
@@ -286,7 +370,12 @@ class PostgresInterpretationStore:
                     select request.id, request.status, request.request_version,
                            run.outcome as latest_outcome,
                            encode(candidate.contract_digest, 'hex') as candidate_digest,
-                           candidate.id as candidate_id
+                           candidate.id as candidate_id,
+                           snapshot.id as snapshot_id,
+                           plan.id as plan_id,
+                           interpretation_job.state as interpretation_job_state,
+                           materialization_job.state as materialization_job_state,
+                           planning_job.state as planning_job_state
                     from app.planning_requests as request
                     left join lateral (
                       select interpretation.id, interpretation.outcome
@@ -299,6 +388,32 @@ class PostgresInterpretationStore:
                     left join app.candidate_contracts as candidate
                       on candidate.company_id = request.company_id
                      and candidate.interpretation_run_id = run.id
+                    left join lateral (
+                      select value.id
+                      from app.planning_snapshots as value
+                      where value.company_id = request.company_id
+                        and value.candidate_contract_id = candidate.id
+                      order by value.frozen_at desc, value.id desc limit 1
+                    ) as snapshot on true
+                    left join lateral (
+                      select value.id
+                      from app.plans as value
+                      where value.company_id = request.company_id
+                        and value.snapshot_id = snapshot.id
+                      order by value.created_at desc, value.id desc limit 1
+                    ) as plan on true
+                    left join app.durable_jobs as interpretation_job
+                      on interpretation_job.company_id = request.company_id
+                     and interpretation_job.job_kind = 'interpretation.run'
+                     and interpretation_job.aggregate_id = request.id
+                    left join app.durable_jobs as materialization_job
+                      on materialization_job.company_id = request.company_id
+                     and materialization_job.job_kind = 'planning.materialize'
+                     and materialization_job.aggregate_id = candidate.id
+                    left join app.durable_jobs as planning_job
+                      on planning_job.company_id = request.company_id
+                     and planning_job.job_kind = 'planning.run'
+                     and planning_job.aggregate_id = snapshot.id
                     where request.company_id = %s and request.id = %s
                     """,
                     (context.company_id, request_id),
@@ -339,6 +454,12 @@ class PostgresInterpretationStore:
                 )
                 for question in question_rows
             ),
+            candidate_contract_id=cast(UUID | None, row["candidate_id"]),
+            snapshot_id=cast(UUID | None, row["snapshot_id"]),
+            plan_id=cast(UUID | None, row["plan_id"]),
+            interpretation_job_state=cast(str | None, row["interpretation_job_state"]),
+            materialization_job_state=cast(str | None, row["materialization_job_state"]),
+            planning_job_state=cast(str | None, row["planning_job_state"]),
         )
 
     def load_projection(

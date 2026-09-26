@@ -9,6 +9,7 @@ from psycopg.types.json import Jsonb
 
 from coordination.auth.models import CompanyContext
 from coordination.db.session import company_transaction
+from coordination.interpretation.contracts import CandidateTaskContract
 from coordination.planning.contracts import (
     PlanningDecision,
     PlanningSnapshot,
@@ -335,7 +336,7 @@ class PostgresPlanningLedger:
                 stored_snapshot = connection.execute(
                     """
                     select snapshot.request_id, candidate.interpretation_run_id,
-                           company.policy_revision
+                           candidate.contract_json, company.policy_revision
                     from app.planning_snapshots as snapshot
                     join app.candidate_contracts as candidate
                       on candidate.company_id = snapshot.company_id
@@ -734,6 +735,88 @@ class PostgresPlanningLedger:
                                     snapshot.policy.policy_version,
                                 ),
                             )
+                contract = CandidateTaskContract.model_validate(
+                    stored_snapshot["contract_json"]
+                )
+                owner_ids = tuple(
+                    sorted(
+                        {
+                            placement.owner_resource_id
+                            for placement in selected.placements
+                            if placement.owner_resource_id is not None
+                        },
+                        key=str,
+                    )
+                )
+                employee_rows = connection.execute(
+                    """
+                    select employee_id from app.execution_resources
+                    where company_id = %s and id = any(%s)
+                      and resource_kind = 'human' and employee_id is not null
+                    order by employee_id
+                    """,
+                    (context.company_id, list(owner_ids) or [UUID(int=0)]),
+                ).fetchall()
+                audience_ids = tuple(row["employee_id"] for row in employee_rows)
+                if len(audience_ids) != len(owner_ids):
+                    raise PlanningStateConflictError(
+                        "plan owner cannot receive an employee brief"
+                    )
+                brief_payload = {
+                    "schema_version": "employee-brief.v1",
+                    "summary": "Complete the approved tasks within the committed schedule.",
+                    "tasks": [
+                        {
+                            "task_key": task.task_key,
+                            "title": task.title,
+                            "purpose": task.purpose,
+                            "deliverable": task.deliverable,
+                            "acceptance_criteria": list(task.acceptance_criteria),
+                        }
+                        for task in contract.tasks
+                    ],
+                }
+                audience_scope = {
+                    "employee_ids": [str(employee_id) for employee_id in audience_ids],
+                    "team_ids": [],
+                }
+                brief_digest = bytes.fromhex(
+                    canonical_digest(
+                        {
+                            "brief_payload": brief_payload,
+                            "audience_scope": audience_scope,
+                        }
+                    )
+                )
+                brief_id = uuid5(plan_id, "employee-brief:v1")
+                connection.execute(
+                    """
+                    insert into app.employee_brief_versions (
+                      id, company_id, plan_id, version, brief_payload,
+                      audience_scope, brief_digest
+                    ) values (%s, %s, %s, 1, %s, %s, %s)
+                    on conflict (company_id, plan_id, version) do nothing
+                    """,
+                    (
+                        brief_id,
+                        context.company_id,
+                        plan_id,
+                        Jsonb(brief_payload),
+                        Jsonb(audience_scope),
+                        brief_digest,
+                    ),
+                )
+                stored_brief = connection.execute(
+                    """
+                    select brief_digest from app.employee_brief_versions
+                    where company_id = %s and plan_id = %s and version = 1
+                    """,
+                    (context.company_id, plan_id),
+                ).fetchone()
+                if stored_brief is None or bytes(stored_brief["brief_digest"]) != brief_digest:
+                    raise PlanningStateConflictError(
+                        "employee brief version conflicts with the proposal"
+                    )
                 connection.execute(
                     """
                     insert into app.trace_steps (

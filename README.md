@@ -4,7 +4,7 @@
 
 Coordination Engine is a human-led company coordination system proposed for the Recruit Holdings Innovation Cup 2026. It turns an authorised organisational decision into a source-grounded, capacity-feasible and permission-aware change to existing work.
 
-> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, finite planning, exact approval/commitment, employee execution and durable coordination slices. The repository now includes leased Postgres jobs, bounded retry/review/cancellation, worker heartbeats and structured events, durable Gemini/Z3 dispatch, transactional internal outbox delivery, recipient notifications, private constant Realtime refresh and authorised desktop refetch. These paths are repository-tested but are not claimed as applied to hosted Supabase or exercised with a live Gemini credential. The desktop still presents fixture workflow records, the trusted candidate-to-snapshot stage and connected scenario remain, and file scanning deliberately stops for review until a real scanner is configured. Signed native releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
+> **Current status:** buildable application foundation with identity/tenancy, typed interpretation, trusted candidate materialisation, finite planning, exact approval/commitment, employee execution and durable coordination slices. It includes company-scoped Gemini BYOK through Supabase Vault, connected manager/employee/company-settings surfaces, leased Postgres jobs, bounded retry/review/cancellation, durable Gemini/Z3 dispatch, transactional outbox delivery, notifications and private Realtime refresh. These paths are repository-tested but are not claimed as applied to hosted Supabase or exercised with a live company credential. File scanning remains fail-closed until a real scanner is configured. Signed native releases, live connectors, benchmarks and customer validation are not implemented yet. See [implementation status](docs/implementation-status.md).
 
 
 ## Product idea
@@ -32,14 +32,14 @@ Authorised sources
 |---|---|
 | Desktop | Tauri 2 with React, TypeScript and Vite |
 | Backend | Python, FastAPI and Pydantic with separate API and worker processes |
-| Hosted compute | Google Cloud Run service for FastAPI and a Cloud Run worker pool for durable Python planning work |
+| Hosted compute | Portable OCI container: one request-serving FastAPI process and one continuously available durable Python worker on the operator's chosen host |
 | Planning | Server-side `z3-solver` with deterministic compilation and validation |
-| Model API | Google Gemini API, called only from trusted server-side code through a typed adapter; configurable initial default `gemini-3.8-flash` |
-| Platform | Supabase backend: Auth, Postgres, private Storage, Realtime and durable queue/job state |
+| Model API | Google Gemini Developer API through a typed server-side adapter; each company supplies its own key and the initial model default is configurable |
+| Platform | Supabase backend: Auth, Postgres, Vault, private Storage, Realtime and durable queue/job state |
 | Jobs and writes | Durable jobs, transactional outbox, idempotent connector actions and reconciliation |
 | Native targets | Windows 11 x64 and macOS 13+ on Apple Silicon and Intel |
 
-Supabase is the shared backend platform and system of record. A Google Cloud Run service hosts FastAPI and a Cloud Run worker pool runs the durable Python compute tier connected to it: the worker retrieves a permission-bounded source projection, calls Gemini, validates its structured output, compiles trusted constraints, runs Z3 and persists the result to Supabase. A Supabase Edge Function may call Gemini for a short, bounded request, but long-running planning and Z3 work belongs in the worker pool. The Gemini credential is never shipped in the desktop application.
+Supabase is the shared backend platform and system of record. FastAPI and the durable Python worker run from the same portable container image with different commands on any suitable container host. A company administrator verifies and installs that company's Gemini key through the authenticated Connections screen; Vault encrypts the secret, and only the worker can resolve it under current tenant context. Employees call the application API, never Gemini directly. The worker retrieves a permission-bounded source projection, calls Gemini with the company's key, validates the structured output, compiles trusted constraints, runs Z3 and persists the result to Supabase. No provider key is shipped in the desktop application.
 
 The initial demonstration connects software and HR operations teams through one shared specialist. Cross-team capacity may be used without disclosing another team's private context.
 
@@ -58,6 +58,7 @@ The initial demonstration connects software and HR operations teams through one 
 | [Approval and commitment boundary](docs/architecture/approval-commit-boundary.md) | Exact digest binding, authority rechecks, concurrency, atomic commit and disclosure separation. |
 | [Employee workflow boundary](docs/architecture/employee-workflow-boundary.md) | Permission-safe task views, lifecycle concurrency, private submissions and exact-version review. |
 | [Durable coordination boundary](docs/architecture/durable-coordination-boundary.md) | Leases, retries, outbox delivery, notifications, private refresh and operational health. |
+| [Backend deployment](docs/development/backend-deployment.md) | Portable API/worker hosting, Supabase connectivity and company BYOK operations. |
 | [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
 
 ## Delivery priorities
@@ -75,13 +76,13 @@ docs/                    Product, architecture and implementation specifications
 scripts/                 Dependency-free repository checks
 apps/desktop/            Tauri 2 and React/TypeScript native desktop foundation
 services/backend/        FastAPI API and separate durable-worker process boundary
-deploy/cloud-run/        Reviewable API service and worker-pool definitions
+deploy/cloud-run/        Optional provider-specific example; not a product dependency
 supabase/                Migrations, seeds, database tests, Edge Functions and safe operator tooling
 AGENTS.md                 Agent operating context
 README.md                 Project entry point and honest status
 ```
 
-The target application layout is defined in the implementation master prompt and is introduced through reviewed vertical slices. All Supabase CLI configuration, migrations, seeds, database tests, Edge Functions, shared function code, function tests and safe environment examples live under root `supabase/`. Google Cloud, Gemini and privileged Supabase values are supplied later through local/deployment environment variables or secret stores; only descriptive placeholders are committed. Repository migrations remain authoritative when the founder applies them manually to hosted Supabase.
+The target application layout is defined in the implementation master prompt and is introduced through reviewed vertical slices. All Supabase CLI configuration, migrations, seeds, database tests, Edge Functions, shared function code, function tests and safe environment examples live under root `supabase/`. Company Gemini keys are installed at runtime through the authenticated application and encrypted in Supabase Vault. Deployment environment variables contain only backend/runtime configuration and privileged Supabase connectivity; no real secret is committed. Repository migrations remain authoritative when the founder applies them manually to hosted Supabase.
 
 ## Contributing
 
@@ -116,9 +117,10 @@ npm.cmd run dev:worker
 npm.cmd run dev:desktop
 ```
 
-Run the issue-level application check with `npm.cmd run check`. With its database and Gemini
-environment configured, the worker verifies the durable schema and consumes leased jobs. See [local development](docs/development/local-development.md),
-the [Cloud Run boundary](docs/development/cloud-run.md) and the [complete GitHub workflow](docs/development/github-workflow.md).
+Run the issue-level application check with `npm.cmd run check`. With its database configured,
+the worker verifies the durable schema and consumes leased jobs; Gemini work additionally requires
+the current company to have a verified key. See [local development](docs/development/local-development.md),
+[backend deployment](docs/development/backend-deployment.md) and the [complete GitHub workflow](docs/development/github-workflow.md).
 
 ## Security and evidence
 

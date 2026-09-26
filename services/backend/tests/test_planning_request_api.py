@@ -152,6 +152,12 @@ def test_manager_can_read_current_interpretation_state() -> None:
         "request_version": 1,
         "latest_outcome": "clarification_required",
         "candidate_digest": "ab" * 32,
+        "candidate_contract_id": None,
+        "snapshot_id": None,
+        "plan_id": None,
+        "interpretation_job_state": None,
+        "materialization_job_state": None,
+        "planning_job_state": None,
         "clarifications": [
             {
                 "question_key": "task-owner",

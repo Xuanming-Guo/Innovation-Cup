@@ -15,7 +15,7 @@ Then implement dependency-ordered vertical slices. The requested output is a wor
 
 Follow CONFIRMED decisions. DEFAULT means the implementation starting point unless evidence requires an explained alternative. HYPOTHESIS is unvalidated. TARGET is a proposed test criterion, never a result. OPTIONAL P1 features must be visibly disabled until actually implemented and tested. Ask only questions that genuinely block authority, privacy, scope or external access; do not re-ask the founder to select the already agreed stack.
 
-Gemini is the CONFIRMED API for model-backed interpretation, explanation, risk review and optional bounded agent execution. Use `gemini-3.8-flash` as the initial server-configured default, keep `GEMINI_MODEL` overridable and record the actual model and configuration per run. Supabase is the CONFIRMED shared database/backend platform for Auth, Postgres, private Storage, Realtime and durable job state. Deploy FastAPI as a Google Cloud Run service and the durable Python processor as a Cloud Run worker pool; these processes are the trusted application-compute tier connected to Supabase and do not change the system of record.
+Gemini is the CONFIRMED API for model-backed interpretation, explanation, risk review and optional bounded agent execution. Use `gemini-3.8-flash` as the initial server-configured default, keep `GEMINI_MODEL` overridable and record the actual model and configuration per run. Supabase is the CONFIRMED shared database/backend platform for Auth, Postgres, Vault, private Storage, Realtime and durable job state. Each company supplies one Gemini key through an administrator-only write-only workflow; validate it without company content, encrypt it in Vault and permit plaintext resolution only to the durable worker under current tenant context. Deploy FastAPI and the continuously available durable Python worker from one OCI image on any suitable container host. Google Cloud is optional and does not host application sessions by requirement.
 
 Do not automatically send real messages, modify live customer calendars, grant employee roles, purchase services or deploy a public release merely because the fixture demonstration requires analogous actions. Use the authorised sandbox and configured scopes. Build competition code within the organiser's permitted period and disclose use of pre-existing libraries, fixtures or code according to the rules.
 
@@ -152,7 +152,7 @@ Release gates require a manager on one OS and an employee on the other to comple
 
 Supply `.env.example` files with descriptive placeholders, not real credentials. Keep the relevant example beside each runtime, including `supabase/functions/.env.example` for Edge Functions; filled local environment files stay untracked. Desktop public configuration is limited to API origin, Supabase project URL/publishable key if directly used for Auth/Realtime, product identity and safe feature flags. Any environment variable exposed through Vite is public. No Gemini key, privileged database role, Supabase secret key, provider refresh token or signing identity secret belongs there.
 
-Server configuration includes Supabase Auth issuer/audience/JWKS settings, least-privileged Postgres runtime connections, private storage signing credentials, queue settings, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_REGION`, `GEMINI_API_KEY`, `GEMINI_MODEL` (initial default `gemini-3.8-flash`), Gemini request budgets/timeouts, connector client configuration, encryption-key reference and worker limits. These values remain environment variables or deployment-secret references with committed placeholders only; the founder will supply environment-specific values later. Use the current supported Gemini authorization-key mechanism and an environment-specific Google Cloud project. Deploy the API as a Google Cloud Run service and the durable processor as a Cloud Run worker pool, with secrets supplied through the deployment secret store. Prefer Cloud Run workload identity/service accounts over committed or long-lived Google service-account key files. Supply Edge Function secrets through Supabase project secrets. Keep every key out of committed files and client-readable database records. Keep migration-owner credentials separate from runtime credentials.
+Server configuration includes Supabase Auth issuer/audience/JWKS settings, least-privileged Postgres runtime connections, private storage signing credentials, queue settings, `GEMINI_MODEL` (initial default `gemini-3.8-flash`), Gemini request budgets/timeouts, connector client configuration and worker limits. These values remain environment variables or deployment-secret references with committed placeholders only. Production Gemini keys are company-owned runtime data: accept them only from a current company administrator over the authenticated API, validate model access without sending company content, store them in Supabase Vault and expose only non-secret status metadata. `GEMINI_API_KEY` is an optional local/test fallback and is ignored in production. Deploy the API and durable processor from the same portable container image with separate commands on the chosen host. Keep every key out of committed files, client-readable rows, logs and release artifacts. Keep migration-owner credentials separate from runtime credentials.
 
 Provide two clearly documented developer paths: hosted development Supabase with a local API/worker; and an optional local Supabase environment requiring developer Docker/CLI tooling. Installed users connect to the hosted environment and do not need Docker. Never use a real customer database as the demo reset target.
 
@@ -184,7 +184,7 @@ Use this default model/planning flow:
 6. Trusted code freezes the planning snapshot, compiles allowlisted constraints, runs Z3 and independently validates the returned concrete schedule.
 7. The worker writes run metadata, diagnostics and the proposed result to Supabase; the client receives only a private refresh signal and refetches authorised state.
 
-A Supabase Edge Function can call Gemini over HTTPS for a short, bounded operation: validate the caller, load `GEMINI_API_KEY` from Supabase project secrets, call Gemini, validate the response and persist or return the permitted result. Do not add that extra hop when the Python worker already owns the job. Keep long planning pipelines, Z3, durable retries and bounded agent runs in the worker because hosted Edge Functions are short-lived and CPU-limited. [Part B S22, S61–S65]
+A Supabase Edge Function can technically call Gemini over HTTPS for a short, bounded operation, but do not create a second credential path initially. The durable worker alone resolves company keys from Vault. A later Edge Function path requires its own reviewed tenant-secret resolver, current company scope and the same typed validation. Keep long planning pipelines, Z3, durable retries and bounded agent runs in the worker because hosted Edge Functions are short-lived and CPU-limited. [Part B S22, S61–S66]
 
 Use appropriate hosted execution: API service plus continuously allocated worker or genuinely triggered durable jobs. Use process isolation or a process pool for Z3 with timeout/memory controls and cancellation. Limit per-company jobs and global concurrency; protect the service from giant prompts, documents or task graphs. Apply per-company Gemini rate/cost budgets, bounded retries with jitter for retryable failures, idempotency and cancellation. Record request/response schema version, model ID, prompt version, token/cost/latency data and outcome without logging secrets or unnecessary source content.
 
@@ -606,9 +606,10 @@ The defensible promise is narrower: **the system exposes assumptions, checks a d
 | Internal-company focus | The immediate product is coordination of existing employees, not a recruitment marketplace. |
 | Human-led core; hybrid extension | Human task execution remains P0. Version 2 permits a bounded agent-execution extension with a human accountable owner, explicit tool permissions, budgets and acceptance. General autonomous employees remain excluded. |
 | Native Windows and macOS delivery | Use Tauri with shared manager/employee interfaces. Produce and test Windows x64 and Mac Apple Silicon/Intel artifacts; architecture support must be evidenced, not inferred from a browser build. |
-| Supabase database/backend platform | Use Supabase Auth, Postgres, private Storage, Realtime and durable queue/job state as the shared backend platform and system of record. The Python API/worker is the connected application-compute tier. |
+| Supabase database/backend platform | Use Supabase Auth, Postgres, Vault, private Storage, Realtime and durable queue/job state as the shared backend platform and system of record. The Python API/worker is the connected application-compute tier. |
 | Gemini model API | Use the Google Gemini API for model-backed interpretation, explanation, risk review and optional bounded agent execution. Calls are server-side through a typed gateway; `gemini-3.8-flash` is the initial configurable default and the exact model/configuration is recorded per run. |
-| Hosted processing | Deploy FastAPI as a Google Cloud Run service and the durable Python processor as a Cloud Run worker pool connected to Supabase and Gemini. |
+| Company-owned Gemini access | Each company administrator supplies one Gemini API key. Validate it without company content, encrypt it in Supabase Vault and permit plaintext resolution only to the durable worker under current tenant context. Employees never receive or call with the key directly. |
+| Portable hosted processing | Deploy the FastAPI service and continuously available durable Python worker from one OCI image on any suitable container host. Google Cloud is optional, not a runtime dependency. |
 | Tasks primarily managed in the app | External systems synchronise selected information; they do not silently become competing owners of every field. |
 | Capacity-aware multitasking | Permit multiple assigned tasks and overlapping completion windows. Reserve feasible effort segments; exclusive active work cannot be double-booked. Fixed meetings remain exact, passive waiting is separate. |
 | Skills, recent familiarity and learning | Track live workload immediately; accepted evidence informs confirmed contributions and estimates. Recent project/component familiarity is a separate correctable signal, not proof of general skill. |
@@ -629,7 +630,7 @@ Treat deadline extension as unauthorised unless a manager supplies an explicit f
 
 Use one Supabase project with isolated company records for the prototype, not a project per customer. Keep business tables in a non-exposed `app` schema behind the backend. Use permissions and RLS as layered controls. Keep protected integration credentials outside employee-visible tables. Supabase Storage must use its own explicit object-access policies, not an assumption that business-table policies cover files. Authorise before signing short-lived links. Already issued signed URLs or downloaded files are not necessarily recalled by a later access change; use short expiry and a re-authorising proxy for high-sensitivity immediate-revocation requirements. [S19]
 
-Use the official Google Gen AI SDK in the Python worker through one provider adapter. Keep `GEMINI_API_KEY` and the configurable `GEMINI_MODEL` in server-side deployment secrets; initialise `GEMINI_MODEL` to `gemini-3.8-flash`. Ask Gemini for schema-constrained output where appropriate, but validate syntax, semantics, evidence, authority and current permission independently before the output can affect a plan. A Gemini answer is a candidate interpretation, not a trusted constraint. [S61, S62, S63]
+Use the official Google Gen AI SDK in the Python worker through one provider adapter. Keep the configurable `GEMINI_MODEL` in server configuration and initialise it to `gemini-3.8-flash`. A company administrator submits that company's key through an authenticated write-only workflow; validate model access without company content, store the key in Supabase Vault and expose only non-secret status metadata. The worker resolves the current company's key just in time. `GEMINI_API_KEY` is a local/test fallback and is ignored in production. Ask Gemini for schema-constrained output where appropriate, but validate syntax, semantics, evidence, authority and current permission independently before the output can affect a plan. A Gemini answer is a candidate interpretation, not a trusted constraint. [S61, S62, S63, S66]
 
 ### 2.2a Version 2 defaults that make the build determinate
 
@@ -643,7 +644,7 @@ Default hybrid mode is disabled. Its schema/API boundaries are designed now, whi
 
 ### 2.3 Open decisions that should remain visible
 
-The final name, Gemini safety configuration, Gemini data-processing region/account arrangement, Cloud Run deployment region, task/priority vocabulary, allowed deadline movement, automated-change envelope, profile-correction process, retention periods, pilot buyer and pricing remain open. Gemini, the initial configurable `gemini-3.8-flash` default, Supabase as the shared database/backend platform and the Cloud Run service/worker-pool compute topology are confirmed. Exact live connector scopes and whether the organisers require a browser-accessible companion to the desktop demo also remain open.
+The final name, Gemini safety configuration, company-specific Gemini data-processing/account arrangement, production container host and region, task/priority vocabulary, allowed deadline movement, automated-change envelope, profile-correction process, retention periods, pilot buyer and pricing remain open. Gemini, company-level BYOK, the initial configurable `gemini-3.8-flash` default, Supabase as the shared database/backend platform and the separate API/durable-worker compute topology are confirmed. Exact live connector scopes and whether the organisers require a browser-accessible companion to the desktop demo also remain open.
 
 No application repository or confirmed implementation state is part of the supplied materials. No claim about build progress should be inferred from the level of detail in this document.
 
@@ -900,30 +901,30 @@ The worker and API may run from the same repository/container image with differe
 | Backend | Python/FastAPI with Pydantic validation, explicit authorisation services and typed responses |
 | Model API | Google Gemini API via the official Google Gen AI SDK and one typed server-side gateway; initial `GEMINI_MODEL` default `gemini-3.8-flash`, overridable through server configuration |
 | Planner | Python `z3-solver`; finite scheduling domain; timeout and memory isolation |
-| Database | Supabase Postgres with migrations, constraints, RLS and a non-exposed business schema |
+| Database | Supabase Postgres and Vault with migrations, constraints, RLS and a non-exposed business schema |
 | Identity | Supabase Auth; validated bearer sessions at the backend |
 | Files | Private Supabase Storage; authorise before upload/download signing |
 | Jobs | Supabase Queues or one durable Postgres job mechanism; do not implement several queues unnecessarily |
 | Notifications | Persisted notification records; private refresh signals trigger authorised refetches; polling/reconnect catches missed signals |
-| Hosting | Google Cloud Run service for FastAPI and a Cloud Run worker pool for the durable Python processor |
+| Hosting | One portable OCI image with separate FastAPI and continuously available durable-worker commands on any suitable container host |
 | Tests | Python tests for compiler/solver/permissions; frontend unit tests; end-to-end desktop/browser-component tests; connector contract tests |
 | Observability | Structured logs with trace IDs, restricted audit records, job metrics, solver statistics and cost accounting |
 
-FastAPI documents container deployment; Cloud Run provides container execution. A queue-polling worker needs an appropriate continuously allocated worker arrangement or a real triggered job—not an assumption that request-scoped serverless CPU will keep polling after a response. Supabase documents Edge Functions as server-side TypeScript functions suitable for small AI inference/orchestration, while heavy long-running jobs belong in background workers; its hosted limits include a two-second CPU budget per request. Do not place Z3 or the durable planning pipeline there. [S22, S44, S45, S64]
+FastAPI documents portable container deployment; Cloud Run is one optional container host rather than a product dependency. A queue-polling worker needs an appropriate continuously allocated worker arrangement or a real triggered job—not an assumption that request-scoped serverless CPU will keep polling after a response. Supabase documents Edge Functions as server-side TypeScript functions suitable for small AI inference/orchestration, while heavy long-running jobs belong in background workers; its hosted limits include a two-second CPU budget per request. Do not place Z3 or the durable planning pipeline there. [S22, S44, S45, S64]
 
 ### 10.2a Gemini and Supabase execution topology
 
-Gemini is the confirmed provider for model-backed interpretation, explanation, risk review and the optional bounded executor. Supabase is the confirmed shared database/backend platform and system of record. FastAPI runs as a Google Cloud Run service and the durable Python processor runs as a Cloud Run worker pool. The deployment path is:
+Gemini is the confirmed provider for model-backed interpretation, explanation, risk review and the optional bounded executor. Supabase is the confirmed shared database/backend platform and system of record. FastAPI and the durable Python processor run as separate commands from one portable container image on an operator-selected host. Google Cloud is not required. The deployment path is:
 
 1. The desktop obtains a Supabase user session and sends the request to FastAPI.
 2. FastAPI validates the token plus current company membership/authority, stores the request and creates a durable Supabase queue/job record.
 3. The Python worker leases that job and retrieves a purpose-bound, permission-filtered, versioned source projection.
-4. One model gateway calls Gemini through the official Google Gen AI SDK. It supplies the configured model ID and an explicit JSON/Pydantic output schema.
+4. The worker resolves the current company's encrypted Gemini key from Supabase Vault under the same tenant context. One model gateway calls Gemini through the official Google Gen AI SDK with the configured model ID and an explicit JSON/Pydantic output schema. The desktop and employee never receive the key.
 5. Trusted Pydantic and deterministic semantic validators treat the response as an untrusted `CandidateTaskContract`; they check source lineage, authority, tenant, types, units, dates, confidentiality and supported constraint families.
 6. Only then does trusted code freeze a `PlanningSnapshot`, compile a `CompiledModel`, run Z3 and independently validate the concrete candidate.
 7. The worker persists run metadata, diagnostics and the proposed result in Supabase. Realtime carries only a private refresh signal; the client refetches authorised data.
 
-Yes, a Supabase Edge Function can call Gemini over HTTPS. For a short bounded endpoint, validate the Supabase JWT and current scope, load the Gemini credential from Supabase project secrets, call the API, validate structured output, write the permitted result and return an operation/result ID. Do not route through an Edge Function merely to add another hop when the Python worker already owns the job. Edge Functions are optional thin gateways for low-latency or webhook-style operations, not the execution home for Z3, multi-step durable planning or agent runs. Supabase documents third-party API calls, project secrets and short-lived/idempotent design; Google documents the official SDK and JSON-schema structured output. [S61, S62, S64, S65]
+Yes, a Supabase Edge Function can technically call Gemini over HTTPS, but the initial implementation does not create a second credential path. The durable worker alone resolves company keys from Vault. If a later short bounded endpoint genuinely belongs in an Edge Function, validate the Supabase JWT and current scope, grant one narrowly reviewed tenant-secret resolver, call the API, validate structured output, write the permitted result and return an operation/result ID. Edge Functions are not the execution home for Z3, multi-step durable planning or agent runs. [S61, S62, S64, S65, S66]
 
 Use one server-side Gemini gateway rather than provider calls scattered across FastAPI, workers and Edge Functions. Apply timeouts, per-company rate/cost budgets, bounded retry with jitter only for retryable errors, cancellation and request idempotency. Persist model ID, API/SDK version, prompt version, schema version, safety/configuration values, token/cost/latency data and outcome. Re-evaluate the exact credential type, data-use terms, retention and region before sending real company data.
 
@@ -933,7 +934,7 @@ Use Supabase identity sessions, validating signature, issuer, audience, expiry a
 
 For desktop OAuth, use a reviewed system-browser redirect flow with PKCE/state protections and a platform-safe token store. Register the supported redirect configuration rather than inventing callback URLs. Distinguish signing into our app from granting access to Microsoft/Google resources.
 
-Keep the project publishable key and URL separate from privileged server secrets. Never bundle a Supabase secret/service key, database password, provider refresh token shared across the company, or `GEMINI_API_KEY` in the executable. Use the current supported Gemini authorization-key mechanism in an environment-specific Google Cloud project, keep it in the API/worker deployment secret store or Supabase project secrets when an Edge Function owns the call, and rotate/revoke it independently. Short-lived user tokens are not authority to bypass company scope. [S63, S65]
+Keep the project publishable key and URL separate from privileged server secrets. Never bundle a Supabase secret/service key, database password, provider refresh token or Gemini API key in the executable. A company administrator supplies one company-level Gemini key through an authenticated write-only workflow. Validate access without company content, encrypt it in Supabase Vault, expose only non-secret status/fingerprint metadata and grant plaintext resolution solely to the worker under active tenant context. Rotation updates the Vault entry; removal revokes application use. A process environment key is a non-production fallback only. Gemini still associates keys with a provider project for quota/billing, but the application need not run on Google Cloud. Short-lived user tokens are not authority to bypass company scope. [S63, S66]
 
 Connector refresh tokens should be encrypted under a managed server-side key or stored through a secrets mechanism; database rows hold credential references. Rotate and revoke them. Never log bearer tokens, calendar subjects or raw confidential documents in ordinary application telemetry.
 
@@ -1871,7 +1872,7 @@ The central business hypothesis is that this reduces the human cost and disrupti
 
 ## 26. Sources and evidence register
 
-Version 1 retained sources S01–S47 from the 23 September 2026 specification. Version 2 rechecked the key statistical, solver, security and connector references, added native-platform/research references S48–S60 on 25 September 2026, and added Gemini/Supabase execution references S61–S65 on 26 September 2026. This is not a claim that every retained page was independently re-fetched in version 2. Dates in source notes distinguish historical findings from current documentation. Vendor feature descriptions and case studies are not independent product tests. The product architecture, example scenarios, proposed schema, objectives and test plans are our design recommendations, not findings established by these sources.
+Version 1 retained sources S01–S47 from the 23 September 2026 specification. Version 2 rechecked the key statistical, solver, security and connector references, added native-platform/research references S48–S60 on 25 September 2026, and added Gemini/Supabase execution references S61–S66 on 26 September 2026. This is not a claim that every retained page was independently re-fetched in version 2. Dates in source notes distinguish historical findings from current documentation. Vendor feature descriptions and case studies are not independent product tests. The product architecture, example scenarios, proposed schema, objectives and test plans are our design recommendations, not findings established by these sources.
 
 ### S01. Recruit Holdings Innovation Cup 2026 — overview and judging criteria
 
@@ -2133,7 +2134,7 @@ Official distinction between row access and access to sensitive fields.
 
 ### S44. Google Cloud — What is Cloud Run
 
-Official container-execution options; choose the correct service/job/worker arrangement.
+Official optional container-execution reference; Cloud Run is not required by the product.
 
 [Open primary source](https://docs.cloud.google.com/run/docs/overview/what-is-cloud-run)
 
@@ -2262,6 +2263,13 @@ Official server-side TypeScript function guidance: third-party API calls and sma
 Official project-secret and environment-variable guidance. Local secret files remain uncommitted and production secrets are configured through the deployment environment.
 
 [Open primary source](https://supabase.com/docs/guides/functions/secrets)
+
+### S66. Supabase — Vault
+
+Official encrypted-secret storage guidance. Access to the decrypted view must remain narrowly
+granted; application tables store only credential references and non-secret metadata.
+
+[Open primary source](https://supabase.com/docs/guides/database/vault)
 
 ## 27. Readout before implementation
 

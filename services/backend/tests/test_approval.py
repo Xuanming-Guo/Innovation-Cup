@@ -99,6 +99,7 @@ def review() -> PlanReview:
                 kind="plan_commit",
                 authority_kind="company_manager",
                 authority_team_id=None,
+                artifact_digest="11" * 32,
                 reason="Approve the exact proposal.",
                 status="pending",
                 decided_by_membership_id=None,

@@ -30,10 +30,14 @@ def worker_status(
             "durable_schema": durable_schema_ready,
         },
         "queue_consumer_enabled": configuration_ready and durable_schema_ready,
-        "gemini_configured": settings.gemini_api_key is not None,
+        "gemini_credential_mode": "tenant_byok",
+        "gemini_local_fallback_configured": (
+            settings.environment != "production" and settings.gemini_api_key is not None
+        ),
         "file_scanner_configured": False,
         "job_kinds": [
             "interpretation.run",
+            "planning.materialize",
             "planning.run",
             "private_file.scan",
             "outbox.deliver",

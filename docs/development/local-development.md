@@ -24,9 +24,11 @@ npm.cmd run doctor
 ```
 
 Copy the relevant `.env.example` file to an untracked `.env` only when a runtime needs it.
-The API and all non-provider tests run without provider credentials. A live interpretation job
-requires `COORDINATION_GEMINI_API_KEY` only in the worker process environment. Never place a
-Gemini key or privileged Supabase credential in `apps/desktop` or any `VITE_` variable.
+The API and all non-provider tests run without provider credentials. For normal connected use, a
+company administrator installs the company's key through **Connections** after authentication.
+`COORDINATION_GEMINI_API_KEY` is an optional local/test fallback and is ignored in production.
+Never place a Gemini key or privileged Supabase credential in `apps/desktop` or any `VITE_`
+variable.
 
 For local identity and database work, copy `services/backend/.env.example` and
 `supabase/.env.example` to untracked environment files and fill only local values. The desktop
@@ -73,10 +75,10 @@ python supabase/scripts/verify_migrations.py
 The database tests rebuild their test database from ordered repository migrations. They do not
 connect to a linked or hosted project.
 
-The backend suite uses a fake typed interpretation gateway and never spends Gemini quota. Live
-provider evaluation is a separate, explicitly credentialed check; record the actual model,
-prompt/schema versions, latency and result rather than treating a mocked response as provider
-evidence.
+The backend suite uses a fake typed interpretation gateway and never spends Gemini quota. The
+credential endpoint validates model access without sending company content. Live interpretation
+evaluation is a separate company-authorised check; record the actual model, prompt/schema
+versions, latency and result rather than treating a mocked response as provider evidence.
 
 Planner fixtures use the pinned native `z3-solver` wheel installed by `uv sync`; they need no
 network service or API key. The tests exercise finite real solver models and then validate the

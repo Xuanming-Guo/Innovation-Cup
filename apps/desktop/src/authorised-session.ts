@@ -1,18 +1,34 @@
 import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
 
 import { startAuthorisedRefresh } from "./authorised-refresh";
+import type { AuthorisedApiContext } from "./api-client";
 import type { PublicRuntimeConfig } from "./runtime-config";
 
 export type AuthorisedSessionState =
   | { status: "unconfigured" }
   | { status: "signed_out" }
   | { status: "company_required"; userId: string }
-  | { status: "connected"; userId: string; unreadNotifications: number }
+  | {
+      status: "connected";
+      userId: string;
+      unreadNotifications: number;
+      administrativeRole: string;
+      employeeId: string | null;
+      api: AuthorisedApiContext;
+    }
   | { status: "unreachable"; userId: string };
+
+export interface AuthorisedSessionController {
+  signIn(email: string, password: string): Promise<void>;
+  signOut(): Promise<void>;
+  stop(): void;
+}
 
 interface SessionRecord {
   user_id: string;
   company_id: string;
+  administrative_role: string;
+  employee_id: string | null;
 }
 
 interface NotificationRecord {
@@ -69,14 +85,18 @@ async function refetchAuthorisedState(
 export function startAuthorisedSession(
   config: PublicRuntimeConfig,
   onState: (state: AuthorisedSessionState) => void,
-): () => void {
+): AuthorisedSessionController {
   if (
     !config.supabaseConfigured ||
     config.supabaseUrl === null ||
     config.supabasePublishableKey === null
   ) {
     onState({ status: "unconfigured" });
-    return () => undefined;
+    return {
+      signIn: async () => { throw new Error("Supabase is not configured"); },
+      signOut: async () => undefined,
+      stop: () => undefined,
+    };
   }
 
   const client: SupabaseClient = createClient(
@@ -119,6 +139,13 @@ export function startAuthorisedSession(
             status: "connected",
             userId: state.session.user_id,
             unreadNotifications: state.notifications.filter((item) => item.seen_at === null).length,
+            administrativeRole: state.session.administrative_role,
+            employeeId: state.session.employee_id,
+            api: {
+              apiOrigin: config.apiOrigin,
+              companyId: state.session.company_id,
+              accessToken: session.access_token,
+            },
           });
         };
         stopRefresh = startAuthorisedRefresh({
@@ -144,11 +171,21 @@ export function startAuthorisedSession(
     window.setTimeout(() => activate(session), 0);
   });
 
-  return () => {
-    stopped = true;
-    generation += 1;
-    stopRefresh?.();
-    activeController?.abort();
-    data.subscription.unsubscribe();
+  return {
+    signIn: async (email: string, password: string) => {
+      const { error } = await client.auth.signInWithPassword({ email, password });
+      if (error) throw error;
+    },
+    signOut: async () => {
+      const { error } = await client.auth.signOut();
+      if (error) throw error;
+    },
+    stop: () => {
+      stopped = true;
+      generation += 1;
+      stopRefresh?.();
+      activeController?.abort();
+      data.subscription.unsubscribe();
+    },
   };
 }

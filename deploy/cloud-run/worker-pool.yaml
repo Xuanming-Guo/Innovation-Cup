@@ -22,10 +22,6 @@ spec:
               value: production
             - name: COORDINATION_BUILD_COMMIT
               value: COMMIT_SHA
-            - name: COORDINATION_GOOGLE_CLOUD_PROJECT
-              value: PROJECT_ID
-            - name: COORDINATION_GOOGLE_CLOUD_REGION
-              value: REGION
             - name: COORDINATION_SUPABASE_URL
               value: SUPABASE_PROJECT_URL
             - name: COORDINATION_SUPABASE_JWT_ISSUER
@@ -34,11 +30,6 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: coordination-worker-database-url
-                  key: latest
-            - name: COORDINATION_GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: coordination-gemini-api-key
                   key: latest
             - name: COORDINATION_WORKER_BATCH_SIZE
               value: "4"

@@ -30,15 +30,15 @@ class Settings(BaseSettings):
     database_url: SecretStr | None = None
     database_connect_timeout_seconds: int = Field(default=5, ge=1, le=30)
 
+    # Local/test fallback only. Production Gemini credentials are supplied per company and
+    # resolved from Supabase Vault by the worker; they are never process-wide configuration.
     gemini_api_key: SecretStr | None = None
+    interpretation_mode: Literal["gemini", "fixture"] = "gemini"
     gemini_model: str = "gemini-3.8-flash"
     gemini_timeout_seconds: int = Field(default=20, ge=1, le=120)
     gemini_retry_attempts: int = Field(default=2, ge=1, le=3)
     gemini_max_output_tokens: int = Field(default=8192, ge=512, le=32768)
     gemini_max_projection_characters: int = Field(default=150000, ge=10000, le=500000)
-    google_cloud_project: str | None = None
-    google_cloud_region: str | None = None
-
     worker_poll_seconds: float = Field(default=5.0, ge=0.5, le=60.0)
     worker_batch_size: int = Field(default=4, ge=1, le=32)
     worker_lease_seconds: int = Field(default=120, ge=15, le=900)
@@ -49,8 +49,8 @@ class Settings(BaseSettings):
     def worker_configuration_valid(self) -> bool:
         return (
             self.database_url is not None
-            and self.gemini_api_key is not None
             and self.worker_renewal_seconds < self.worker_lease_seconds
+            and not (self.interpretation_mode == "fixture" and self.environment == "production")
         )
 
     @property
@@ -71,11 +71,11 @@ class Settings(BaseSettings):
     def missing_production_settings(self) -> tuple[str, ...]:
         required = {
             "database_url": self.database_url,
-            "google_cloud_project": self.google_cloud_project,
-            "google_cloud_region": self.google_cloud_region,
             "supabase_jwt_issuer": self.supabase_jwt_issuer,
             "supabase_url": self.supabase_url,
         }
+        if self.interpretation_mode == "fixture" and self.environment == "production":
+            required["interpretation_mode"] = None
         return tuple(name for name, value in required.items() if value is None)
 
     def public_runtime_summary(self) -> dict[str, object]:
@@ -85,9 +85,12 @@ class Settings(BaseSettings):
             "environment": self.environment,
             "supabase_configured": bool(self.supabase_url and self.supabase_jwt_issuer),
             "database_configured": self.database_url is not None,
-            "gemini_configured": self.gemini_api_key is not None,
+            "gemini_credential_mode": "tenant_byok",
+            "gemini_local_fallback_configured": (
+                self.environment != "production" and self.gemini_api_key is not None
+            ),
             "gemini_model": self.gemini_model,
-            "cloud_run_configured": bool(self.google_cloud_project and self.google_cloud_region),
+            "interpretation_mode": self.interpretation_mode,
         }
 
 

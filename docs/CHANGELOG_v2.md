@@ -16,9 +16,19 @@ The founder has now confirmed Google Gemini as the model API and Supabase as the
 
 The manager may now begin with a natural-language outcome or change instead of re-entering facts the system already has. The system first retrieves permitted current commitments, sources, priorities, deadlines, dependencies and capacity, then asks only for missing information or decisions requiring explicit human authority. This clarification does not weaken the trust boundary: Gemini still produces candidate typed contracts, and trusted code must validate evidence, semantics, permissions and authority before any constraint reaches Z3.
 
-Phase 0 also confirms the hosted compute choice and initial model configuration: FastAPI runs as a Google Cloud Run service, the durable Python processor runs as a Cloud Run worker pool, and `gemini-3.8-flash` is the initial `GEMINI_MODEL` default. The model remains server-configurable and every run records its actual model/configuration; Supabase remains the shared backend platform and system of record.
+Phase 0 originally selected Google Cloud Run for hosted compute. The later founder decision recorded
+in ADR 0002 supersedes that provider-specific choice: FastAPI and the durable worker now use one
+portable OCI image with separate commands on any suitable host. `gemini-3.8-flash` remains the
+initial configurable model default and every run records its actual model/configuration.
 
-The founder has confirmed the repository and deployment boundary for Supabase implementation. Root `supabase/` is the single home for CLI configuration, ordered migrations, reference seeds, database tests, Edge Functions, shared function code, function tests and committed environment placeholders. The founder will manually apply repository migrations to hosted Supabase and supply Google Cloud, Gemini and privileged Supabase environment values later; migration applications remain traceable to a repository commit/version and no real credentials are committed.
+The later founder decision also replaces a deployment-wide Gemini secret with company-level
+BYOK. A company administrator supplies one key through the authenticated application, the API
+validates model access without sending company content, Supabase Vault encrypts the key and only
+the durable worker can resolve it under active tenant context. Employees never receive the key.
+Google Cloud remains an optional host and the provider-side project behind a Gemini key, not a
+required application-session runtime.
+
+The founder has confirmed the repository and deployment boundary for Supabase implementation. Root `supabase/` is the single home for CLI configuration, ordered migrations, reference seeds, database tests, Edge Functions, shared function code, function tests and committed environment placeholders. The founder will manually apply repository migrations to hosted Supabase and supply privileged Supabase/runtime values later; company administrators supply their own Gemini keys through the application. Migration applications remain traceable to a repository commit/version and no real credentials are committed.
 
 ## 1. Page-by-page feedback incorporated
 
@@ -76,7 +86,7 @@ No prototype, native installer, SQL migration test, provider connection, user st
 
 The following remain hypotheses or open decisions: measurable productivity benefit, commercial pricing, exact pilot buyer, hosting region, chosen model, production retention periods, customer priority vocabulary, permitted deadline movement and organisational approval policies.
 
-The source register now contains **60 primary references**. Historical studies retain their dates, populations and limitations. They motivate investigation; they are not this product's results.
+The source register now contains **66 primary references**. Historical studies retain their dates, populations and limitations. They motivate investigation; they are not this product's results.
 
 ## 6. How the new build prompt differs from the specification
 

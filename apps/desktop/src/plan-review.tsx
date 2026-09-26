@@ -1,134 +1,311 @@
-import { useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-const tabs = ["Overview", "Evidence", "Assumptions", "Schedule", "Diagnostics"] as const;
-type ReviewTab = (typeof tabs)[number];
+import {
+  approveRequirement,
+  commitPlan,
+  createPlanningRequest,
+  getPlan,
+  getPlanEvidence,
+  getPendingReviews,
+  getPlanningContext,
+  getPlanningRequest,
+  reviewSubmission,
+  type AuthorisedApiContext,
+  type PlanEvidence,
+  type PlanningContext,
+  type PlanningRequestDetail,
+  type PlanReview,
+  type PendingReview,
+} from "./api-client";
 
-const tasks = [
-  { key: "INTAKE", title: "Confirm operating constraints", owner: "Operations lead", window: "Mon 09:00–10:00", offset: 2, width: 19, tone: "teal" },
-  { key: "DRAFT", title: "Prepare reviewed operating guide", owner: "Content owner", window: "Mon 10:15–Tue 12:00", offset: 18, width: 44, tone: "rust" },
-  { key: "REVIEW", title: "Independent acceptance review", owner: "Assigned reviewer", window: "Tue 13:00–14:00", offset: 65, width: 20, tone: "moss" },
-] as const;
-
-const evidence = [
-  ["task.definition", "3 validated tasks", "Authoritative source"],
-  ["resource.capacity", "Working windows and daily budget", "Confirmed profile"],
-  ["acceptance.review", "Independent reviewer required", "Manager authority"],
-] as const;
-
-function Schedule() {
-  return (
-    <div className="schedule" aria-label="Proposed schedule">
-      <div className="schedule-scale" aria-hidden="true">
-        <span>MON 09</span><span>MON 13</span><span>TUE 09</span><span>TUE 13</span>
-      </div>
-      {tasks.map((task) => (
-        <article className="schedule-row" key={task.key}>
-          <div className="task-label">
-            <code>{task.key}</code><strong>{task.title}</strong>
-            <span>{task.owner} · {task.window}</span>
-          </div>
-          <div className="timeline-track" aria-label={`${task.title}: ${task.window}`}>
-            <span className={`timeline-block ${task.tone}`} style={{ marginLeft: `${task.offset}%`, width: `${task.width}%` }} />
-          </div>
-        </article>
-      ))}
-    </div>
-  );
+interface PlanReviewWorkspaceProps {
+  api?: AuthorisedApiContext;
 }
 
-function TabContent({ tab }: { tab: ReviewTab }) {
-  if (tab === "Evidence") {
-    return (
-      <div className="evidence-list" aria-label="Proposal evidence">
-        {evidence.map(([key, value, source]) => (
-          <article key={key}><code>{key}</code><strong>{value}</strong><span>{source}</span></article>
-        ))}
-      </div>
-    );
-  }
-  if (tab === "Assumptions") {
-    return (
-      <div className="review-note">
-        <span className="eyebrow">Confirmed assumptions</span>
-        <p>The proposal uses only admitted constraints. Human authority references remain review evidence; they are never converted into permissions by Gemini or Z3.</p>
-      </div>
-    );
-  }
-  if (tab === "Diagnostics") {
-    return (
-      <dl className="diagnostic-grid">
-        <div><dt>Application result</dt><dd>Feasible</dd></div>
-        <div><dt>Independent validation</dt><dd>Passed</dd></div>
-        <div><dt>Solver scope</dt><dd>Authorized repair</dd></div>
-        <div><dt>Committed state</dt><dd>None</dd></div>
-      </dl>
-    );
-  }
-  if (tab === "Schedule") return <Schedule />;
-  return (
-    <div className="overview-copy">
-      <p>Three tasks fit inside the bounded planning horizon. The acceptance review remains separate from execution, and no deadline or cross-team authority is implied.</p>
-      <div className="metric-strip">
-        <div><strong>3</strong><span>tasks</span></div>
-        <div><strong>2d</strong><span>horizon</span></div>
-        <div><strong>1</strong><span>approval pending</span></div>
-      </div>
-    </div>
-  );
+const DEFAULT_REQUEST =
+  "Coordinate the approved software release and internal onboarding work. Use the shared " +
+  "technical specialist without exposing either team's private context, and preserve a " +
+  "reviewable handoff.";
+
+function displayTime(value: string): string {
+  return new Intl.DateTimeFormat(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
-export function PlanReviewWorkspace() {
-  const [activeTab, setActiveTab] = useState<ReviewTab>("Overview");
+function pipelineStages(request: PlanningRequestDetail | null) {
+  return [
+    ["Interpretation", request?.interpretation_job_state ?? "waiting"],
+    ["Trusted constraints", request?.materialization_job_state ?? "waiting"],
+    ["Z3 + validation", request?.planning_job_state ?? "waiting"],
+    ["Human approval", request?.plan_id ? "ready" : "waiting"],
+  ] as const;
+}
+
+export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
+  const [planningContext, setPlanningContext] = useState<PlanningContext | null>(null);
+  const [request, setRequest] = useState<PlanningRequestDetail | null>(null);
+  const [plan, setPlan] = useState<PlanReview | null>(null);
+  const [evidence, setEvidence] = useState<PlanEvidence | null>(null);
+  const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
+  const [prompt, setPrompt] = useState(DEFAULT_REQUEST);
+  const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const loadPlan = useCallback(async (context: AuthorisedApiContext, planId: string) => {
+    const [nextPlan, nextEvidence] = await Promise.all([
+      getPlan(context, planId),
+      getPlanEvidence(context, planId),
+    ]);
+    setPlan(nextPlan);
+    setEvidence(nextEvidence);
+  }, []);
+
+  const loadRequest = useCallback(
+    async (context: AuthorisedApiContext, requestId: string) => {
+      const value = await getPlanningRequest(context, requestId);
+      setRequest(value);
+      if (value.plan_id) await loadPlan(context, value.plan_id);
+      return value;
+    },
+    [loadPlan],
+  );
+
+  useEffect(() => {
+    if (!api) return;
+    let active = true;
+    void getPlanningContext(api)
+      .then(async (value) => {
+        if (!active) return;
+        setPlanningContext(value);
+        setSelectedSources(value.sources.map((source) => source.source_id));
+        const latest = value.requests[0];
+        if (latest) await loadRequest(api, latest.request_id);
+      })
+      .catch((value: unknown) => {
+        if (active) setError(value instanceof Error ? value.message : "Planning state failed");
+      });
+    return () => { active = false; };
+  }, [api, loadRequest]);
+
+  useEffect(() => {
+    if (!api) return;
+    let active = true;
+    const refresh = () => {
+      void getPendingReviews(api)
+        .then((value) => { if (active) setPendingReviews(value); })
+        .catch(() => undefined);
+    };
+    refresh();
+    const timer = window.setInterval(refresh, 5_000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [api]);
+
+  useEffect(() => {
+    if (!api || !request || request.plan_id) return;
+    const states = [
+      request.interpretation_job_state,
+      request.materialization_job_state,
+      request.planning_job_state,
+    ];
+    if (states.some((state) => ["dead_letter", "review_required", "cancelled"].includes(state ?? ""))) return;
+    const timer = window.setInterval(() => {
+      void loadRequest(api, request.request_id).catch((value: unknown) => {
+        setError(value instanceof Error ? value.message : "Pipeline refresh failed");
+      });
+    }, 1_500);
+    return () => window.clearInterval(timer);
+  }, [api, loadRequest, request]);
+
+  const allSourcesSelected = useMemo(
+    () => planningContext?.sources.length === selectedSources.length,
+    [planningContext, selectedSources],
+  );
+
+  async function submitRequest() {
+    if (!api || !prompt.trim() || selectedSources.length === 0) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const created = await createPlanningRequest(api, {
+        originalRequest: prompt.trim(),
+        sourceIds: selectedSources,
+        requestedDeadline: "",
+        requestedPriorityKey: "high",
+      });
+      setPlan(null);
+      setEvidence(null);
+      await loadRequest(api, created.request_id);
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Planning request failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function approveAll() {
+    if (!api || !plan) return;
+    setBusy(true);
+    setError(null);
+    try {
+      for (const requirement of plan.requirements.filter((item) => item.status === "pending")) {
+        await approveRequirement(api, plan, requirement);
+      }
+      await loadPlan(api, plan.plan_id);
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Approval failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function applyPlan() {
+    if (!api || !plan) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await commitPlan(api, plan);
+      await loadPlan(api, plan.plan_id);
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Commit failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function decideSubmission(
+    item: PendingReview,
+    decision: "accepted" | "revision_requested",
+  ) {
+    if (!api) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await reviewSubmission(api, item, decision);
+      setPendingReviews(await getPendingReviews(api));
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Submission review failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  if (!api) {
+    return (
+      <section className="empty-workspace">
+        <span className="eyebrow">Authorised connection required</span>
+        <h2>Sign in to create and review a real plan.</h2>
+        <p>The manager surface loads no fixture records into the UI. Configure Supabase, select the demo company and authenticate to use the connected workflow.</p>
+      </section>
+    );
+  }
 
   return (
     <>
-      <section className="review-hero" aria-labelledby="review-title">
+      <section className="intake-panel" aria-labelledby="planning-intake-title">
         <div>
-          <div className="proposal-kicker">
-            <span className="section-number">Proposal / design preview</span>
-            <span className="proposal-status">Draft · not applied</span>
-          </div>
-          <h2 id="review-title">Prepare a reviewed operating guide.</h2>
-          <p>Review the exact schedule, its evidence, assumptions and authority requirements before any shared work state changes.</p>
+          <span className="eyebrow">Authorised change intake</span>
+          <h2 id="planning-intake-title">Turn a decision into a checked plan.</h2>
+          <p>Selected sources are pinned by exact version. Fixture mode replaces only Gemini; every later boundary remains production code.</p>
         </div>
-        <aside className="binding-card" aria-label="Proposal binding">
-          <span className="eyebrow">Exact binding</span>
-          <dl>
-            <div><dt>Proposal</dt><dd><code>48f6…a12c</code></dd></div>
-            <div><dt>Base revision</dt><dd>0</dd></div>
-            <div><dt>Policy</dt><dd>planning-v1</dd></div>
-          </dl>
-        </aside>
+        <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={4} aria-label="Planning request" />
+        <fieldset className="source-selector">
+          <legend>Authoritative source versions</legend>
+          {planningContext?.sources.map((source) => (
+            <label key={source.source_id}>
+              <input
+                type="checkbox"
+                checked={selectedSources.includes(source.source_id)}
+                onChange={(event) => setSelectedSources((current) =>
+                  event.target.checked
+                    ? [...current, source.source_id]
+                    : current.filter((id) => id !== source.source_id))}
+              />
+              <span><strong>{source.title}</strong><small>{source.classification} · {source.source_kind}</small></span>
+            </label>
+          ))}
+        </fieldset>
+        <button className="primary-action" disabled={busy || !allSourcesSelected || !prompt.trim()} onClick={() => void submitRequest()}>
+          {busy ? "Working…" : "Create checked plan"}
+        </button>
+        {error && <p className="inline-error" role="alert">{error}</p>}
       </section>
 
-      <div className="review-layout">
-        <section className="review-main">
-          <div className="review-tabs" role="tablist" aria-label="Plan review sections">
-            {tabs.map((tab) => (
-              <button className={activeTab === tab ? "active" : ""} key={tab} role="tab" aria-selected={activeTab === tab} onClick={() => setActiveTab(tab)}>{tab}</button>
+      {request && (
+        <section className="pipeline-panel" aria-label="Planning pipeline">
+          {pipelineStages(request).map(([label, state], index) => (
+            <div key={label} className={`pipeline-stage ${state}`}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{label}</strong>
+              <small>{state}</small>
+            </div>
+          ))}
+          {request.clarifications.map((item) => (
+            <p className="inline-error" key={item.question_key}>{item.question}</p>
+          ))}
+        </section>
+      )}
+
+      {plan && (
+        <section className="live-plan" aria-labelledby="live-plan-title">
+          <header className="plan-heading">
+            <div>
+              <span className="eyebrow">Exact proposal · {plan.classification}</span>
+              <h2 id="live-plan-title">{plan.request_summary}</h2>
+            </div>
+            <span className={`plan-status ${plan.status}`}>{plan.status}</span>
+          </header>
+          <div className="schedule-table" role="table" aria-label="Proposed schedule">
+            {plan.tasks.map((task) => (
+              <div className="schedule-row" role="row" key={task.task_id}>
+                <span role="cell"><strong>{task.title}</strong><small>{task.task_key}</small></span>
+                <span role="cell">{displayTime(task.start_at)}</span>
+                <span role="cell">{displayTime(task.finish_at)}</span>
+                <span role="cell">{task.owner_resource_id?.slice(0, 8) ?? "Unassigned"}</span>
+              </div>
             ))}
           </div>
-          <div className="tab-panel" role="tabpanel"><TabContent tab={activeTab} /></div>
-          {activeTab !== "Schedule" ? <Schedule /> : null}
+          <div className="evidence-grid">
+            <article><span className="eyebrow">Independent solver evidence</span><strong>{evidence?.solver.classification}</strong><p>{evidence?.solver.raw_status} · {evidence?.solver.termination} · {evidence?.solver.runtime_ms} ms</p></article>
+            <article><span className="eyebrow">Validated constraints</span><strong>{evidence?.constraints.length ?? 0} admitted</strong><p>Unknown families and unconfirmed evidence fail before compilation.</p></article>
+            <article><span className="eyebrow">Exact approval binding</span><strong>{plan.requirements.filter((item) => item.status === "approved").length}/{plan.requirements.length} approved</strong><p>Planning and employee disclosure are separate requirements.</p></article>
+          </div>
+          <div className="requirement-list">
+            {plan.requirements.map((requirement) => (
+              <div key={requirement.requirement_id}>
+                <span className={`requirement-state ${requirement.status}`}>{requirement.status}</span>
+                <strong>{requirement.kind.replaceAll("_", " ")}</strong>
+                <p>{requirement.reason}</p>
+              </div>
+            ))}
+          </div>
+          <footer className="plan-actions">
+            <button className="secondary-action" disabled={busy || plan.status === "committed" || plan.requirements.every((item) => item.status === "approved")} onClick={() => void approveAll()}>Approve exact plan & disclosure</button>
+            <button className="primary-action" disabled={busy || !plan.can_commit || plan.status === "committed"} onClick={() => void applyPlan()}>{plan.status === "committed" ? "Committed" : "Commit approved plan"}</button>
+          </footer>
         </section>
+      )}
 
-        <aside className="approval-panel" aria-labelledby="approval-heading">
-          <span className="eyebrow">Authority</span>
-          <h3 id="approval-heading">Approval required</h3>
-          <div className="requirement-card">
-            <span className="requirement-icon">01</span>
-            <div><strong>Plan commitment</strong><p>Company manager · exact proposal only</p></div>
-            <span className="pending-label">Pending</span>
-          </div>
-          <div className="disclosure-note">
-            <strong>Employee brief is separate</strong>
-            <p>No brief or audience disclosure is authorized by this planning approval.</p>
-          </div>
-          <button className="primary-action" disabled>Connect manager session to approve</button>
-          <button className="secondary-action" disabled>Commit approved plan</button>
-          <small>This repository preview cannot mutate shared state. Authenticated API operations recheck every digest, source version and authority at commit time.</small>
-        </aside>
-      </div>
+      {pendingReviews.length > 0 && (
+        <section className="review-queue" aria-labelledby="review-queue-title">
+          <header><span className="eyebrow">Accountable work acceptance</span><h2 id="review-queue-title">Pending exact-version reviews</h2></header>
+          {pendingReviews.map((item) => (
+            <article key={item.submission_id}>
+              <div><strong>{item.task_title}</strong><small>{item.submitting_employee_name} · version {item.version}</small></div>
+              <p>{item.narrative}</p>
+              <div className="review-actions">
+                <button className="secondary-action" disabled={busy} onClick={() => void decideSubmission(item, "revision_requested")}>Request revision</button>
+                <button className="primary-action" disabled={busy} onClick={() => void decideSubmission(item, "accepted")}>Accept exact version</button>
+              </div>
+            </article>
+          ))}
+        </section>
+      )}
     </>
   );
 }
