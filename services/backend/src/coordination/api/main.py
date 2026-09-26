@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 from datetime import datetime
 from typing import Annotated, Literal
-from uuid import UUID, uuid4
+from uuid import UUID, uuid5
 
 import uvicorn
 from fastapi import Depends, FastAPI, Header, HTTPException, Response, status
@@ -30,6 +31,16 @@ from coordination.approval.persistence import (
 )
 from coordination.auth.dependencies import CompanyContextDependency
 from coordination.config import Settings, get_settings
+from coordination.db.health import DatabaseReadinessDependency
+from coordination.durable.contracts import JobView, NotificationPage, NotificationView, QueueMetrics
+from coordination.durable.dependencies import DurableStoreDependency
+from coordination.durable.persistence import (
+    DurableStoreError,
+    JobIdempotencyConflictError,
+    JobNotFoundError,
+    JobStateConflictError,
+    NotificationNotFoundError,
+)
 from coordination.employee.contracts import (
     EmployeeTask,
     ReviewCommand,
@@ -52,22 +63,13 @@ from coordination.employee.persistence import (
     EmployeeStoreError,
     EmployeeTaskNotFoundError,
 )
-from coordination.interpretation.dependencies import (
-    InterpretationGatewayDependency,
-    InterpretationStoreDependency,
-)
+from coordination.interpretation.dependencies import InterpretationStoreDependency
 from coordination.interpretation.persistence import (
     CreatePlanningRequest,
-    InterpretationStateConflictError,
     InterpretationStoreUnavailableError,
     PlanningRequestIdempotencyConflictError,
     PlanningRequestNotFoundError,
     PlanningRequestSourceNotFoundError,
-)
-from coordination.interpretation.service import (
-    InterpretationBudgetExceededError,
-    InterpretationExecutionError,
-    InterpretationService,
 )
 
 
@@ -84,6 +86,7 @@ class ReadinessResponse(StrictResponse):
     service: Literal["coordination-api"] = "coordination-api"
     status: Literal["ready", "not_ready"]
     missing_configuration: list[str]
+    checks: dict[str, bool]
     runtime: dict[str, object]
 
 
@@ -126,14 +129,6 @@ class PlanningRequestResponse(StrictResponse):
     status: str
     request_version: int
     created: bool
-
-
-class InterpretationResponse(StrictResponse):
-    run_id: UUID
-    status: Literal["admitted", "clarification_required", "rejected"]
-    contract_digest: str
-    projection_digest: str
-    issue_codes: tuple[str, ...]
 
 
 class ClarificationResponse(StrictResponse):
@@ -244,6 +239,38 @@ class SubmissionReviewRequest(StrictResponse):
         return self
 
 
+class JobCancellationRequest(StrictResponse):
+    reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank_reason(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("cancellation reason must not be blank")
+        return cleaned
+
+
+def _job_command_digest(company_id: UUID, job_kind: str, aggregate_id: UUID) -> bytes:
+    return hashlib.sha256(f"{company_id}:{job_kind}:{aggregate_id}".encode()).digest()
+
+
+def _parse_notification_cursor(cursor: str | None) -> tuple[datetime | None, UUID | None]:
+    if cursor is None:
+        return None, None
+    try:
+        created_at, notification_id = cursor.rsplit("|", 1)
+        parsed_at = datetime.fromisoformat(created_at)
+        if parsed_at.utcoffset() is None:
+            raise ValueError("cursor timestamp is not timezone-aware")
+        return parsed_at, UUID(notification_id)
+    except (ValueError, TypeError) as error:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="notification cursor is invalid",
+        ) from error
+
+
 SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 
@@ -260,14 +287,23 @@ def create_app() -> FastAPI:
         return LivenessResponse()
 
     @application.get("/health/ready", response_model=ReadinessResponse)
-    def ready(response: Response, settings: SettingsDependency) -> ReadinessResponse:
+    def ready(
+        response: Response,
+        settings: SettingsDependency,
+        database_ready: DatabaseReadinessDependency,
+    ) -> ReadinessResponse:
         missing = list(settings.missing_production_settings)
-        is_ready = settings.environment != "production" or not missing
+        configuration_ready = settings.environment != "production" or not missing
+        is_ready = configuration_ready and database_ready
         if not is_ready:
             response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return ReadinessResponse(
             status="ready" if is_ready else "not_ready",
             missing_configuration=missing,
+            checks={
+                "configuration": configuration_ready,
+                "durable_schema": database_ready,
+            },
             runtime=settings.public_runtime_summary(),
         )
 
@@ -399,16 +435,18 @@ def create_app() -> FastAPI:
 
     @application.post(
         "/v1/companies/{company_id}/planning-requests/{request_id}/interpret",
-        response_model=InterpretationResponse,
+        response_model=JobView,
+        status_code=status.HTTP_202_ACCEPTED,
     )
     def interpret_planning_request(
         company_id: UUID,
         request_id: UUID,
         context: CompanyContextDependency,
-        store: InterpretationStoreDependency,
-        gateway: InterpretationGatewayDependency,
-        settings: SettingsDependency,
-    ) -> InterpretationResponse:
+        store: DurableStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> JobView:
         if company_id != context.company_id:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="company was not found"
@@ -417,53 +455,220 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="manager authority is required"
             )
-        retrieval_run_id = uuid4()
         try:
-            bundle = store.load_projection(
+            return store.ensure_job(
                 context=context,
-                request_id=request_id,
-                retrieval_run_id=retrieval_run_id,
-            )
-            service = InterpretationService(
-                gateway=gateway,
-                recorder=store.recorder(
-                    context=context,
-                    request_id=request_id,
-                    retrieval_run_id=retrieval_run_id,
+                job_kind="interpretation.run",
+                aggregate_id=request_id,
+                idempotency_key=idempotency_key,
+                command_digest=_job_command_digest(
+                    company_id, "interpretation.run", request_id
                 ),
-                max_projection_characters=settings.gemini_max_projection_characters,
+                correlation_id=uuid5(request_id, "interpretation.run"),
             )
-            outcome = service.interpret(bundle.projection)
-        except (PlanningRequestNotFoundError, PlanningRequestSourceNotFoundError) as error:
+        except JobNotFoundError as error:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="planning request was not found"
             ) from error
-        except InterpretationBudgetExceededError as error:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="interpretation input exceeds policy",
-            ) from error
-        except InterpretationStateConflictError as error:
+        except JobIdempotencyConflictError as error:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail="planning request is already being interpreted or has a current result",
+                detail="job idempotency key conflicts with an earlier command",
             ) from error
-        except InterpretationExecutionError as error:
+        except PermissionError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="manager authority is required",
+            ) from error
+        except DurableStoreError as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail=f"model interpretation failed: {error.code}",
+                detail="durable planning is unavailable",
             ) from error
-        except InterpretationStoreUnavailableError as error:
+
+    @application.get(
+        "/v1/companies/{company_id}/jobs/{job_id}",
+        response_model=JobView,
+    )
+    def get_durable_job(
+        company_id: UUID,
+        job_id: UUID,
+        context: CompanyContextDependency,
+        store: DurableStoreDependency,
+    ) -> JobView:
+        _require_manager_company(company_id, context)
+        try:
+            return store.get_job(context=context, job_id=job_id)
+        except JobNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="job was not found"
+            ) from error
+        except DurableStoreError as error:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="interpretation state is unavailable",
+                detail="job state is unavailable",
             ) from error
-        return InterpretationResponse(
-            run_id=outcome.run_id,
-            status=outcome.status,
-            contract_digest=outcome.contract_digest,
-            projection_digest=outcome.projection_digest,
-            issue_codes=tuple(issue.code for issue in outcome.admission.issues),
+
+    @application.post(
+        "/v1/companies/{company_id}/jobs/{job_id}/cancel",
+        response_model=JobView,
+    )
+    def cancel_durable_job(
+        company_id: UUID,
+        job_id: UUID,
+        body: JobCancellationRequest,
+        context: CompanyContextDependency,
+        store: DurableStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> JobView:
+        _require_manager_company(company_id, context)
+        digest = hashlib.sha256(
+            f"{company_id}:{job_id}:{body.reason}".encode()
+        ).digest()
+        try:
+            return store.cancel_job(
+                context=context,
+                job_id=job_id,
+                reason=body.reason,
+                idempotency_key=idempotency_key,
+                command_digest=digest,
+            )
+        except JobNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="job was not found"
+            ) from error
+        except PermissionError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="manager authority is required",
+            ) from error
+        except JobStateConflictError as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="job state changed or the cancellation key conflicts",
+            ) from error
+        except DurableStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="job cancellation could not be stored",
+            ) from error
+
+    @application.get(
+        "/v1/companies/{company_id}/operations/metrics",
+        response_model=QueueMetrics,
+    )
+    def durable_metrics(
+        company_id: UUID,
+        context: CompanyContextDependency,
+        store: DurableStoreDependency,
+    ) -> QueueMetrics:
+        _require_manager_company(company_id, context)
+        try:
+            return store.metrics(context=context)
+        except PermissionError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="manager authority is required",
+            ) from error
+        except DurableStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="coordination metrics are unavailable",
+            ) from error
+
+    @application.get(
+        "/v1/companies/{company_id}/me/notifications",
+        response_model=NotificationPage,
+    )
+    def list_notifications(
+        company_id: UUID,
+        context: CompanyContextDependency,
+        store: DurableStoreDependency,
+        cursor: str | None = None,
+        limit: int = 50,
+    ) -> NotificationPage:
+        _require_same_company(company_id, context)
+        if limit < 1 or limit > 100:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="notification limit must be between 1 and 100",
+            )
+        after_created_at, after_id = _parse_notification_cursor(cursor)
+        try:
+            return store.list_notifications(
+                context=context,
+                after_created_at=after_created_at,
+                after_id=after_id,
+                limit=limit,
+            )
+        except DurableStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="notifications are unavailable",
+            ) from error
+
+    def advance_notification(
+        *,
+        company_id: UUID,
+        notification_id: UUID,
+        action: str,
+        context: CompanyContextDependency,
+        store: DurableStoreDependency,
+    ) -> NotificationView:
+        _require_same_company(company_id, context)
+        try:
+            return store.advance_notification(
+                context=context,
+                notification_id=notification_id,
+                action=action,
+            )
+        except NotificationNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="notification was not found",
+            ) from error
+        except DurableStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="notification state could not be stored",
+            ) from error
+
+    @application.post(
+        "/v1/companies/{company_id}/me/notifications/{notification_id}/seen",
+        response_model=NotificationView,
+    )
+    def mark_notification_seen(
+        company_id: UUID,
+        notification_id: UUID,
+        context: CompanyContextDependency,
+        store: DurableStoreDependency,
+    ) -> NotificationView:
+        return advance_notification(
+            company_id=company_id,
+            notification_id=notification_id,
+            action="seen",
+            context=context,
+            store=store,
+        )
+
+    @application.post(
+        "/v1/companies/{company_id}/me/notifications/{notification_id}/acknowledge",
+        response_model=NotificationView,
+    )
+    def acknowledge_notification(
+        company_id: UUID,
+        notification_id: UUID,
+        context: CompanyContextDependency,
+        store: DurableStoreDependency,
+    ) -> NotificationView:
+        return advance_notification(
+            company_id=company_id,
+            notification_id=notification_id,
+            action="acknowledged",
+            context=context,
+            store=store,
         )
 
     @application.get(

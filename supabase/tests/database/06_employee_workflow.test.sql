@@ -201,20 +201,34 @@ insert into app.private_files (
    'coordination-quarantine',
    '11111111-1111-4111-8111-111111111111/77777777-f000-4000-8000-000000000001/quarantine/runbook.pdf',
    'submission', '77777777-e000-4000-8000-000000000002', 'runbook.pdf',
-   'application/pdf', 'application/pdf', 12, 'quarantined',
+   'application/pdf', 'application/pdf', 12, 'pending_upload',
    clock_timestamp() + interval '10 minutes', clock_timestamp()),
   ('77777777-f000-4000-8000-000000000002', '11111111-1111-4111-8111-111111111111',
    'coordination-quarantine',
    '11111111-1111-4111-8111-111111111111/77777777-f000-4000-8000-000000000002/quarantine/wrong.pdf',
    'submission', '77777777-e000-4000-8000-000000000002', 'wrong.pdf',
-   'application/pdf', 'application/pdf', 12, 'quarantined',
+   'application/pdf', 'application/pdf', 12, 'pending_upload',
    clock_timestamp() + interval '10 minutes', clock_timestamp());
+
+update app.private_files set state = 'quarantined'
+where id in (
+  '77777777-f000-4000-8000-000000000001',
+  '77777777-f000-4000-8000-000000000002'
+);
 
 create temporary table employee_results (
   label text primary key,
   observed text not null
 ) on commit drop;
 grant insert, select, update on table employee_results to coordination_api, coordination_worker;
+create temporary table employee_scan_leases (
+  job_id uuid, company_id uuid, job_kind text, aggregate_id uuid, payload jsonb,
+  requested_by_membership_id uuid, requested_by_user_id uuid,
+  administrative_role text, employee_id uuid, correlation_id uuid,
+  attempt_count integer, max_attempts integer, lease_token uuid,
+  leased_until timestamptz
+) on commit drop;
+grant insert, select on table employee_scan_leases to coordination_worker;
 
 insert into employee_results values
   ('initial-status', (select status from app.work_items where task_id = '77777777-9000-4000-8000-000000000001')),
@@ -334,11 +348,21 @@ set local role coordination_worker;
 select set_config('app.actor_id', '77777777-aaaa-4aaa-8aaa-aaaaaaaaaaa1', true);
 select set_config('app.company_id', '11111111-1111-4111-8111-111111111111', true);
 select set_config('app.purpose', 'test:file-scan', true);
+insert into employee_scan_leases
+select * from app.lease_durable_jobs(
+  '77777777-b000-4000-8000-000000000001', 32, 60
+);
 do $$
 begin
   begin
-    perform app.record_private_file_scan(
-      '11111111-1111-4111-8111-111111111111', '77777777-f000-4000-8000-000000000002',
+    perform app.record_leased_private_file_scan(
+      '11111111-1111-4111-8111-111111111111',
+      (select job_id from employee_scan_leases
+       where aggregate_id = '77777777-f000-4000-8000-000000000002'),
+      '77777777-b000-4000-8000-000000000001',
+      (select lease_token from employee_scan_leases
+       where aggregate_id = '77777777-f000-4000-8000-000000000002'),
+      '77777777-f000-4000-8000-000000000002',
       'clean', 'text/plain', 12, decode(repeat('33', 32), 'hex'), 'fixture-scanner-v1',
       '11111111-1111-4111-8111-111111111111/77777777-f000-4000-8000-000000000002/final/wrong.pdf'
     );
@@ -349,8 +373,14 @@ begin
 end
 $$;
 insert into employee_results
-select 'clean-scan-state', app.record_private_file_scan(
-  '11111111-1111-4111-8111-111111111111', '77777777-f000-4000-8000-000000000001',
+select 'clean-scan-state', app.record_leased_private_file_scan(
+  '11111111-1111-4111-8111-111111111111',
+  (select job_id from employee_scan_leases
+   where aggregate_id = '77777777-f000-4000-8000-000000000001'),
+  '77777777-b000-4000-8000-000000000001',
+  (select lease_token from employee_scan_leases
+   where aggregate_id = '77777777-f000-4000-8000-000000000001'),
+  '77777777-f000-4000-8000-000000000001',
   'clean', 'application/pdf', 12, decode(repeat('34', 32), 'hex'), 'fixture-scanner-v1',
   '11111111-1111-4111-8111-111111111111/77777777-f000-4000-8000-000000000001/final/runbook.pdf'
 );

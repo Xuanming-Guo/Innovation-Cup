@@ -80,16 +80,18 @@ class InterpretationService:
         max_projection_characters: int = 150_000,
         clock: Callable[[], datetime] | None = None,
         monotonic_clock: Callable[[], int] | None = None,
+        run_id_factory: Callable[[], UUID] | None = None,
     ) -> None:
         self._gateway = gateway
         self._recorder = recorder
         self._max_projection_characters = max_projection_characters
         self._clock = clock or (lambda: datetime.now(UTC))
         self._monotonic_clock = monotonic_clock or monotonic_ns
+        self._run_id_factory = run_id_factory or uuid4
 
     def interpret(self, projection: InterpretationProjection) -> InterpretationOutcome:
         projection_payload = projection.canonical_json()
-        run_id = uuid4()
+        run_id = self._run_id_factory()
         started_at = self._clock()
         started_ns = self._monotonic_clock()
         self._recorder.start(

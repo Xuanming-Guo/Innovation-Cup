@@ -3,8 +3,8 @@
 This package exposes two separate processes over one shared Python package:
 
 - `python -m uvicorn coordination.api.main:app` runs the FastAPI service.
-- `python -m coordination.worker.main` runs durable background work. In the foundation slice it reports
-  process readiness only; queue consumption is introduced by its dedicated issue.
+- `python -m coordination.worker.main` verifies the durable schema, leases queued work, renews exact
+  attempt tokens and records bounded terminal/retry outcomes plus worker heartbeats.
 
 No hosted database or model provider is contacted merely by importing or starting the package.
 The repository runner adds `src/` to `PYTHONPATH`; this is an application, not a published
@@ -13,11 +13,10 @@ Python distribution.
 Manager planning intake is available at
 `POST /v1/companies/{company_id}/planning-requests` with a bearer token, matching
 `X-Company-ID`, and an `Idempotency-Key`. The explicit
-`POST /v1/companies/{company_id}/planning-requests/{request_id}/interpret` operation builds a
-fresh permission-bounded projection, calls the server-only Gemini adapter and persists the
-untrusted candidate plus deterministic admission result. This call is synchronous in the
-current slice; issue #12 moves dispatch and retry ownership to the durable worker queue. No
-Gemini call occurs unless the interpret operation is invoked and a server-side key is present.
+`POST /v1/companies/{company_id}/planning-requests/{request_id}/interpret` operation returns a
+durable job with HTTP 202. The worker builds the fresh permission-bounded projection, calls the
+server-only Gemini adapter and persists the untrusted candidate plus deterministic admission
+result. No Gemini call occurs in the API process or without a server-side worker key.
 
 The `coordination.planning` package implements the trusted post-interpretation boundary:
 `ValidatedConstraint` records are frozen into a canonical `PlanningSnapshot`, compiled through
@@ -26,8 +25,9 @@ a separate validator that does not import or trust Z3. It distinguishes malforme
 infeasibility, timeout/resource exhaustion, unknown and validated feasible/optimal-within-model
 results. Existing authorised work is pinned first; at most one unchanged-snapshot repair scope is
 tried, and only constraints explicitly marked movable are unpinned. The planning ledger persists
-the immutable artifacts and concrete rows. Durable dispatch and public plan workflow endpoints
-are intentionally deferred to issue #12 rather than running long solves in an API request.
+the immutable artifacts and concrete rows. Frozen snapshots enqueue real solver work for the
+durable worker; Z3 never runs in an API request or Edge Function. The trusted
+candidate-to-constraint/snapshot materialiser remains a separate incomplete stage.
 
 The `coordination.approval` package exposes review/evidence and explicit approve, reject and commit
 operations for an existing validated proposal. Decisions bind proposal, snapshot, source,

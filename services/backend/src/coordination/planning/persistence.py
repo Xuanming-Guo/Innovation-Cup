@@ -25,6 +25,10 @@ class PlanningStateConflictError(ValueError):
 
 
 class PlanningLedger(Protocol):
+    def load_snapshot(
+        self, *, context: CompanyContext, snapshot_id: UUID
+    ) -> PlanningSnapshot: ...
+
     def save_snapshot(self, *, context: CompanyContext, snapshot: PlanningSnapshot) -> None: ...
 
     def save_decision(
@@ -40,6 +44,42 @@ class PostgresPlanningLedger:
     def __init__(self, dsn: str, *, connect_timeout_seconds: int = 5) -> None:
         self._dsn = dsn
         self._connect_timeout_seconds = connect_timeout_seconds
+
+    def load_snapshot(
+        self, *, context: CompanyContext, snapshot_id: UUID
+    ) -> PlanningSnapshot:
+        try:
+            with company_transaction(
+                self._dsn,
+                role="coordination_worker",
+                actor_id=context.actor.user_id,
+                company_id=context.company_id,
+                purpose="planning:load-snapshot",
+                connect_timeout_seconds=self._connect_timeout_seconds,
+            ) as connection:
+                row = connection.execute(
+                    """
+                    select normalized_snapshot, snapshot_digest
+                    from app.planning_snapshots
+                    where company_id = %s and id = %s
+                    """,
+                    (context.company_id, snapshot_id),
+                ).fetchone()
+        except psycopg.Error as error:
+            raise PlanningPersistenceError("planning snapshot could not be loaded") from error
+        if row is None:
+            raise PlanningStateConflictError("planning snapshot is absent or unreadable")
+        try:
+            snapshot = PlanningSnapshot.model_validate(row["normalized_snapshot"])
+        except ValueError as error:
+            raise PlanningStateConflictError("stored planning snapshot is invalid") from error
+        if (
+            snapshot.snapshot_id != snapshot_id
+            or snapshot.company_id != context.company_id
+            or bytes(row["snapshot_digest"]).hex() != snapshot.snapshot_digest
+        ):
+            raise PlanningStateConflictError("stored planning snapshot binding changed")
+        return snapshot
 
     def save_snapshot(self, *, context: CompanyContext, snapshot: PlanningSnapshot) -> None:
         if context.company_id != snapshot.company_id:
@@ -242,12 +282,15 @@ class PostgresPlanningLedger:
                 connection.execute(
                     """
                     insert into app.trace_steps (
-                      company_id, request_id, interpretation_run_id, step_type,
+                      id, company_id, request_id, interpretation_run_id, step_type,
                       input_digest, output_digest, tool_version, status,
                       viewer_safe_projection
-                    ) values (%s, %s, %s, 'snapshot_frozen', %s, %s, %s, 'complete', %s)
+                    ) values (
+                      %s, %s, %s, %s, 'snapshot_frozen', %s, %s, %s, 'complete', %s
+                    ) on conflict (id) do nothing
                     """,
                     (
+                        uuid5(snapshot.snapshot_id, "trace:snapshot_frozen"),
                         context.company_id,
                         snapshot.request_id,
                         current["interpretation_run_id"],
@@ -382,12 +425,15 @@ class PostgresPlanningLedger:
                     connection.execute(
                         """
                         insert into app.trace_steps (
-                          company_id, request_id, interpretation_run_id, step_type,
+                          id, company_id, request_id, interpretation_run_id, step_type,
                           input_digest, output_digest, tool_version, status,
                           viewer_safe_projection
-                        ) values (%s, %s, %s, 'solver_completed', %s, %s, %s, 'complete', %s)
+                        ) values (
+                          %s, %s, %s, %s, 'solver_completed', %s, %s, %s, 'complete', %s
+                        ) on conflict (id) do nothing
                         """,
                         (
+                            uuid5(attempt.run_id, "trace:solver_completed"),
                             context.company_id,
                             snapshot.request_id,
                             stored_snapshot["interpretation_run_id"],
@@ -691,12 +737,15 @@ class PostgresPlanningLedger:
                 connection.execute(
                     """
                     insert into app.trace_steps (
-                      company_id, request_id, interpretation_run_id, step_type,
+                      id, company_id, request_id, interpretation_run_id, step_type,
                       input_digest, output_digest, tool_version, status,
                       viewer_safe_projection
-                    ) values (%s, %s, %s, 'schedule_validated', %s, %s, %s, 'complete', %s)
+                    ) values (
+                      %s, %s, %s, %s, 'schedule_validated', %s, %s, %s, 'complete', %s
+                    ) on conflict (id) do nothing
                     """,
                     (
+                        uuid5(plan_id, "trace:schedule_validated"),
                         context.company_id,
                         snapshot.request_id,
                         stored_snapshot["interpretation_run_id"],

@@ -39,16 +39,11 @@ spec:
             - name: COORDINATION_DATABASE_URL
               valueFrom:
                 secretKeyRef:
-                  name: coordination-database-url
-                  key: latest
-            - name: COORDINATION_GEMINI_API_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: coordination-gemini-api-key
+                  name: coordination-api-database-url
                   key: latest
           startupProbe:
             httpGet:
-              path: /health/live
+              path: /health/ready
             periodSeconds: 2
             failureThreshold: 15
           livenessProbe:

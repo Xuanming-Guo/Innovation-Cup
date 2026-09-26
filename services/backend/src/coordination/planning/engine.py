@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from time import perf_counter
 from typing import Literal
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import z3  # type: ignore[import-untyped]
 
@@ -44,6 +45,9 @@ def classify_unknown_termination(
 class PlanningEngine:
     """Compile, solve and independently validate one immutable planning snapshot."""
 
+    def __init__(self, *, run_id_factory: Callable[[], UUID] | None = None) -> None:
+        self._run_id_factory = run_id_factory or uuid4
+
     def plan(self, snapshot: PlanningSnapshot) -> PlanningDecision:
         try:
             normalized = normalize_snapshot(snapshot)
@@ -57,7 +61,7 @@ class PlanningEngine:
                 }
             )
             attempt = SolverAttempt(
-                run_id=uuid4(),
+                run_id=self._run_id_factory(),
                 scope="pinned_insertion",
                 classification="INVALID_INPUT",
                 raw_status="invalid",
@@ -134,7 +138,7 @@ class PlanningEngine:
         except z3.Z3Exception as error:
             runtime_ms = max(0, round((perf_counter() - started) * 1000))
             return SolverAttempt(
-                run_id=uuid4(),
+                run_id=self._run_id_factory(),
                 scope=scope,
                 classification="UNKNOWN_OR_TIMEOUT",
                 raw_status="unknown",
@@ -156,7 +160,7 @@ class PlanningEngine:
 
         if status == z3.unsat:
             return SolverAttempt(
-                run_id=uuid4(),
+                run_id=self._run_id_factory(),
                 scope=scope,
                 classification="INFEASIBLE_WITHIN_SCOPE",
                 raw_status="unsat",
@@ -178,7 +182,7 @@ class PlanningEngine:
             reason_unknown = problem.optimizer.reason_unknown()[:500]
             termination = classify_unknown_termination(reason_unknown)
             return SolverAttempt(
-                run_id=uuid4(),
+                run_id=self._run_id_factory(),
                 scope=scope,
                 classification="UNKNOWN_OR_TIMEOUT",
                 raw_status="unknown",
@@ -213,7 +217,7 @@ class PlanningEngine:
         else:
             classification = "FEASIBLE"
         return SolverAttempt(
-            run_id=uuid4(),
+            run_id=self._run_id_factory(),
             scope=scope,
             classification=classification,
             raw_status="sat",

@@ -40,3 +40,25 @@ def company_transaction(
             (str(actor_id), str(company_id), purpose),
         )
         yield connection
+
+
+@contextmanager
+def worker_transaction(
+    dsn: str,
+    *,
+    purpose: str,
+    connect_timeout_seconds: int = 5,
+) -> Iterator[Any]:
+    """Open a worker-control transaction without manufacturing a tenant actor context."""
+
+    with (
+        psycopg.connect(
+            dsn,
+            connect_timeout=connect_timeout_seconds,
+            row_factory=dict_row,
+        ) as connection,
+        connection.transaction(),
+    ):
+        connection.execute(SQL("set local role {}").format(Identifier("coordination_worker")))
+        connection.execute("select set_config('app.purpose', %s, true)", (purpose,))
+        yield connection

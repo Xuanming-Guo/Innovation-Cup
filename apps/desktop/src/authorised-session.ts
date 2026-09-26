@@ -1,0 +1,154 @@
+import { createClient, type Session, type SupabaseClient } from "@supabase/supabase-js";
+
+import { startAuthorisedRefresh } from "./authorised-refresh";
+import type { PublicRuntimeConfig } from "./runtime-config";
+
+export type AuthorisedSessionState =
+  | { status: "unconfigured" }
+  | { status: "signed_out" }
+  | { status: "company_required"; userId: string }
+  | { status: "connected"; userId: string; unreadNotifications: number }
+  | { status: "unreachable"; userId: string };
+
+interface SessionRecord {
+  user_id: string;
+  company_id: string;
+}
+
+interface NotificationRecord {
+  seen_at: string | null;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  if (!response.ok) throw new Error(`authorised refetch returned HTTP ${response.status}`);
+  return response.json() as Promise<unknown>;
+}
+
+async function refetchAuthorisedState(
+  config: PublicRuntimeConfig,
+  session: Session,
+  signal: AbortSignal,
+): Promise<{ session: SessionRecord; notifications: NotificationRecord[] }> {
+  if (config.defaultCompanyId === null) throw new Error("company context is not configured");
+  const headers = {
+    Authorization: `Bearer ${session.access_token}`,
+    "X-Company-ID": config.defaultCompanyId,
+  };
+  const [sessionValue, notificationValue] = await Promise.all([
+    fetch(`${config.apiOrigin}/v1/session`, { headers, signal }).then(readJson),
+    fetch(`${config.apiOrigin}/v1/companies/${config.defaultCompanyId}/me/notifications`, {
+      headers,
+      signal,
+    }).then(readJson),
+  ]);
+  if (
+    !isRecord(sessionValue) ||
+    typeof sessionValue.user_id !== "string" ||
+    sessionValue.user_id !== session.user.id ||
+    sessionValue.company_id !== config.defaultCompanyId
+  ) {
+    throw new Error("authorised session response is invalid");
+  }
+  if (!isRecord(notificationValue) || !Array.isArray(notificationValue.notifications)) {
+    throw new Error("notification response is invalid");
+  }
+  const notifications = notificationValue.notifications.filter(
+    (value): value is NotificationRecord =>
+      isRecord(value) && (value.seen_at === null || typeof value.seen_at === "string"),
+  );
+  if (notifications.length !== notificationValue.notifications.length) {
+    throw new Error("notification response contains an invalid record");
+  }
+  return { session: sessionValue as unknown as SessionRecord, notifications };
+}
+
+export function startAuthorisedSession(
+  config: PublicRuntimeConfig,
+  onState: (state: AuthorisedSessionState) => void,
+): () => void {
+  if (
+    !config.supabaseConfigured ||
+    config.supabaseUrl === null ||
+    config.supabasePublishableKey === null
+  ) {
+    onState({ status: "unconfigured" });
+    return () => undefined;
+  }
+
+  const client: SupabaseClient = createClient(
+    config.supabaseUrl,
+    config.supabasePublishableKey,
+  );
+  let stopped = false;
+  let generation = 0;
+  let stopRefresh: (() => void) | null = null;
+  let activeController: AbortController | null = null;
+
+  const activate = (session: Session | null) => {
+    generation += 1;
+    const currentGeneration = generation;
+    stopRefresh?.();
+    stopRefresh = null;
+    activeController?.abort();
+    activeController = null;
+    if (stopped) return;
+    if (session === null) {
+      onState({ status: "signed_out" });
+      return;
+    }
+    if (config.defaultCompanyId === null) {
+      onState({ status: "company_required", userId: session.user.id });
+      return;
+    }
+
+    void client.realtime
+      .setAuth(session.access_token)
+      .then(() => {
+        if (stopped || currentGeneration !== generation) return;
+        const refetch = async () => {
+          activeController?.abort();
+          const controller = new AbortController();
+          activeController = controller;
+          const state = await refetchAuthorisedState(config, session, controller.signal);
+          if (stopped || currentGeneration !== generation) return;
+          onState({
+            status: "connected",
+            userId: state.session.user_id,
+            unreadNotifications: state.notifications.filter((item) => item.seen_at === null).length,
+          });
+        };
+        stopRefresh = startAuthorisedRefresh({
+          client,
+          userId: session.user.id,
+          refetch,
+          onError: () => {
+            if (!stopped && currentGeneration === generation) {
+              onState({ status: "unreachable", userId: session.user.id });
+            }
+          },
+        });
+      })
+      .catch(() => {
+        if (!stopped && currentGeneration === generation) {
+          onState({ status: "unreachable", userId: session.user.id });
+        }
+      });
+  };
+
+  void client.auth.getSession().then(({ data }) => activate(data.session));
+  const { data } = client.auth.onAuthStateChange((_event, session) => {
+    window.setTimeout(() => activate(session), 0);
+  });
+
+  return () => {
+    stopped = true;
+    generation += 1;
+    stopRefresh?.();
+    activeController?.abort();
+    data.subscription.unsubscribe();
+  };
+}

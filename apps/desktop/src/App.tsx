@@ -1,16 +1,22 @@
 import { useEffect, useMemo, useState } from "react";
 
+import {
+  startAuthorisedSession,
+  type AuthorisedSessionState,
+} from "./authorised-session";
 import { EmployeeWorkspace } from "./employee-workspace";
 import { PlanReviewWorkspace } from "./plan-review";
 import { getPublicRuntimeConfig } from "./runtime-config";
 import { getServiceStatus, type ServiceStatus } from "./service-status";
 
 const initialStatus: ServiceStatus = { state: "checking", detail: "Checking configured API origin" };
+const initialSession: AuthorisedSessionState = { status: "unconfigured" };
 type WorkspaceSurface = "manager" | "employee";
 
 export function App() {
   const config = useMemo(() => getPublicRuntimeConfig(), []);
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus>(initialStatus);
+  const [authorisedSession, setAuthorisedSession] = useState<AuthorisedSessionState>(initialSession);
   const [activeSurface, setActiveSurface] = useState<WorkspaceSurface>("manager");
 
   useEffect(() => {
@@ -22,6 +28,8 @@ export function App() {
       .finally(() => window.clearTimeout(timeout));
     return () => { window.clearTimeout(timeout); controller.abort(); };
   }, [config]);
+
+  useEffect(() => startAuthorisedSession(config, setAuthorisedSession), [config]);
 
   return (
     <div className="app-shell">
@@ -45,7 +53,16 @@ export function App() {
       <main className="workspace">
         <header className="topbar">
           <div><span className="eyebrow">Coordination Engine - {activeSurface === "manager" ? "Manager workspace" : "Employee workspace"}</span><h1>{activeSurface === "manager" ? "Plan review" : "My work"}</h1></div>
-          <span className={`service-chip ${serviceStatus.state}`} title={serviceStatus.detail}><span className="status-dot" aria-hidden="true" />API {serviceStatus.state}</span>
+          <div className="topbar-status">
+            {config.supabaseConfigured && (
+              <span className="session-chip" aria-live="polite">
+                {authorisedSession.status === "connected"
+                  ? `${authorisedSession.unreadNotifications} unread`
+                  : `Session ${authorisedSession.status.replace("_", " ")}`}
+              </span>
+            )}
+            <span className={`service-chip ${serviceStatus.state}`} title={serviceStatus.detail}><span className="status-dot" aria-hidden="true" />API {serviceStatus.state}</span>
+          </div>
         </header>
         {activeSurface === "manager" ? <PlanReviewWorkspace /> : <EmployeeWorkspace />}
       </main>

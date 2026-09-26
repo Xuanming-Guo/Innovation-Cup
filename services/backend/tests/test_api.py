@@ -3,6 +3,7 @@ from pydantic import SecretStr
 
 from coordination.api.main import create_app
 from coordination.config import Settings, get_settings
+from coordination.db.health import database_is_ready
 
 
 def test_liveness_and_version_expose_no_secrets() -> None:
@@ -14,6 +15,7 @@ def test_liveness_and_version_expose_no_secrets() -> None:
     )
     application = create_app()
     application.dependency_overrides[get_settings] = lambda: settings
+    application.dependency_overrides[database_is_ready] = lambda: True
 
     with TestClient(application) as client:
         live = client.get("/health/live")
@@ -21,6 +23,8 @@ def test_liveness_and_version_expose_no_secrets() -> None:
         ready = client.get("/health/ready")
 
     assert live.status_code == 200
+    assert ready.status_code == 200
+    assert ready.json()["checks"] == {"configuration": True, "durable_schema": True}
     assert live.json() == {"service": "coordination-api", "status": "live"}
     assert version.json()["build_commit"] == "test-commit"
     serialized = f"{version.text}{ready.text}"
