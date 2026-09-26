@@ -59,6 +59,8 @@ The initial demonstration connects software and HR operations teams through one 
 | [Employee workflow boundary](docs/architecture/employee-workflow-boundary.md) | Permission-safe task views, lifecycle concurrency, private submissions and exact-version review. |
 | [Durable coordination boundary](docs/architecture/durable-coordination-boundary.md) | Leases, retries, outbox delivery, notifications, private refresh and operational health. |
 | [Backend deployment](docs/development/backend-deployment.md) | Portable API/worker hosting, Supabase connectivity and company BYOK operations. |
+| [Production and hosted-demo setup](docs/development/production-setup.md) | Exact Supabase, runtime-role, Edge Function, API/worker, environment and desktop setup order. |
+| [Native release matrix](docs/release-matrix.md) | Windows/macOS artifact targets, checksums, signing state and honest smoke-test boundary. |
 | [Agent instructions](AGENTS.md) | Repository context and non-negotiable working rules for coding agents. |
 
 ## Delivery priorities
@@ -116,6 +118,11 @@ npm.cmd run dev:api
 npm.cmd run dev:worker
 npm.cmd run dev:desktop
 ```
+
+Packaged desktop builds open **Deployment** when no public defaults were compiled. Enter the
+HTTPS API origin, Supabase project URL, publishable key and company UUID there; no privileged
+credential belongs in the desktop. Follow the
+[production setup runbook](docs/development/production-setup.md) before a connected demo.
 
 Run the issue-level application check with `npm.cmd run check`. With its database configured,
 the worker verifies the durable schema and consumes leased jobs; Gemini work additionally requires

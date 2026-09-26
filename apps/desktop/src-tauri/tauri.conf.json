@@ -30,6 +30,15 @@
     "category": "Business",
     "copyright": "Copyright (c) 2026 Coordination Engine contributors",
     "shortDescription": "Permission-aware company coordination",
-    "targets": "all"
+    "targets": "all",
+    "macOS": {
+      "minimumSystemVersion": "13.0"
+    },
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper",
+        "silent": true
+      }
+    }
   }
 }

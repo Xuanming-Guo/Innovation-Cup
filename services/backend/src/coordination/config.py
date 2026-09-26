@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     api_version: str = "1.0.0"
     build_commit: str = "development"
     log_level: str = "INFO"
+    cors_allowed_origins: str = (
+        "tauri://localhost,http://tauri.localhost,"
+        "http://127.0.0.1:1420,http://localhost:1420"
+    )
 
     supabase_url: str | None = None
     supabase_jwt_issuer: str | None = None
@@ -58,6 +62,15 @@ class Settings(BaseSettings):
         if self.supabase_jwt_issuer is None:
             raise ValueError("Supabase JWT issuer is not configured")
         return f"{self.supabase_jwt_issuer.rstrip('/')}/.well-known/jwks.json"
+
+    @property
+    def cors_origin_allowlist(self) -> tuple[str, ...]:
+        origins = tuple(
+            origin.strip() for origin in self.cors_allowed_origins.split(",") if origin.strip()
+        )
+        if "*" in origins:
+            raise ValueError("CORS origins must be explicit")
+        return origins
 
     @property
     def supabase_jwt_algorithm_allowlist(self) -> tuple[str, ...]:

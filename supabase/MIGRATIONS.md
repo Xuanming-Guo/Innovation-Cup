@@ -26,6 +26,11 @@ steps where populated data exists.
 it only after independently proving the database schema already matches the referenced file and
 recording that incident. Dashboard-only schema edits are drift, not migrations.
 
+For `storage-ticket`, the hosted runtime provides the Supabase URL, key map, JWKS and database URL.
+Set `STORAGE_DOWNLOAD_TTL_SECONDS` only if the 60-second default needs changing; never store those
+platform-generated credentials in Git. The exact operator sequence is documented in
+[`docs/development/production-setup.md`](../docs/development/production-setup.md).
+
 ## Runtime login provisioning
 
 The migrations create `coordination_api` and `coordination_worker` as `NOLOGIN`, non-owner,

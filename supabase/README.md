@@ -81,3 +81,7 @@ The founder applies hosted migrations manually. Follow [MIGRATIONS.md](MIGRATION
 The app must not deploy functions or change a linked database merely because this directory is
 present. Hosted schema state, function deployment and Storage bucket state are separate facts
 and must all be recorded.
+
+`functions/.env.example` documents the Edge runtime contract. Supabase injects its URL, key map,
+JWKS and database URL for hosted functions; the only application-specific function value is the
+bounded download TTL. Do not replace the generated hosted values with desktop keys.

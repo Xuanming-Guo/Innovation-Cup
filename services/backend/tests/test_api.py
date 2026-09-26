@@ -46,3 +46,28 @@ def test_production_readiness_fails_closed_when_configuration_is_missing() -> No
         "supabase_jwt_issuer",
         "supabase_url",
     }
+
+
+def test_native_origins_receive_narrow_cors_headers() -> None:
+    application = create_app()
+
+    with TestClient(application) as client:
+        allowed = client.options(
+            "/v1/session",
+            headers={
+                "Origin": "tauri://localhost",
+                "Access-Control-Request-Method": "GET",
+                "Access-Control-Request-Headers": "Authorization,X-Company-ID",
+            },
+        )
+        rejected = client.options(
+            "/v1/session",
+            headers={
+                "Origin": "https://untrusted.example",
+                "Access-Control-Request-Method": "GET",
+            },
+        )
+
+    assert allowed.status_code == 200
+    assert allowed.headers["access-control-allow-origin"] == "tauri://localhost"
+    assert "access-control-allow-origin" not in rejected.headers

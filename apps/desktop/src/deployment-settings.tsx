@@ -1,0 +1,76 @@
+import { useState } from "react";
+
+import {
+  type PublicRuntimeConfig,
+  type PublicRuntimeConfigInput,
+} from "./runtime-config";
+
+interface DeploymentSettingsProps {
+  config: PublicRuntimeConfig;
+  onReset: () => void;
+  onSave: (input: PublicRuntimeConfigInput) => void;
+}
+
+export function DeploymentSettings({ config, onReset, onSave }: DeploymentSettingsProps) {
+  const [apiOrigin, setApiOrigin] = useState(config.apiOrigin);
+  const [supabaseUrl, setSupabaseUrl] = useState(config.supabaseUrl ?? "");
+  const [supabasePublishableKey, setSupabasePublishableKey] = useState(
+    config.supabasePublishableKey ?? "",
+  );
+  const [defaultCompanyId, setDefaultCompanyId] = useState(config.defaultCompanyId ?? "");
+  const [error, setError] = useState<string | null>(null);
+
+  function save() {
+    setError(null);
+    try {
+      onSave({ apiOrigin, supabaseUrl, supabasePublishableKey, defaultCompanyId });
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Deployment configuration is invalid");
+    }
+  }
+
+  return (
+    <section className="deployment-panel" aria-label="Deployment configuration">
+      <header>
+        <div>
+          <span className="eyebrow">Public runtime configuration</span>
+          <h2>Connect this installation</h2>
+          <p>
+            Enter only the public addresses and identifier from your deployment. These values are
+            stored on this device and can be changed without rebuilding the application.
+          </p>
+        </div>
+        <span className={`connection-state ${config.supabaseConfigured && config.defaultCompanyId ? "configured" : "not_configured"}`}>
+          {config.supabaseConfigured && config.defaultCompanyId ? "configured" : "setup required"}
+        </span>
+      </header>
+      <div className="deployment-warning">
+        Never enter a database password, Supabase secret key, service-role key, or Gemini API key
+        here. A company administrator adds the Gemini key later under Connections.
+      </div>
+      <div className="deployment-form">
+        <label htmlFor="api-origin">API origin</label>
+        <input id="api-origin" type="url" value={apiOrigin} onChange={(event) => setApiOrigin(event.target.value)} placeholder="https://api.example.com" />
+        <small>The HTTPS origin of the deployed FastAPI service. Loopback HTTP is accepted only for local development.</small>
+
+        <label htmlFor="supabase-url">Supabase project URL</label>
+        <input id="supabase-url" type="url" value={supabaseUrl} onChange={(event) => setSupabaseUrl(event.target.value)} placeholder="https://your-project-ref.supabase.co" />
+        <small>Project Settings → Data API → Project URL.</small>
+
+        <label htmlFor="supabase-key">Supabase publishable key</label>
+        <input id="supabase-key" value={supabasePublishableKey} onChange={(event) => setSupabasePublishableKey(event.target.value)} placeholder="sb_publishable_..." autoComplete="off" />
+        <small>This client key is intentionally public and remains constrained by Auth and RLS.</small>
+
+        <label htmlFor="company-id">Company ID</label>
+        <input id="company-id" value={defaultCompanyId} onChange={(event) => setDefaultCompanyId(event.target.value)} placeholder="00000000-0000-0000-0000-000000000000" autoComplete="off" />
+        <small>The company UUID created by the seed/operator workflow, not a user ID.</small>
+
+        {error && <p className="inline-error" role="alert">{error}</p>}
+        <div className="deployment-actions">
+          <button className="secondary-action" type="button" onClick={onReset}>Use build defaults</button>
+          <button className="primary-action" type="button" onClick={save}>Save and connect</button>
+        </div>
+      </div>
+    </section>
+  );
+}

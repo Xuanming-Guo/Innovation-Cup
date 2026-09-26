@@ -39,9 +39,13 @@ The desktop contains only the API origin, Supabase URL, Supabase publishable key
 - `COORDINATION_SUPABASE_URL`
 - `COORDINATION_SUPABASE_JWT_ISSUER`
 - `COORDINATION_DATABASE_URL` supplied separately to API and worker deployments
+- `COORDINATION_CORS_ALLOWED_ORIGINS` when the native-origin defaults are not sufficient
 - worker lease, renewal, batch and polling values appropriate for the host
 
 Secrets belong in the chosen host's secret store. Company Gemini keys do not: they enter through
 the authenticated admin workflow and remain encrypted in Supabase Vault. Health endpoints expose
 only non-secret configuration state. Deployment, billing and hosted migration application remain
 explicit operator actions.
+
+The complete ordered procedure, including runtime role provisioning and every environment value,
+is in [production and hosted-demo setup](production-setup.md).
