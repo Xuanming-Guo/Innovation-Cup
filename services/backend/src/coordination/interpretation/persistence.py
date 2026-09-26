@@ -242,9 +242,8 @@ class PostgresInterpretationStore:
                       idempotency_key, request_digest
                     ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                     on conflict (company_id, requester_membership_id, idempotency_key)
-                    do update set id = app.planning_requests.id
-                    where app.planning_requests.request_digest = excluded.request_digest
-                    returning id, status, request_version, (xmax = 0) as created
+                    do nothing
+                    returning id, status, request_version
                     """,
                     (
                         context.company_id,
@@ -258,10 +257,26 @@ class PostgresInterpretationStore:
                         command.digest,
                     ),
                 ).fetchone()
+                created = row is not None
                 if row is None:
-                    raise PlanningRequestIdempotencyConflictError(
-                        "idempotency key already identifies a different request"
-                    )
+                    row = connection.execute(
+                        """
+                        select id, status, request_version, request_digest
+                        from app.planning_requests
+                        where company_id = %s
+                          and requester_membership_id = %s
+                          and idempotency_key = %s
+                        """,
+                        (
+                            context.company_id,
+                            context.membership_id,
+                            command.idempotency_key,
+                        ),
+                    ).fetchone()
+                    if row is None or bytes(row["request_digest"]) != command.digest:
+                        raise PlanningRequestIdempotencyConflictError(
+                            "idempotency key already identifies a different request"
+                        )
 
                 request_id = cast(UUID, row["id"])
                 for source in source_rows:
@@ -294,7 +309,7 @@ class PostgresInterpretationStore:
             request_id=request_id,
             status=cast(str, row["status"]),
             request_version=cast(int, row["request_version"]),
-            created=cast(bool, row["created"]),
+            created=created,
         )
 
     def list_planning_context(
