@@ -1,0 +1,17 @@
+{
+  "registry_version": "1",
+  "specification_version": "0.5.0",
+  "metrics": [{
+    "metric_id": "bootstrap_schedule_violation_count",
+    "definition_version": "1",
+    "unit": "violations",
+    "direction": "lower",
+    "definition": "Number of records in neutral-bootstrap-1 validation violations; one invalid block can fail several checks.",
+    "eligibility": "Complete terminal replay evidence under bootstrap-1 contracts; unavailable/invalid replay inputs yield NOT_MEASURED with null.",
+    "numerator": "validation.json#/violations length",
+    "denominator": "Not a rate. fixture.json#/tasks gives the task population; the default tiny fixture has 75 tasks.",
+    "evidence_class": "recorded_replay",
+    "exclusions": "No run is deleted. Failed replay evidence is retained and explicitly unmeasured.",
+    "claim_boundary": "Bootstrap checks only; not full hard-constraint validation, product correctness, accepted work or product performance."
+  }]
+}
