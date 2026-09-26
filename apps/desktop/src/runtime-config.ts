@@ -2,6 +2,8 @@ const DEFAULT_API_ORIGIN = "http://127.0.0.1:8000";
 const PUBLIC_CONFIG_STORAGE_KEY = "coordination.public-runtime-config.v1";
 const COMPANY_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+export type ApiMode = "static" | "supabase-discovery";
+
 export interface PublicRuntimeConfigInput {
   apiOrigin: string;
   supabaseUrl: string;
@@ -10,6 +12,7 @@ export interface PublicRuntimeConfigInput {
 }
 
 export interface PublicRuntimeConfig {
+  apiMode: ApiMode;
   apiOrigin: string;
   productName: string;
   supabaseConfigured: boolean;
@@ -37,6 +40,14 @@ function normaliseSupabaseUrl(rawUrl: string): string {
   return url.origin;
 }
 
+function parseApiMode(value: string | undefined): ApiMode {
+  const mode = value?.trim() || "static";
+  if (mode !== "static" && mode !== "supabase-discovery") {
+    throw new Error("VITE_API_MODE must be static or supabase-discovery");
+  }
+  return mode;
+}
+
 export function createPublicRuntimeConfig(
   input: PublicRuntimeConfigInput,
   productName = "Coordination Engine",
@@ -48,6 +59,7 @@ export function createPublicRuntimeConfig(
     throw new Error("Company ID must be a UUID");
   }
   return {
+    apiMode: "static",
     apiOrigin: normaliseOrigin(input.apiOrigin),
     productName,
     supabaseConfigured: true,
@@ -58,6 +70,7 @@ export function createPublicRuntimeConfig(
 }
 
 export function getPublicRuntimeConfig(env: ImportMetaEnv = import.meta.env): PublicRuntimeConfig {
+  const apiMode = parseApiMode(env.VITE_API_MODE);
   const rawSupabaseUrl = env.VITE_SUPABASE_URL?.trim() || null;
   const supabasePublishableKey = env.VITE_SUPABASE_PUBLISHABLE_KEY?.trim() || null;
   const defaultCompanyId = env.VITE_DEFAULT_COMPANY_ID?.trim() || null;
@@ -68,8 +81,12 @@ export function getPublicRuntimeConfig(env: ImportMetaEnv = import.meta.env): Pu
     throw new Error("VITE_DEFAULT_COMPANY_ID must be a UUID");
   }
   const supabaseUrl = rawSupabaseUrl === null ? null : normaliseSupabaseUrl(rawSupabaseUrl);
+  if (apiMode === "supabase-discovery" && (supabaseUrl === null || defaultCompanyId === null)) {
+    throw new Error("Supabase discovery requires Supabase configuration and a company ID");
+  }
   return {
-    apiOrigin: normaliseOrigin(env.VITE_API_ORIGIN),
+    apiMode,
+    apiOrigin: apiMode === "static" ? normaliseOrigin(env.VITE_API_ORIGIN) : DEFAULT_API_ORIGIN,
     productName: env.VITE_PRODUCT_NAME?.trim() || "Coordination Engine",
     supabaseConfigured: supabaseUrl !== null,
     supabaseUrl,

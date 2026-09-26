@@ -4,18 +4,22 @@ This runbook turns a reviewed repository commit into one hosted Supabase project
 service, one continuously running worker and preconfigured desktop installations. It deliberately
 keeps schema application, credentials and public deployment actions under the founder's control.
 
-Production installers contain the API origin, Supabase project URL, publishable key and company
-UUID at build time. Employees do not enter them. These values are public identifiers, but the
-publishable key is safe only because Supabase Auth, RLS and least-privilege grants enforce access;
-it is not a substitute for authorization. Never embed a database password, Supabase secret or
-service-role key, migration-owner DSN, runtime-role DSN or Gemini key.
+The selected free hosted-demo mode runs the API and worker on one laptop. Production installers
+contain the Supabase project URL, publishable key, company UUID and discovery-mode flag; after
+sign-in they resolve that laptop's current HTTPS endpoint from Supabase. Employees do not enter
+configuration or run a terminal. These values are public identifiers, but the publishable key is
+safe only because Supabase Auth, active membership checks, RLS and least-privilege grants enforce
+access. Never embed a database password, Supabase secret or service-role key, migration-owner DSN,
+runtime-role DSN or Gemini key.
 
 ## 0. Exact configuration locations
 
 | Scope | Exact location | Values |
 |---|---|---|
-| GitHub native release | Repository **Settings -> Secrets and variables -> Actions -> Variables** | `VITE_API_ORIGIN`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_DEFAULT_COMPANY_ID`; optional `VITE_PRODUCT_NAME` |
+| GitHub native release | Repository **Settings -> Secrets and variables -> Actions -> Variables** | `VITE_API_MODE=supabase-discovery`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_DEFAULT_COMPANY_ID`; optional `VITE_PRODUCT_NAME` |
 | Local desktop build | Ignored `apps/desktop/.env.production.local` for a production-mode build, or `apps/desktop/.env.local` for local Vite/Tauri development | The same five public `VITE_` values; use `apps/desktop/.env.example` as the template |
+| Laptop host secrets | Ignored `deploy/local-host/.env` copied from `deploy/local-host/.env.example` | Supabase URL, separate API/worker runtime DSNs, company UUID, company-admin Auth UUID and optional model ID |
+| Laptop host identity | Generated ignored `deploy/local-host/.env.runtime` | Full Git commit and persistent host instance UUID; the launcher owns this file |
 | API deployment | API service environment settings on the chosen container host | The API column in section 6; `COORDINATION_DATABASE_URL` uses the API login |
 | Worker deployment | Worker service environment settings on the chosen container host | The worker column in section 6; `COORDINATION_DATABASE_URL` uses the worker login |
 | Local API/worker | Ignored `services/backend/.env` | Copy `services/backend/.env.example`; the repository launcher loads this exact file |
@@ -81,7 +85,7 @@ local/remote drift, `db push --dry-run` previews the target changes, and only th
 `db push` changes the hosted database.
 
 Stop if hosted history is not an exact prefix before the push, or if the final list does not match
-the eleven files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
+the twelve files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
 copies into the Dashboard SQL editor: that applies untracked bytes and loses reliable migration
 history.
 
@@ -170,6 +174,72 @@ after provisioning if your operating process does not require it.
 
 ## 6. Deploy the API and worker
 
+### 6A. Selected free single-laptop hosted-demo mode
+
+This is the selected Innovation Cup path. Exactly one laptop hosts a company at a time. It needs:
+
+- Windows 11 or macOS 13+;
+- Docker Desktop configured to start when the host user signs in;
+- Node.js 24 and Git;
+- this repository cloned at the reviewed `main` commit;
+- internet access and sleep disabled while the demo is available.
+
+From the repository root, create the ignored host configuration:
+
+```powershell
+Copy-Item deploy/local-host/.env.example deploy/local-host/.env
+notepad deploy/local-host/.env
+```
+
+Fill exactly these values:
+
+| Variable | Exact source |
+|---|---|
+| `COORDINATION_SUPABASE_URL` | Supabase Project URL, for example `https://abcdefgh.supabase.co` |
+| `COORDINATION_API_DATABASE_URL` | TLS Postgres URL for `coordination_api_prod` with its URL-encoded password. With Supabase's shared pooler, use username `coordination_api_prod.<project-ref>` |
+| `COORDINATION_WORKER_DATABASE_URL` | Different TLS Postgres URL for `coordination_worker_prod`. With the shared pooler, use username `coordination_worker_prod.<project-ref>` |
+| `COORDINATION_HOST_COMPANY_ID` | Demo company: `11111111-1111-4111-8111-111111111111` |
+| `COORDINATION_HOST_ACTOR_ID` | Authentication -> Users -> UUID of the seeded `company_admin` manager |
+| `COORDINATION_GEMINI_MODEL` | `gemini-3.8-flash` unless the reviewed provider model changes |
+
+Do not put the database administrator password, publishable key, Supabase secret/service-role key
+or Gemini key in this file. The launcher rejects reused/wrong runtime usernames and never prints
+the DSNs. It creates `deploy/local-host/.env.runtime` with the current commit and a persistent
+instance UUID.
+
+For a free Supabase project, copy the **Session pooler** host and port from the dashboard's
+**Connect** dialog. Shared-pooler custom users must include the project reference after the role
+name; do not construct the pooler hostname from the region. For example:
+
+```ini
+COORDINATION_API_DATABASE_URL=postgresql://coordination_api_prod.abcdefgh:URL_ENCODED_PASSWORD@COPIED_POOLER_HOST:5432/postgres?sslmode=require
+COORDINATION_WORKER_DATABASE_URL=postgresql://coordination_worker_prod.abcdefgh:URL_ENCODED_PASSWORD@COPIED_POOLER_HOST:5432/postgres?sslmode=require
+```
+
+Start by double-clicking `start-host.cmd` on Windows or `start-host.command` on macOS. The exact
+terminal equivalent is:
+
+```powershell
+npm.cmd run host:start
+```
+
+The launcher builds and starts FastAPI, the worker, a pinned Cloudflare Quick Tunnel and the
+registrar. It returns success only after the local API, worker and public endpoint are healthy and
+the authenticated discovery lease is live. No router port forwarding or Cloudflare account is
+required. Check or stop it with the matching `host-status`/`stop-host` clickable file, or:
+
+```powershell
+npm.cmd run host:status
+npm.cmd run host:stop
+```
+
+Keep the host laptop powered, awake, online and running Docker Desktop. If it sleeps or crashes,
+installed clients fail closed after at most 120 seconds. Quick Tunnels are a free controlled-demo
+facility, not an uptime-backed production service. A restarted tunnel may receive a new URL; the
+registrar and desktop discovery path update automatically under the same persistent host instance.
+
+### 6B. Optional conventional container host
+
 Build `services/backend/Dockerfile` once and deploy the same immutable image twice:
 
 - API command: `python -m uvicorn coordination.api.main:app --host 0.0.0.0 --port 8080`
@@ -220,24 +290,26 @@ The API and worker do not need a Supabase secret/service-role key.
 After deployment, require successful responses from `/health/live`, `/health/ready` and `/version`.
 `/health/ready` must report both configuration and durable schema ready.
 
-## 7. Bake the public desktop configuration and build installers
+## 7. Bake public discovery configuration and build installers
 
 After the API exists and the company UUID has been provisioned, add these repository Actions
 **Variables** (not Secrets):
 
 | Variable | Exact value |
 |---|---|
-| `VITE_API_ORIGIN` | Deployed FastAPI HTTPS origin with no path, for example `https://api.example.com` |
+| `VITE_API_MODE` | `supabase-discovery` for the selected laptop-host mode |
 | `VITE_SUPABASE_URL` | Project URL, for example `https://abcdefgh.supabase.co` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | The project's `sb_publishable_...` client key |
 | `VITE_DEFAULT_COMPANY_ID` | Provisioned company UUID; the demo value is `11111111-1111-4111-8111-111111111111` |
 | `VITE_PRODUCT_NAME` | Optional display name; defaults to `Coordination Engine` |
 
 Open GitHub -> repository **Settings -> Secrets and variables -> Actions -> Variables -> New
-repository variable** and create each row. The release workflow validates the four required
-values before compilation and refuses to produce a generic installer. It also rejects HTTP,
-path-bearing origins, malformed company IDs and keys that are not `sb_publishable_...`, which
-prevents accidentally embedding a privileged key.
+repository variable** and create each row. Do not create `VITE_API_ORIGIN` for discovery mode.
+The release workflow validates the four required values before compilation and refuses to produce
+a generic installer. It rejects malformed company IDs and keys that are not
+`sb_publishable_...`, which prevents accidentally embedding a privileged key. A conventional
+stable host may instead set `VITE_API_MODE=static` and must also set a canonical HTTPS
+`VITE_API_ORIGIN`.
 
 For a local production build, copy `apps/desktop/.env.example` to the ignored
 `apps/desktop/.env.production.local`, fill the same public values, and run the native build. The
@@ -247,13 +319,16 @@ normally distributed production installer opens ready for sign-in without employ
 ## 8. Final connected smoke check
 
 1. Install and launch the platform artifact; record the OS and CPU architecture.
-2. Confirm the baked API/Supabase/company values are active, then sign in as the synthetic manager.
-3. In **Connections**, install and validate the company's Gemini Developer API key.
+2. Confirm the baked discovery/Supabase/company values are active, then sign in as the synthetic
+   manager.
+3. Confirm the service chip becomes reachable through authenticated laptop-host discovery. In
+   **Connections**, install and validate the company's Gemini Developer API key.
 4. Create a planning request, wait for interpretation/materialisation/Z3 jobs, review the exact
    proposal and approve/commit it.
 5. Sign in as the employee on the other platform, receive the authorised task, submit it, then
    review it as the manager.
-6. Sign out, restart, exercise offline/reconnect behavior and confirm no privileged key appears in
-   logs or the frontend bundle.
+6. Sign out, restart the tunnel, confirm the installed app discovers the rotated endpoint, then
+   exercise laptop sleep/offline/reconnect behavior and confirm no privileged key appears in logs
+   or the frontend bundle.
 7. Record results in the release manifest/test ledger. A compiled artifact is not a passed
    installed-app smoke test.

@@ -3,6 +3,7 @@ import { createClient, type Session, type SupabaseClient } from "@supabase/supab
 import { startAuthorisedRefresh } from "./authorised-refresh";
 import type { AuthorisedApiContext } from "./api-client";
 import type { PublicRuntimeConfig } from "./runtime-config";
+import { resolveHostApiOrigin } from "./host-discovery";
 
 export type AuthorisedSessionState =
   | { status: "unconfigured" }
@@ -16,7 +17,7 @@ export type AuthorisedSessionState =
       employeeId: string | null;
       api: AuthorisedApiContext;
     }
-  | { status: "unreachable"; userId: string };
+  | { status: "unreachable"; userId: string; detail: string };
 
 export interface AuthorisedSessionController {
   signIn(email: string, password: string): Promise<void>;
@@ -45,18 +46,18 @@ async function readJson(response: Response): Promise<unknown> {
 }
 
 async function refetchAuthorisedState(
-  config: PublicRuntimeConfig,
+  apiOrigin: string,
+  companyId: string,
   session: Session,
   signal: AbortSignal,
 ): Promise<{ session: SessionRecord; notifications: NotificationRecord[] }> {
-  if (config.defaultCompanyId === null) throw new Error("company context is not configured");
   const headers = {
     Authorization: `Bearer ${session.access_token}`,
-    "X-Company-ID": config.defaultCompanyId,
+    "X-Company-ID": companyId,
   };
   const [sessionValue, notificationValue] = await Promise.all([
-    fetch(`${config.apiOrigin}/v1/session`, { headers, signal }).then(readJson),
-    fetch(`${config.apiOrigin}/v1/companies/${config.defaultCompanyId}/me/notifications`, {
+    fetch(`${apiOrigin}/v1/session`, { headers, signal }).then(readJson),
+    fetch(`${apiOrigin}/v1/companies/${companyId}/me/notifications`, {
       headers,
       signal,
     }).then(readJson),
@@ -65,7 +66,7 @@ async function refetchAuthorisedState(
     !isRecord(sessionValue) ||
     typeof sessionValue.user_id !== "string" ||
     sessionValue.user_id !== session.user.id ||
-    sessionValue.company_id !== config.defaultCompanyId
+    sessionValue.company_id !== companyId
   ) {
     throw new Error("authorised session response is invalid");
   }
@@ -133,7 +134,15 @@ export function startAuthorisedSession(
           activeController?.abort();
           const controller = new AbortController();
           activeController = controller;
-          const state = await refetchAuthorisedState(config, session, controller.signal);
+          const apiOrigin = config.apiMode === "supabase-discovery"
+            ? await resolveHostApiOrigin(client, config.defaultCompanyId as string)
+            : config.apiOrigin;
+          const state = await refetchAuthorisedState(
+            apiOrigin,
+            config.defaultCompanyId as string,
+            session,
+            controller.signal,
+          );
           if (stopped || currentGeneration !== generation) return;
           onState({
             status: "connected",
@@ -142,7 +151,7 @@ export function startAuthorisedSession(
             administrativeRole: state.session.administrative_role,
             employeeId: state.session.employee_id,
             api: {
-              apiOrigin: config.apiOrigin,
+              apiOrigin,
               companyId: state.session.company_id,
               accessToken: session.access_token,
             },
@@ -154,14 +163,24 @@ export function startAuthorisedSession(
           refetch,
           onError: () => {
             if (!stopped && currentGeneration === generation) {
-              onState({ status: "unreachable", userId: session.user.id });
+              onState({
+                status: "unreachable",
+                userId: session.user.id,
+                detail: config.apiMode === "supabase-discovery"
+                  ? "Host computer is offline or still starting"
+                  : "Configured API is unreachable",
+              });
             }
           },
         });
       })
       .catch(() => {
         if (!stopped && currentGeneration === generation) {
-          onState({ status: "unreachable", userId: session.user.id });
+          onState({
+            status: "unreachable",
+            userId: session.user.id,
+            detail: "Authorised realtime connection is unavailable",
+          });
         }
       });
   };

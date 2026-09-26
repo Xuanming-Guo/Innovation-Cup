@@ -17,6 +17,7 @@ describe("getPublicRuntimeConfig", () => {
     } as ImportMetaEnv);
 
     expect(config).toEqual({
+      apiMode: "static",
       apiOrigin: "http://127.0.0.1:8000",
       productName: "Coordination Engine",
       supabaseConfigured: true,
@@ -62,6 +63,7 @@ describe("getPublicRuntimeConfig", () => {
     }, "Test product", storage);
 
     expect(loadPublicRuntimeConfig({} as ImportMetaEnv, storage)).toMatchObject({
+      apiMode: "static",
       apiOrigin: "https://api.example.com",
       productName: "Coordination Engine",
       supabaseUrl: "https://project.supabase.co",
@@ -77,5 +79,18 @@ describe("getPublicRuntimeConfig", () => {
       supabasePublishableKey: "sb_publishable_public",
       defaultCompanyId: "11111111-1111-4111-8111-111111111111",
     }, "Coordination Engine", { setItem: () => undefined })).toThrow("must use HTTPS");
+  });
+
+  it("supports authenticated Supabase host discovery without a baked API origin", () => {
+    const config = getPublicRuntimeConfig({
+      VITE_API_MODE: "supabase-discovery",
+      VITE_API_ORIGIN: "not-used-in-discovery-mode",
+      VITE_SUPABASE_URL: "https://project.supabase.co",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "sb_publishable_public",
+      VITE_DEFAULT_COMPANY_ID: "11111111-1111-4111-8111-111111111111",
+    } as ImportMetaEnv);
+
+    expect(config.apiMode).toBe("supabase-discovery");
+    expect(config.supabaseConfigured).toBe(true);
   });
 });

@@ -28,6 +28,14 @@ the durable worker can resolve it under active tenant context. Employees never r
 Google Cloud remains an optional host and the provider-side project behind a Gemini key, not a
 required application-session runtime.
 
+The founder subsequently selected a no-hosting-bill Innovation Cup deployment: exactly one cloned
+laptop runs the API, durable worker, a free HTTPS Quick Tunnel and a lease registrar. Installed
+manager and employee clients authenticate with Supabase before resolving the current host
+endpoint, so a temporary tunnel URL can rotate without rebuilding installers. API and worker
+database passwords remain on the host laptop. The host must stay awake, online and running Docker;
+this controlled demo topology is not an SLA-backed production service. ADR 0003 records the
+decision and its limitations.
+
 The founder has confirmed the repository and deployment boundary for Supabase implementation. Root `supabase/` is the single home for CLI configuration, ordered migrations, reference seeds, database tests, Edge Functions, shared function code, function tests and committed environment placeholders. The founder will manually apply repository migrations to hosted Supabase and supply privileged Supabase/runtime values later; company administrators supply their own Gemini keys through the application. Migration applications remain traceable to a repository commit/version and no real credentials are committed.
 
 ## 1. Page-by-page feedback incorporated

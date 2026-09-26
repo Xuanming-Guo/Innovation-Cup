@@ -55,6 +55,11 @@
       "file": "20260926020000_company_gemini_byok.sql",
       "sha256": "9ab9012b839359380ba149e4daf28aeeac66b9f9eee13be1ba2d373e6e343c40",
       "version": "20260926020000"
+    },
+    {
+      "file": "20260926021000_local_host_discovery.sql",
+      "sha256": "3b3fa4d874863de5b239973a659402ca0bce9106aa9a276f2abda0ffd9add2d4",
+      "version": "20260926021000"
     }
   ]
 }
