@@ -60,7 +60,7 @@ For changes to migrations, RLS or Edge Functions, run the dedicated boundary sui
 and Deno available:
 
 ```powershell
-npm.cmd exec supabase -- db start
+npm.cmd exec supabase -- start
 npm.cmd run test:supabase:db
 npm.cmd run test:supabase:functions
 python supabase/scripts/verify_migrations.py
@@ -73,6 +73,10 @@ The backend suite uses a fake typed interpretation gateway and never spends Gemi
 provider evaluation is a separate, explicitly credentialed check; record the actual model,
 prompt/schema versions, latency and result rather than treating a mocked response as provider
 evidence.
+
+Planner fixtures use the pinned native `z3-solver` wheel installed by `uv sync`; they need no
+network service or API key. The tests exercise finite real solver models and then validate the
+returned rows through the separate non-Z3 checker. They are not production performance evidence.
 
 The native check requires the host platform's Tauri prerequisites. To build the Windows NSIS
 installer locally, run:
