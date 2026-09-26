@@ -36,9 +36,12 @@ and the worker builds the official SDK client with `vertexai=True` plus explicit
 location and scoped credentials. Existing API-key requests remain compatible.
 
 A connected hosted-database smoke check exposed an idempotency implementation that used a no-op
-`ON CONFLICT DO UPDATE` despite the API role intentionally lacking table-update authority. Request
-creation now uses insert-or-ignore followed by a tenant-authorised digest comparison, preserving
-identical replay behavior and conflict detection without broadening runtime database privileges.
+`ON CONFLICT DO UPDATE` despite the API role intentionally lacking table-update authority. Further
+RLS verification established that PostgreSQL also evaluates target-row select policies for
+`ON CONFLICT` and requires write authority for locking reads. Request creation now uses plain
+snapshot reads, a plain insert inside a savepoint and a tenant-authorised digest readback. It
+preserves concurrent idempotency and conflict detection without row locks, conflict updates or
+runtime privilege expansion.
 
 The founder subsequently selected a no-hosting-bill Innovation Cup deployment: exactly one cloned
 laptop runs the API, durable worker, a free HTTPS Quick Tunnel and a lease registrar. Installed
