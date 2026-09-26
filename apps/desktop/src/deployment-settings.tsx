@@ -34,10 +34,10 @@ export function DeploymentSettings({ config, onReset, onSave }: DeploymentSettin
       <header>
         <div>
           <span className="eyebrow">Public runtime configuration</span>
-          <h2>Connect this installation</h2>
+          <h2>Deployment override</h2>
           <p>
-            Enter only the public addresses and identifier from your deployment. These values are
-            stored on this device and can be changed without rebuilding the application.
+            Production installers already contain these public values. This local override is for
+            development, operator recovery, or intentionally connecting a different deployment.
           </p>
         </div>
         <span className={`connection-state ${config.supabaseConfigured && config.defaultCompanyId ? "configured" : "not_configured"}`}>
@@ -45,8 +45,9 @@ export function DeploymentSettings({ config, onReset, onSave }: DeploymentSettin
         </span>
       </header>
       <div className="deployment-warning">
-        Never enter a database password, Supabase secret key, service-role key, or Gemini API key
-        here. A company administrator adds the Gemini key later under Connections.
+        The publishable key is not privileged, but Auth and RLS still enforce access. Never enter a
+        database password, Supabase secret/service-role key, or Gemini API key here. A company
+        administrator adds the Gemini key later under Connections.
       </div>
       <div className="deployment-form">
         <label htmlFor="api-origin">API origin</label>
