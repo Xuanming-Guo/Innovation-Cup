@@ -36,6 +36,10 @@ contains only the Supabase project URL, publishable key and optional non-secret 
 for Auth/private Realtime. It must never contain the database URL, secret/service-role key or
 Gemini credential.
 
+If those public values are absent, the app opens **Deployment** and stores a validated local
+override on that device. Hosted API and Supabase origins must use HTTPS; loopback HTTP is accepted
+only for development. Resetting the screen returns to the compiled `.env` defaults.
+
 ## Run the foundation
 
 In separate terminals:

@@ -6,20 +6,30 @@ import {
   type AuthorisedSessionState,
 } from "./authorised-session";
 import { CompanyConnections } from "./company-connections";
+import { DeploymentSettings } from "./deployment-settings";
 import { EmployeeWorkspace } from "./employee-workspace";
 import { PlanReviewWorkspace } from "./plan-review";
-import { getPublicRuntimeConfig } from "./runtime-config";
+import {
+  clearPublicRuntimeConfig,
+  getPublicRuntimeConfig,
+  loadPublicRuntimeConfig,
+  savePublicRuntimeConfig,
+  type PublicRuntimeConfigInput,
+} from "./runtime-config";
 import { getServiceStatus, type ServiceStatus } from "./service-status";
 
 const initialStatus: ServiceStatus = { state: "checking", detail: "Checking configured API origin" };
 const initialSession: AuthorisedSessionState = { status: "unconfigured" };
-type WorkspaceSurface = "manager" | "employee" | "connections";
+type WorkspaceSurface = "manager" | "employee" | "connections" | "deployment";
 
 export function App() {
-  const config = useMemo(() => getPublicRuntimeConfig(), []);
+  const environmentConfig = useMemo(() => getPublicRuntimeConfig(), []);
+  const [config, setConfig] = useState(() => loadPublicRuntimeConfig());
   const [serviceStatus, setServiceStatus] = useState<ServiceStatus>(initialStatus);
   const [authorisedSession, setAuthorisedSession] = useState<AuthorisedSessionState>(initialSession);
-  const [activeSurface, setActiveSurface] = useState<WorkspaceSurface>("manager");
+  const [activeSurface, setActiveSurface] = useState<WorkspaceSurface>(() =>
+    config.supabaseConfigured && config.defaultCompanyId ? "manager" : "deployment",
+  );
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
@@ -63,6 +73,24 @@ export function App() {
     }
   }
 
+  function saveDeployment(input: PublicRuntimeConfigInput) {
+    const nextConfig = savePublicRuntimeConfig(input, config.productName);
+    setServiceStatus(initialStatus);
+    setAuthorisedSession(initialSession);
+    setConfig(nextConfig);
+    setActiveSurface("manager");
+  }
+
+  function resetDeployment() {
+    clearPublicRuntimeConfig();
+    setServiceStatus(initialStatus);
+    setAuthorisedSession(initialSession);
+    setConfig(environmentConfig);
+    if (!environmentConfig.supabaseConfigured || !environmentConfig.defaultCompanyId) {
+      setActiveSurface("deployment");
+    }
+  }
+
   const api = authorisedSession.status === "connected" ? authorisedSession.api : undefined;
   const workspaceKey = authorisedSession.status === "connected"
     ? `${authorisedSession.userId}:${authorisedSession.api.companyId}`
@@ -82,16 +110,19 @@ export function App() {
           <button className={`nav-item ${activeSurface === "connections" ? "active" : ""}`} aria-current={activeSurface === "connections" ? "page" : undefined} aria-label="Connections" onClick={() => setActiveSurface("connections")}>
             <span className="nav-index">03</span>Connections
           </button>
+          <button className={`nav-item ${activeSurface === "deployment" ? "active" : ""}`} aria-current={activeSurface === "deployment" ? "page" : undefined} aria-label="Deployment" onClick={() => setActiveSurface("deployment")}>
+            <span className="nav-index">04</span>Deployment
+          </button>
         </nav>
         <div className="side-note">
-          <span className="eyebrow">{activeSurface === "manager" ? "Review boundary" : activeSurface === "employee" ? "Visibility boundary" : "Credential boundary"}</span>
-          <strong>{activeSurface === "manager" ? "Human-led commitment" : activeSurface === "employee" ? "Approved context only" : "Company-managed BYOK"}</strong>
-          <p>{activeSurface === "manager" ? "AI proposes. Z3 checks. Authorized people decide. The database commits atomically." : activeSurface === "employee" ? "Employees see their authorised task facts and approved brief, never the full private planning context." : "The backend uses the company credential. It is never shipped to an employee device or returned after configuration."}</p>
+          <span className="eyebrow">{activeSurface === "manager" ? "Review boundary" : activeSurface === "employee" ? "Visibility boundary" : activeSurface === "connections" ? "Credential boundary" : "Deployment boundary"}</span>
+          <strong>{activeSurface === "manager" ? "Human-led commitment" : activeSurface === "employee" ? "Approved context only" : activeSurface === "connections" ? "Company-managed BYOK" : "Public values only"}</strong>
+          <p>{activeSurface === "manager" ? "AI proposes. Z3 checks. Authorized people decide. The database commits atomically." : activeSurface === "employee" ? "Employees see their authorised task facts and approved brief, never the full private planning context." : activeSurface === "connections" ? "The backend uses the company credential. It is never shipped to an employee device or returned after configuration." : "This device stores endpoint identifiers and a publishable client key. Privileged credentials remain on the backend."}</p>
         </div>
       </aside>
       <main className="workspace">
         <header className="topbar">
-          <div><span className="eyebrow">Coordination Engine - {activeSurface === "manager" ? "Manager workspace" : activeSurface === "employee" ? "Employee workspace" : "Company settings"}</span><h1>{activeSurface === "manager" ? "Plan review" : activeSurface === "employee" ? "My work" : "Connections"}</h1></div>
+          <div><span className="eyebrow">Coordination Engine - {activeSurface === "manager" ? "Manager workspace" : activeSurface === "employee" ? "Employee workspace" : activeSurface === "connections" ? "Company settings" : "Installation settings"}</span><h1>{activeSurface === "manager" ? "Plan review" : activeSurface === "employee" ? "My work" : activeSurface === "connections" ? "Connections" : "Deployment setup"}</h1></div>
           <div className="topbar-status">
             {config.supabaseConfigured && (
               <span className="session-chip" aria-live="polite">
@@ -130,6 +161,9 @@ export function App() {
             api={api}
             canManage={authorisedSession.status === "connected" && authorisedSession.administrativeRole === "company_admin"}
           />
+        )}
+        {activeSurface === "deployment" && (
+          <DeploymentSettings config={config} onSave={saveDeployment} onReset={resetDeployment} />
         )}
       </main>
     </div>

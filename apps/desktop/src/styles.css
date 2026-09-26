@@ -1021,7 +1021,8 @@ h3 {
 .live-plan,
 .session-panel,
 .connected-banner,
-.connection-panel {
+.connection-panel,
+.deployment-panel {
   border: 1px solid var(--line);
   background: var(--paper);
 }
@@ -1128,6 +1129,19 @@ h3 {
 .connection-actions { grid-column: 2; display: flex; justify-content: flex-end; gap: 10px; }
 .connection-actions button { width: auto; min-width: 160px; padding-inline: 16px; }
 
+.deployment-panel { padding: 28px; }
+.deployment-panel > header { display: flex; justify-content: space-between; gap: 24px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.deployment-panel h2 { margin: 8px 0; font-family: Georgia, serif; font-size: 32px; }
+.deployment-panel header p { max-width: 720px; margin: 0; color: var(--muted); line-height: 1.6; }
+.deployment-warning { margin: 22px 0 0; padding: 13px 15px; border-left: 4px solid var(--rust); background: var(--rust-soft); color: var(--rust); font-size: 11px; line-height: 1.55; }
+.deployment-form { display: grid; grid-template-columns: minmax(180px, .38fr) minmax(340px, 1fr); gap: 10px 18px; align-items: center; padding-top: 24px; }
+.deployment-form label { font-weight: 750; }
+.deployment-form input { min-height: 44px; padding: 0 12px; border: 1px solid #b9b3a6; background: #fffef9; color: var(--ink); font: inherit; }
+.deployment-form small { grid-column: 2; margin-bottom: 8px; color: var(--muted); }
+.deployment-form .inline-error { grid-column: 2; }
+.deployment-actions { grid-column: 2; display: flex; justify-content: flex-end; gap: 10px; padding-top: 8px; }
+.deployment-actions button { width: auto; min-width: 170px; padding-inline: 16px; }
+
 :focus-visible {
   outline: 3px solid #1d6f80;
   outline-offset: 3px;
@@ -1154,12 +1168,16 @@ h3 {
   .evidence-grid,
   .schedule-row,
   .connection-facts,
-  .credential-form {
+  .credential-form,
+  .deployment-form {
     grid-template-columns: 1fr;
   }
 
   .credential-form small,
-  .connection-actions { grid-column: 1; }
+  .connection-actions,
+  .deployment-form small,
+  .deployment-form .inline-error,
+  .deployment-actions { grid-column: 1; }
 
   .review-queue article { grid-template-columns: 1fr; }
 
