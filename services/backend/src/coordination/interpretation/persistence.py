@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import version
 from typing import Any, Protocol, cast
-from uuid import UUID
+from uuid import UUID, uuid4
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -32,6 +32,10 @@ SUPPORTED_CONSTRAINT_TYPES = (
     "fixed_attendance",
     "requested_deadline",
     "required_input",
+)
+
+PLANNING_REQUEST_IDEMPOTENCY_CONSTRAINT = (
+    "planning_requests_company_id_requester_membership_id_idempo_key"
 )
 
 
@@ -208,7 +212,7 @@ class PostgresInterpretationStore:
             ) as connection:
                 if command.project_id is not None:
                     project = connection.execute(
-                        "select id from app.projects where company_id = %s and id = %s for share",
+                        "select id from app.projects where company_id = %s and id = %s",
                         (context.company_id, command.project_id),
                     ).fetchone()
                     if project is None:
@@ -225,7 +229,6 @@ class PostgresInterpretationStore:
                           and status = 'active'
                           and authority_status <> 'revoked'
                           and current_version_id is not null
-                        for share
                         """,
                         (context.company_id, list(command.selected_source_ids)),
                     ).fetchall()
@@ -234,49 +237,70 @@ class PostgresInterpretationStore:
                     ):
                         raise PlanningRequestSourceNotFoundError("selected source was not found")
 
-                row = connection.execute(
-                    """
-                    insert into app.planning_requests (
-                      company_id, project_id, requester_membership_id, original_prompt,
-                      requested_priority_key, requested_deadline, requested_deadline_timezone,
-                      idempotency_key, request_digest
-                    ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                    on conflict (company_id, requester_membership_id, idempotency_key)
-                    do nothing
-                    returning id, status, request_version
-                    """,
-                    (
-                        context.company_id,
-                        command.project_id,
-                        context.membership_id,
-                        command.original_request.strip(),
-                        command.requested_priority_key,
-                        command.requested_deadline,
-                        command.requested_deadline_timezone,
-                        command.idempotency_key,
-                        command.digest,
-                    ),
-                ).fetchone()
-                created = row is not None
+                def load_idempotent_request() -> dict[str, Any] | None:
+                    return cast(
+                        dict[str, Any] | None,
+                        connection.execute(
+                            """
+                            select id, status, request_version, request_digest
+                            from app.planning_requests
+                            where company_id = %s
+                              and requester_membership_id = %s
+                              and idempotency_key = %s
+                            """,
+                            (
+                                context.company_id,
+                                context.membership_id,
+                                command.idempotency_key,
+                            ),
+                        ).fetchone(),
+                    )
+
+                row = load_idempotent_request()
+                created = False
                 if row is None:
-                    row = connection.execute(
-                        """
-                        select id, status, request_version, request_digest
-                        from app.planning_requests
-                        where company_id = %s
-                          and requester_membership_id = %s
-                          and idempotency_key = %s
-                        """,
-                        (
-                            context.company_id,
-                            context.membership_id,
-                            command.idempotency_key,
-                        ),
-                    ).fetchone()
-                    if row is None or bytes(row["request_digest"]) != command.digest:
-                        raise PlanningRequestIdempotencyConflictError(
-                            "idempotency key already identifies a different request"
-                        )
+                    request_id = uuid4()
+                    try:
+                        # A savepoint keeps a concurrent unique-key race from aborting the
+                        # surrounding request transaction. RLS-safe creation uses a plain insert:
+                        # PostgreSQL applies SELECT policies to ON CONFLICT target rows.
+                        with connection.transaction():
+                            connection.execute(
+                                """
+                                insert into app.planning_requests (
+                                  id, company_id, project_id, requester_membership_id,
+                                  original_prompt, requested_priority_key, requested_deadline,
+                                  requested_deadline_timezone, idempotency_key, request_digest
+                                ) values (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                                """,
+                                (
+                                    request_id,
+                                    context.company_id,
+                                    command.project_id,
+                                    context.membership_id,
+                                    command.original_request.strip(),
+                                    command.requested_priority_key,
+                                    command.requested_deadline,
+                                    command.requested_deadline_timezone,
+                                    command.idempotency_key,
+                                    command.digest,
+                                ),
+                            )
+                    except psycopg.errors.UniqueViolation as error:
+                        if error.diag.constraint_name != PLANNING_REQUEST_IDEMPOTENCY_CONSTRAINT:
+                            raise
+                    else:
+                        created = True
+                    row = load_idempotent_request()
+
+                if row is None:
+                    raise InterpretationStoreUnavailableError(
+                        "planning request was not readable after creation"
+                    )
+                if bytes(row["request_digest"]) != command.digest:
+                    raise PlanningRequestIdempotencyConflictError(
+                        "idempotency key already identifies a different request"
+                    )
 
                 request_id = cast(UUID, row["id"])
                 for source in source_rows:
