@@ -58,16 +58,22 @@ export function startAuthorisedRefresh({
     })();
   };
 
-  const channel: RealtimeChannel = client
-    .channel(`user:${userId}`, { config: { private: true } })
-    .on("broadcast", { event: "refresh" }, (message) => {
-      if (isAuthorisedRefreshPayload(message.payload)) requestRefetch();
-    })
-    .subscribe((status) => {
-      if (status !== "SUBSCRIBED") return;
-      if (subscribedOnce) requestRefetch();
-      subscribedOnce = true;
-    });
+  let channel: RealtimeChannel | null = null;
+  try {
+    channel = client.channel(`user:${userId}`, { config: { private: true } });
+    channel
+      .on("broadcast", { event: "refresh" }, (message) => {
+        if (isAuthorisedRefreshPayload(message.payload)) requestRefetch();
+      })
+      .subscribe((status) => {
+        if (status !== "SUBSCRIBED") return;
+        if (subscribedOnce) requestRefetch();
+        subscribedOnce = true;
+      });
+  } catch {
+    // Realtime only accelerates authorised refetches. Initial, focus, online and
+    // interval refetches remain available when channel setup is unsupported.
+  }
 
   const onFocus = () => requestRefetch();
   const onOnline = () => requestRefetch();
@@ -81,6 +87,6 @@ export function startAuthorisedRefresh({
     window.clearInterval(interval);
     window.removeEventListener("focus", onFocus);
     window.removeEventListener("online", onOnline);
-    void client.removeChannel(channel);
+    if (channel !== null) void client.removeChannel(channel);
   };
 }

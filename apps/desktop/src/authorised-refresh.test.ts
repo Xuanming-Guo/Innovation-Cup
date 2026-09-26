@@ -96,4 +96,23 @@ describe("private authorised refresh", () => {
     expect(refetch).toHaveBeenCalledTimes(4);
     stop();
   });
+
+  it("keeps authorised refetch fallback when Realtime channel setup fails", async () => {
+    const client = {
+      channel: vi.fn(() => { throw new Error("websocket unavailable"); }),
+      removeChannel: vi.fn(),
+    } as unknown as SupabaseClient;
+    const refetch = vi.fn().mockResolvedValue(undefined);
+
+    const stop = startAuthorisedRefresh({ client, userId: "user-1", refetch });
+    await flush();
+
+    expect(refetch).toHaveBeenCalledTimes(1);
+    window.dispatchEvent(new Event("focus"));
+    await flush();
+    expect(refetch).toHaveBeenCalledTimes(2);
+
+    stop();
+    expect(client.removeChannel).not.toHaveBeenCalled();
+  });
 });

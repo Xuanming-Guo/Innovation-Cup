@@ -34,6 +34,12 @@ export function App() {
   const [password, setPassword] = useState("");
   const [authError, setAuthError] = useState<string | null>(null);
   const sessionController = useRef<AuthorisedSessionController | null>(null);
+  const isConnectedEmployee = authorisedSession.status === "connected"
+    && authorisedSession.administrativeRole === "member";
+  const visibleSurface = isConnectedEmployee
+    && (activeSurface === "manager" || activeSurface === "connections")
+    ? "employee"
+    : activeSurface;
 
   useEffect(() => {
     const activeOrigin = authorisedSession.status === "connected"
@@ -116,28 +122,32 @@ export function App() {
       <aside className="side-rail" aria-label="Primary navigation">
         <div className="brand"><img src="/brand-mark.svg" alt="" width="28" height="28" /><span>{config.productName}</span></div>
         <nav className="navigation">
-          <button className={`nav-item ${activeSurface === "manager" ? "active" : ""}`} aria-current={activeSurface === "manager" ? "page" : undefined} aria-label="Manager review" onClick={() => setActiveSurface("manager")}>
-            <span className="nav-index">01</span>Manager review
-          </button>
-          <button className={`nav-item ${activeSurface === "employee" ? "active" : ""}`} aria-current={activeSurface === "employee" ? "page" : undefined} aria-label="My work" onClick={() => setActiveSurface("employee")}>
+          {!isConnectedEmployee && (
+            <button className={`nav-item ${visibleSurface === "manager" ? "active" : ""}`} aria-current={visibleSurface === "manager" ? "page" : undefined} aria-label="Manager review" onClick={() => setActiveSurface("manager")}>
+              <span className="nav-index">01</span>Manager review
+            </button>
+          )}
+          <button className={`nav-item ${visibleSurface === "employee" ? "active" : ""}`} aria-current={visibleSurface === "employee" ? "page" : undefined} aria-label="My work" onClick={() => setActiveSurface("employee")}>
             <span className="nav-index">02</span>My work
           </button>
-          <button className={`nav-item ${activeSurface === "connections" ? "active" : ""}`} aria-current={activeSurface === "connections" ? "page" : undefined} aria-label="Connections" onClick={() => setActiveSurface("connections")}>
-            <span className="nav-index">03</span>Connections
-          </button>
-          <button className={`nav-item ${activeSurface === "deployment" ? "active" : ""}`} aria-current={activeSurface === "deployment" ? "page" : undefined} aria-label="Deployment" onClick={() => setActiveSurface("deployment")}>
+          {!isConnectedEmployee && (
+            <button className={`nav-item ${visibleSurface === "connections" ? "active" : ""}`} aria-current={visibleSurface === "connections" ? "page" : undefined} aria-label="Connections" onClick={() => setActiveSurface("connections")}>
+              <span className="nav-index">03</span>Connections
+            </button>
+          )}
+          <button className={`nav-item ${visibleSurface === "deployment" ? "active" : ""}`} aria-current={visibleSurface === "deployment" ? "page" : undefined} aria-label="Deployment" onClick={() => setActiveSurface("deployment")}>
             <span className="nav-index">04</span>Deployment
           </button>
         </nav>
         <div className="side-note">
-          <span className="eyebrow">{activeSurface === "manager" ? "Review boundary" : activeSurface === "employee" ? "Visibility boundary" : activeSurface === "connections" ? "Credential boundary" : "Deployment boundary"}</span>
-          <strong>{activeSurface === "manager" ? "Human-led commitment" : activeSurface === "employee" ? "Approved context only" : activeSurface === "connections" ? "Company-managed BYOK" : "Public values only"}</strong>
-          <p>{activeSurface === "manager" ? "AI proposes. Z3 checks. Authorized people decide. The database commits atomically." : activeSurface === "employee" ? "Employees see their authorised task facts and approved brief, never the full private planning context." : activeSurface === "connections" ? "The backend uses the company credential. It is never shipped to an employee device or returned after configuration." : "This device stores endpoint identifiers and a publishable client key. Privileged credentials remain on the backend."}</p>
+          <span className="eyebrow">{visibleSurface === "manager" ? "Review boundary" : visibleSurface === "employee" ? "Visibility boundary" : visibleSurface === "connections" ? "Credential boundary" : "Deployment boundary"}</span>
+          <strong>{visibleSurface === "manager" ? "Human-led commitment" : visibleSurface === "employee" ? "Approved context only" : visibleSurface === "connections" ? "Company-managed BYOK" : "Public values only"}</strong>
+          <p>{visibleSurface === "manager" ? "AI proposes. Z3 checks. Authorized people decide. The database commits atomically." : visibleSurface === "employee" ? "Employees see their authorised task facts and approved brief, never the full private planning context." : visibleSurface === "connections" ? "The backend uses the company credential. It is never shipped to an employee device or returned after configuration." : "This device stores endpoint identifiers and a publishable client key. Privileged credentials remain on the backend."}</p>
         </div>
       </aside>
       <main className="workspace">
         <header className="topbar">
-          <div><span className="eyebrow">Coordination Engine - {activeSurface === "manager" ? "Manager workspace" : activeSurface === "employee" ? "Employee workspace" : activeSurface === "connections" ? "Company settings" : "Installation settings"}</span><h1>{activeSurface === "manager" ? "Plan review" : activeSurface === "employee" ? "My work" : activeSurface === "connections" ? "Connections" : "Deployment setup"}</h1></div>
+          <div><span className="eyebrow">Coordination Engine - {visibleSurface === "manager" ? "Manager workspace" : visibleSurface === "employee" ? "Employee workspace" : visibleSurface === "connections" ? "Company settings" : "Installation settings"}</span><h1>{visibleSurface === "manager" ? "Plan review" : visibleSurface === "employee" ? "My work" : visibleSurface === "connections" ? "Connections" : "Deployment setup"}</h1></div>
           <div className="topbar-status">
             {config.supabaseConfigured && (
               <span className="session-chip" aria-live="polite">
@@ -170,20 +180,20 @@ export function App() {
           </section>
         )}
         {authError && <p className="inline-error" role="alert">{authError}</p>}
-        {activeSurface === "manager" && (
+        {visibleSurface === "manager" && (
           <PlanReviewWorkspace key={`manager:${workspaceKey}`} api={api} />
         )}
-        {activeSurface === "employee" && (
+        {visibleSurface === "employee" && (
           <EmployeeWorkspace key={`employee:${workspaceKey}`} api={api} />
         )}
-        {activeSurface === "connections" && (
+        {visibleSurface === "connections" && (
           <CompanyConnections
             key={`connections:${workspaceKey}`}
             api={api}
             canManage={authorisedSession.status === "connected" && authorisedSession.administrativeRole === "company_admin"}
           />
         )}
-        {activeSurface === "deployment" && (
+        {visibleSurface === "deployment" && (
           <DeploymentSettings config={config} onSave={saveDeployment} onReset={resetDeployment} />
         )}
       </main>
