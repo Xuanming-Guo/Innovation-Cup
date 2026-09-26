@@ -5,8 +5,14 @@ from typing import Protocol
 from uuid import UUID
 
 import psycopg
+from pydantic import SecretStr
 
-from coordination.ai_provider.contracts import AiProviderConfiguration
+from coordination.ai_provider.contracts import (
+    AiCredentialKind,
+    AiProviderConfiguration,
+    AiProviderName,
+    ResolvedAiCredential,
+)
 from coordination.auth.models import CompanyContext
 from coordination.db.session import company_transaction
 
@@ -34,10 +40,26 @@ class AiProviderStore(Protocol):
         self,
         *,
         context: CompanyContext,
-        api_key: str,
+        provider: AiProviderName,
+        credential_kind: AiCredentialKind,
+        credential_secret: str,
         validated_model: str,
+        vertex_project_id: str | None,
+        vertex_client_email: str | None,
+        vertex_location: str | None,
         correlation_id: UUID,
     ) -> AiProviderConfiguration: ...
+
+    def record_validation(
+        self,
+        *,
+        context: CompanyContext,
+        provider: AiProviderName,
+        credential_kind: AiCredentialKind,
+        outcome: str,
+        validated_model: str | None,
+        correlation_id: UUID,
+    ) -> None: ...
 
     def remove(
         self, *, context: CompanyContext, correlation_id: UUID
@@ -45,7 +67,7 @@ class AiProviderStore(Protocol):
 
 
 class CompanyGeminiCredentialResolver(Protocol):
-    def resolve_gemini_api_key(self, *, context: CompanyContext) -> str: ...
+    def resolve_google_credential(self, *, context: CompanyContext) -> ResolvedAiCredential: ...
 
 
 class PostgresAiProviderStore:
@@ -64,7 +86,7 @@ class PostgresAiProviderStore:
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 row = connection.execute(
-                    "select * from app.get_company_gemini_configuration()"
+                    "select * from app.get_company_ai_configuration()"
                 ).fetchone()
         except psycopg.errors.InsufficientPrivilege as error:
             raise AiProviderAuthorityError("company administrator authority is required") from error
@@ -80,11 +102,16 @@ class PostgresAiProviderStore:
         self,
         *,
         context: CompanyContext,
-        api_key: str,
+        provider: AiProviderName,
+        credential_kind: AiCredentialKind,
+        credential_secret: str,
         validated_model: str,
+        vertex_project_id: str | None,
+        vertex_client_email: str | None,
+        vertex_location: str | None,
         correlation_id: UUID,
     ) -> AiProviderConfiguration:
-        fingerprint = hashlib.sha256(api_key.encode("utf-8")).digest()
+        fingerprint = hashlib.sha256(credential_secret.encode("utf-8")).digest()
         try:
             with company_transaction(
                 self._dsn,
@@ -95,8 +122,22 @@ class PostgresAiProviderStore:
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 row = connection.execute(
-                    "select * from app.configure_company_gemini_credential(%s, %s, %s, %s)",
-                    (api_key, fingerprint, validated_model, correlation_id),
+                    """
+                    select * from app.configure_company_ai_credential(
+                      %s, %s, %s, %s, %s, %s, %s, %s, %s
+                    )
+                    """,
+                    (
+                        provider,
+                        credential_kind,
+                        credential_secret,
+                        fingerprint,
+                        validated_model,
+                        vertex_project_id,
+                        vertex_client_email,
+                        vertex_location,
+                        correlation_id,
+                    ),
                 ).fetchone()
         except psycopg.errors.InsufficientPrivilege as error:
             raise AiProviderAuthorityError("company administrator authority is required") from error
@@ -108,9 +149,43 @@ class PostgresAiProviderStore:
             raise AiProviderStoreUnavailableError("AI provider configuration returned no row")
         return _configuration(row)
 
-    def remove(
-        self, *, context: CompanyContext, correlation_id: UUID
-    ) -> AiProviderConfiguration:
+    def record_validation(
+        self,
+        *,
+        context: CompanyContext,
+        provider: AiProviderName,
+        credential_kind: AiCredentialKind,
+        outcome: str,
+        validated_model: str | None,
+        correlation_id: UUID,
+    ) -> None:
+        try:
+            with company_transaction(
+                self._dsn,
+                role="coordination_api",
+                actor_id=context.actor.user_id,
+                company_id=context.company_id,
+                purpose="ai_provider.credential.test",
+                connect_timeout_seconds=self._connect_timeout_seconds,
+            ) as connection:
+                connection.execute(
+                    "select app.record_company_ai_credential_test(%s, %s, %s, %s, %s)",
+                    (
+                        provider,
+                        credential_kind,
+                        outcome,
+                        validated_model,
+                        correlation_id,
+                    ),
+                )
+        except psycopg.errors.InsufficientPrivilege as error:
+            raise AiProviderAuthorityError("company administrator authority is required") from error
+        except psycopg.Error as error:
+            raise AiProviderStoreUnavailableError(
+                "AI provider credential test could not be recorded"
+            ) from error
+
+    def remove(self, *, context: CompanyContext, correlation_id: UUID) -> AiProviderConfiguration:
         try:
             with company_transaction(
                 self._dsn,
@@ -121,7 +196,7 @@ class PostgresAiProviderStore:
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 row = connection.execute(
-                    "select * from app.remove_company_gemini_credential(%s)",
+                    "select * from app.remove_company_ai_credential(%s)",
                     (correlation_id,),
                 ).fetchone()
         except psycopg.errors.InsufficientPrivilege as error:
@@ -134,7 +209,7 @@ class PostgresAiProviderStore:
             raise AiProviderStoreUnavailableError("AI provider configuration returned no row")
         return _configuration(row)
 
-    def resolve_gemini_api_key(self, *, context: CompanyContext) -> str:
+    def resolve_google_credential(self, *, context: CompanyContext) -> ResolvedAiCredential:
         try:
             with company_transaction(
                 self._dsn,
@@ -145,7 +220,7 @@ class PostgresAiProviderStore:
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 row = connection.execute(
-                    "select app.resolve_company_gemini_api_key() as api_key"
+                    "select * from app.resolve_company_ai_credential()"
                 ).fetchone()
         except psycopg.errors.NoDataFound as error:
             raise CompanyGeminiCredentialNotConfiguredError(
@@ -155,12 +230,20 @@ class PostgresAiProviderStore:
             raise AiProviderStoreUnavailableError(
                 "company Gemini credential is unavailable"
             ) from error
-        value = row.get("api_key") if row else None
-        if not isinstance(value, str) or not value:
+        value = row.get("credential_secret") if row else None
+        if not isinstance(value, str) or not value or row is None:
             raise CompanyGeminiCredentialNotConfiguredError(
                 "company Gemini credential is not configured"
             )
-        return value
+        return ResolvedAiCredential(
+            provider=row["provider"],
+            credential_kind=row["credential_kind"],
+            credential=SecretStr(value),
+            validated_model=row["validated_model"],
+            vertex_project_id=row["vertex_project_id"],
+            vertex_client_email=row["vertex_client_email"],
+            vertex_location=row["vertex_location"],
+        )
 
 
 def _configuration(row: dict[str, object]) -> AiProviderConfiguration:

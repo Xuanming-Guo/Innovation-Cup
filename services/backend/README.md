@@ -22,11 +22,13 @@ Manager planning intake is available at
 `X-Company-ID`, and an `Idempotency-Key`. The explicit
 `POST /v1/companies/{company_id}/planning-requests/{request_id}/interpret` operation returns a
 durable job with HTTP 202. The worker builds the fresh permission-bounded projection, resolves the
-requesting company's Gemini key from Supabase Vault, calls the typed server-only adapter and
+requesting company's selected Google credential from Supabase Vault, calls the typed server-only adapter and
 persists the untrusted candidate plus deterministic admission result. A company administrator
-configures the key through `/v1/companies/{company_id}/ai-provider/gemini`; the API validates
-model access without sending company content and never returns the plaintext value. No model call
-occurs from the desktop.
+configures either a Gemini Developer API key or Vertex AI service-account JSON through
+`/v1/companies/{company_id}/ai-provider/gemini`; the API validates model access without sending
+company content and never returns the plaintext value. The worker constructs the official SDK
+client for the stored mode. No model call occurs from the desktop and pasted Python is never
+executed.
 
 The `coordination.planning` package implements the trusted post-interpretation boundary:
 `ValidatedConstraint` records are frozen into a canonical `PlanningSnapshot`, compiled through
