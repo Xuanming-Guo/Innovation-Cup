@@ -196,8 +196,8 @@ Fill exactly these values:
 | Variable | Exact source |
 |---|---|
 | `COORDINATION_SUPABASE_URL` | Supabase Project URL, for example `https://abcdefgh.supabase.co` |
-| `COORDINATION_API_DATABASE_URL` | TLS Postgres URL for `coordination_api_prod` with its URL-encoded password |
-| `COORDINATION_WORKER_DATABASE_URL` | Different TLS Postgres URL for `coordination_worker_prod` |
+| `COORDINATION_API_DATABASE_URL` | TLS Postgres URL for `coordination_api_prod` with its URL-encoded password. With Supabase's shared pooler, use username `coordination_api_prod.<project-ref>` |
+| `COORDINATION_WORKER_DATABASE_URL` | Different TLS Postgres URL for `coordination_worker_prod`. With the shared pooler, use username `coordination_worker_prod.<project-ref>` |
 | `COORDINATION_HOST_COMPANY_ID` | Demo company: `11111111-1111-4111-8111-111111111111` |
 | `COORDINATION_HOST_ACTOR_ID` | Authentication -> Users -> UUID of the seeded `company_admin` manager |
 | `COORDINATION_GEMINI_MODEL` | `gemini-3.8-flash` unless the reviewed provider model changes |
@@ -206,6 +206,15 @@ Do not put the database administrator password, publishable key, Supabase secret
 or Gemini key in this file. The launcher rejects reused/wrong runtime usernames and never prints
 the DSNs. It creates `deploy/local-host/.env.runtime` with the current commit and a persistent
 instance UUID.
+
+For a free Supabase project, copy the **Session pooler** host and port from the dashboard's
+**Connect** dialog. Shared-pooler custom users must include the project reference after the role
+name; do not construct the pooler hostname from the region. For example:
+
+```ini
+COORDINATION_API_DATABASE_URL=postgresql://coordination_api_prod.abcdefgh:URL_ENCODED_PASSWORD@COPIED_POOLER_HOST:5432/postgres?sslmode=require
+COORDINATION_WORKER_DATABASE_URL=postgresql://coordination_worker_prod.abcdefgh:URL_ENCODED_PASSWORD@COPIED_POOLER_HOST:5432/postgres?sslmode=require
+```
 
 Start by double-clicking `start-host.cmd` on Windows or `start-host.command` on macOS. The exact
 terminal equivalent is:

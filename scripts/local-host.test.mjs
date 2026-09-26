@@ -27,6 +27,28 @@ test("accepts separate least-privileged runtime database identities", () => {
   assert.equal(validateHostEnvironment(valid), valid);
 });
 
+test("accepts project-qualified custom roles for the Supabase shared pooler", () => {
+  const sharedPooler = {
+    ...valid,
+    COORDINATION_API_DATABASE_URL:
+      "postgresql://coordination_api_prod.project:password@aws-0-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require",
+    COORDINATION_WORKER_DATABASE_URL:
+      "postgresql://coordination_worker_prod.project:password@aws-0-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require",
+  };
+
+  assert.equal(validateHostEnvironment(sharedPooler), sharedPooler);
+});
+
+test("rejects an unqualified custom role for the Supabase shared pooler", () => {
+  const sharedPooler = {
+    ...valid,
+    COORDINATION_API_DATABASE_URL:
+      "postgresql://coordination_api_prod:password@aws-0-us-west-2.pooler.supabase.com:5432/postgres?sslmode=require",
+  };
+
+  assert.throws(() => validateHostEnvironment(sharedPooler), /coordination_api_prod\.project/);
+});
+
 test("rejects a privileged or reused runtime identity", () => {
   assert.throws(
     () => validateHostEnvironment({ ...valid, COORDINATION_API_DATABASE_URL: valid.COORDINATION_WORKER_DATABASE_URL }),

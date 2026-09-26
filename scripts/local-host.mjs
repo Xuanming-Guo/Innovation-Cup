@@ -50,11 +50,18 @@ export function validateHostEnvironment(values) {
   if (!apiDatabase.protocol.startsWith("postgres") || !workerDatabase.protocol.startsWith("postgres")) {
     throw new Error("Both runtime database values must be PostgreSQL URLs");
   }
-  if (decodeURIComponent(apiDatabase.username) !== "coordination_api_prod") {
-    throw new Error("The API database URL must use coordination_api_prod");
+  const projectRef = supabaseUrl.hostname.split(".", 1)[0];
+  const expectedUsername = (database, role) =>
+    database.hostname.endsWith(".pooler.supabase.com") ? `${role}.${projectRef}` : role;
+  if (decodeURIComponent(apiDatabase.username) !== expectedUsername(apiDatabase, "coordination_api_prod")) {
+    throw new Error(
+      `The API database URL must use ${expectedUsername(apiDatabase, "coordination_api_prod")}`,
+    );
   }
-  if (decodeURIComponent(workerDatabase.username) !== "coordination_worker_prod") {
-    throw new Error("The worker database URL must use coordination_worker_prod");
+  if (decodeURIComponent(workerDatabase.username) !== expectedUsername(workerDatabase, "coordination_worker_prod")) {
+    throw new Error(
+      `The worker database URL must use ${expectedUsername(workerDatabase, "coordination_worker_prod")}`,
+    );
   }
   if (values.COORDINATION_API_DATABASE_URL === values.COORDINATION_WORKER_DATABASE_URL) {
     throw new Error("API and worker must use different database credentials");
