@@ -355,7 +355,9 @@ def test_api_key_validator_checks_model_and_structured_generation_access() -> No
     assert models.models == ["gemini-test"]
     assert len(models.generations) == 1
     config = cast(Any, models.generations[0]["config"])
-    assert config.response_json_schema["properties"]
+    assert config.response_schema.properties
+    assert config.response_json_schema is None
+    assert config.automatic_function_calling.disable is True
     assert client.closed is True
 
 
@@ -391,6 +393,10 @@ def test_vertex_validator_builds_an_explicit_scoped_vertex_client() -> None:
     assert result.canonical_credential.get_secret_value().startswith("{")
     assert models.models == ["gemini-test"]
     assert len(models.generations) == 1
+    config = cast(Any, models.generations[0]["config"])
+    assert config.response_schema.properties
+    assert config.response_json_schema is None
+    assert config.automatic_function_calling.disable is True
     assert client.closed is True
 
 

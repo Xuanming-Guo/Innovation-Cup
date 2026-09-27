@@ -19,8 +19,9 @@ schedule, a validated constraint, an approval or a committed task.
    encrypted Gemini API key or Vertex service-account JSON from Supabase Vault under the same
    tenant context and constructs a short-lived client for the selected mode. Vertex clients bind
    explicit service-account credentials, project and location. The call has an explicit timeout,
-   bounded retry, a fixed
-   model/prompt/schema/safety profile, no model tools and a supported JSON response schema.
+   bounded retry, a fixed model/prompt/schema/safety profile, explicitly disabled model tools and
+   a compact provider-generation schema. The provider schema guides shape without duplicating
+   every domain constraint; the full strict contract is enforced locally in the next step.
 5. Pydantic rejects fields outside `CandidateTaskContract`. Trusted admission code then checks
    company/request/version identity, current source versions, retrieved locators, source
    freshness and authority, assumption references, task IDs, dependency endpoints and cycles,
@@ -65,8 +66,12 @@ an explicitly tracked incomplete workflow in #51.
 - Provider error messages and credentials are not returned to clients or stored in the run
   ledger.
 
-Interpretation runs through the durable worker. A live Vertex structured call identified and
-reproduced the schema-filtering failure addressed by the current implementation; the corrected
-request must be repeated after deployment before the hosted path is called successful. Fixture
-tests use no external model or company data. The worker host is portable and is not required to
-run on Google Cloud.
+Interpretation runs through the durable worker. Live synthetic Vertex calls established that the
+credential, project, model and basic structured-output route were valid while the original nested
+JSON Schema exceeded Vertex's effective request complexity. The provider-facing schema is now
+dereferenced and reduced to structural types, required fields, enums, nullability and the two
+basis variants; the unmodified strict Pydantic contract and deterministic admission remain the
+authoritative boundary. The exact corrected schema completed a live no-company-content Vertex
+service-account probe on 26 September 2026. Fixture tests use no external model or company data;
+the full hosted interpretation workflow still requires a post-deployment run. The worker host is
+portable and is not required to run on Google Cloud.
