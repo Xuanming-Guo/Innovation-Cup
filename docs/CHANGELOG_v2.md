@@ -70,6 +70,15 @@ to `enum`, closes each short-lived SDK client and classifies safe provider error
 installation now performs one bounded structured-output probe with synthetic identifiers and no
 company content, rather than relying on model discovery alone.
 
+A follow-up live bisect proved that authentication, project access, model access and minimal
+structured output were valid, but Vertex still rejected the complete nested JSON Schema with
+`INVALID_ARGUMENT`. The worker now derives a separate compact provider-generation schema from the
+strict Pydantic contract: local references are resolved, nullable fields use the SDK's OpenAPI
+representation, `oneOf` becomes `anyOf`, and provider-redundant annotations, bounds, formats and
+closed-object markers are omitted. Automatic function calling is explicitly disabled. The exact
+new schema completed a live synthetic Vertex service-account call; full Pydantic validation,
+source/authority admission and downstream Z3 validation remain unchanged and authoritative.
+
 The accompanying backend audit adds stage-level job diagnostics and a guarded manager recovery
 command for side-effect-free terminal planning jobs, repairs stranded interpretation state on a
 later fenced retry, and removes dead retry configuration plus duplicate idle worker output. It also

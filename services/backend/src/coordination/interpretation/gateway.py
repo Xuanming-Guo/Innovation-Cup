@@ -178,7 +178,10 @@ class GoogleGeminiGateway:
                     temperature=self.configuration.temperature,
                     max_output_tokens=self.configuration.max_output_tokens,
                     response_mime_type="application/json",
-                    response_json_schema=candidate_response_schema(),
+                    response_schema=candidate_response_schema(),
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
+                        disable=True
+                    ),
                 ),
             )
         except errors.ClientError as error:
