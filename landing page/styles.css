@@ -78,26 +78,6 @@ a {
   height: auto;
 }
 
-.header-note {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 650;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.live-dot {
-  width: 9px;
-  height: 9px;
-  border: 1px solid var(--moss);
-  border-radius: 50%;
-  background: #b8cbb7;
-}
-
 .hero {
   display: grid;
   grid-template-columns: minmax(0, 1.5fr) minmax(330px, 0.65fr);
@@ -237,15 +217,7 @@ h1 em {
 }
 
 .section-heading {
-  display: grid;
-  grid-template-columns: minmax(160px, 0.45fr) minmax(0, 1fr);
-  gap: 38px;
-  align-items: end;
   margin-bottom: 34px;
-}
-
-.section-heading .eyebrow {
-  margin-bottom: 8px;
 }
 
 .section-heading h2 {
@@ -487,10 +459,6 @@ h1 em {
     width: 132px;
   }
 
-  .header-note {
-    font-size: 9px;
-  }
-
   .hero {
     min-height: 0;
     padding: 72px 22px 54px;
@@ -502,11 +470,6 @@ h1 em {
 
   .downloads {
     padding: 54px 22px 40px;
-  }
-
-  .section-heading {
-    grid-template-columns: 1fr;
-    gap: 20px;
   }
 
   .download-grid {
@@ -547,10 +510,6 @@ h1 em {
 }
 
 @media (max-width: 600px) {
-  .header-note {
-    display: none;
-  }
-
   h1 {
     font-size: clamp(42px, 12vw, 50px);
     letter-spacing: -0.06em;
