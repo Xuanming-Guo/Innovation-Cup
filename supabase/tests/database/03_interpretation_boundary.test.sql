@@ -1,5 +1,5 @@
 begin;
-select plan(9);
+select plan(16);
 
 insert into auth.users (id, instance_id, aud, role, email, encrypted_password, created_at, updated_at)
 values
@@ -251,6 +251,23 @@ insert into app.candidate_contracts (
   decode(repeat('dd', 32), 'hex'), 'admitted', '[]'::jsonb
 );
 
+insert into app.clarification_questions (
+  id, company_id, request_id, candidate_contract_id, question_key,
+  category, question, blocks_planning, related_task_keys
+) values (
+  '11111111-7100-4000-8000-000000000011',
+  '11111111-1111-4111-8111-111111111111',
+  '11111111-4000-4000-8000-000000000011',
+  '11111111-7000-4000-8000-000000000011',
+  'capacity_confirmation', 'missing_data',
+  'Should the recorded capacity window be used?', true, '[]'::jsonb
+);
+
+update app.planning_requests
+set status = 'clarification_required'
+where company_id = '11111111-1111-4111-8111-111111111111'
+  and id = '11111111-4000-4000-8000-000000000011';
+
 insert into interpretation_test_results (label, observed)
 values
   ('worker-run-count', (select count(*)::text from app.interpretation_runs)),
@@ -275,6 +292,38 @@ begin
   end;
 end
 $$;
+reset role;
+
+set local role coordination_api;
+select set_config('app.actor_id', '11111111-aaaa-4aaa-8aaa-aaaaaaaaaaa1', true);
+select set_config('app.company_id', '11111111-1111-4111-8111-111111111111', true);
+select set_config('app.purpose', 'test:clarification-resume', true);
+
+insert into interpretation_test_results (label, observed)
+select 'clarification-first-created', result.created::text
+from app.submit_planning_clarifications(
+  '11111111-1111-4111-8111-111111111111',
+  '11111111-4000-4000-8000-000000000011',
+  1,
+  '11111111-7000-4000-8000-000000000011',
+  '{"capacity_confirmation":"Use the recorded capacity window."}'::jsonb,
+  'clarification-test-key-0001',
+  decode(repeat('ef', 32), 'hex'),
+  '11111111-7200-4000-8000-000000000011'
+) as result;
+
+insert into interpretation_test_results (label, observed)
+select 'clarification-replay-created', result.created::text
+from app.submit_planning_clarifications(
+  '11111111-1111-4111-8111-111111111111',
+  '11111111-4000-4000-8000-000000000011',
+  1,
+  '11111111-7000-4000-8000-000000000011',
+  '{"capacity_confirmation":"Use the recorded capacity window."}'::jsonb,
+  'clarification-test-key-0001',
+  decode(repeat('ef', 32), 'hex'),
+  '11111111-7200-4000-8000-000000000011'
+) as result;
 reset role;
 
 select is(
@@ -325,6 +374,64 @@ select is(
   ),
   0,
   'worker write stayed within the authorised tenant'
+);
+select is(
+  (select observed from interpretation_test_results where label = 'clarification-first-created'),
+  'true',
+  'manager clarification answers create a derived request'
+);
+select is(
+  (select observed from interpretation_test_results where label = 'clarification-replay-created'),
+  'false',
+  'an identical clarification command replays idempotently'
+);
+select is(
+  (
+    select status from app.planning_requests
+    where id = '11111111-4000-4000-8000-000000000011'
+  ),
+  'clarification_answered',
+  'the original request records that its clarifications were answered'
+);
+select is(
+  (
+    select status from app.clarification_questions
+    where id = '11111111-7100-4000-8000-000000000011'
+  ),
+  'answered',
+  'the answered clarification question is no longer open'
+);
+select is(
+  (
+    select answer from app.clarification_responses
+    where clarification_question_id = '11111111-7100-4000-8000-000000000011'
+  ),
+  'Use the recorded capacity window.',
+  'the immutable clarification response retains the manager answer'
+);
+select is(
+  (
+    select count(*)::integer
+    from app.planning_requests
+    where clarification_parent_request_id = '11111111-4000-4000-8000-000000000011'
+      and clarification_parent_request_version = 1
+      and clarification_parent_candidate_id = '11111111-7000-4000-8000-000000000011'
+      and request_version = 2
+      and status = 'pending_interpretation'
+  ),
+  1,
+  'the resumed request is bound to the exact request version and candidate'
+);
+select is(
+  (
+    select count(*)::integer
+    from app.audit_events
+    where aggregate_id = '11111111-4000-4000-8000-000000000011'
+      and event_type = 'planning.clarifications_answered'
+      and outcome = 'accepted'
+  ),
+  1,
+  'clarification resume emits one accepted audit event'
 );
 
 select * from finish();

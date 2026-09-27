@@ -334,7 +334,7 @@ begin
     ) values (
       p_company_id, v_submission_id, p_request_id, p_request_version,
       p_candidate_contract_id, v_question.id, v_actor_membership_id,
-      v_answer, digest(convert_to(v_answer, 'UTF8'), 'sha256')
+      v_answer, extensions.digest(convert_to(v_answer, 'UTF8'), 'sha256')
     );
     update app.clarification_questions
     set status = 'answered'
@@ -352,7 +352,7 @@ begin
   ) values (
     p_company_id, v_actor_membership_id, 'planning.clarifications_answered',
     'planning_request', p_request_id, 'accepted', 0, p_command_digest,
-    digest(convert_to(v_derived_request_id::text, 'UTF8'), 'sha256'),
+    extensions.digest(convert_to(v_derived_request_id::text, 'UTF8'), 'sha256'),
     jsonb_build_object(
       'candidate_contract_id', p_candidate_contract_id,
       'derived_request_id', v_derived_request_id,
