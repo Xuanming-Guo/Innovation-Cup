@@ -103,6 +103,16 @@ version and resumes through the existing durable worker. Candidate facts may cit
 present in that permission-bounded projection. The earlier model evidence remains unchanged. The
 unified cross-request action inbox remains the unfinished part of issue #51.
 
+A subsequent connected request exposed a silent admission dead end: trusted admission correctly
+classified material assumptions as requiring manager authority, but persistence stored only
+questions authored by Gemini. The durable interpretation job therefore succeeded without queuing
+trusted materialisation and the manager received no action to resolve. Deterministic clarification
+issues now become explicit blocking manager questions, rejected candidates map to failed requests,
+and a migration backfills existing affected candidates. A deferred database invariant prevents a
+clarification-required candidate from committing without at least one blocking question. Resumed
+interpretation is also instructed to cite the immutable manager response instead of recreating the
+resolved material assumption.
+
 The accompanying backend audit adds stage-level job diagnostics and a guarded manager recovery
 command for side-effect-free terminal planning jobs, repairs stranded interpretation state on a
 later fenced retry, and removes dead retry configuration plus duplicate idle worker output. It also

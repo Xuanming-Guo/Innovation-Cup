@@ -47,7 +47,11 @@ clarification basis must name an immutable response present in the permission-bo
 An assumption basis must name a declared assumption. Stale, expired, cross-company or unselected
 source versions and unknown response IDs reject the candidate. Material assumptions and
 non-authoritative evidence stop at `clarification_required`; they do not silently become hard
-constraints.
+constraints. Every deterministic `clarify` admission issue is converted to a visible blocking
+manager question in the same transaction as the candidate. A deferred database invariant rejects
+any clarification-required candidate transaction that finishes without such an action. Migration
+17 backfills candidates created before that guarantee, including the connected-demo request that
+exposed the defect.
 
 Missing capacity, commitments or policy are represented explicitly instead of being treated as
 zero or guessed. Recorded planning-resource availability and committed blocks are projected rather
@@ -55,7 +59,9 @@ than reported as missing. When a blocking question is legitimate, an active mana
 current blocking questions. The database binds the immutable answers to the exact request version,
 candidate, questions, actor, digest and idempotency command, marks the earlier request answered and
 creates a derived request version. The worker sees only that authorised lineage and resumes through
-the normal typed gateway and admission boundary. The trusted materialiser converts admitted
+the normal typed gateway and admission boundary. A resolved material assumption is cited through
+its immutable clarification response and is not recreated as a new assumption. The trusted
+materialiser converts admitted
 candidate fields into allowlisted `ValidatedConstraint` records and an immutable snapshot; the Z3
 compiler accepts only that snapshot, never model JSON. A unified cross-request action inbox remains
 the incomplete part of #51.

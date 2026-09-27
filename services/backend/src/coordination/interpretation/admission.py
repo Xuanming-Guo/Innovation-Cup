@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import re
 from collections import defaultdict
 from datetime import datetime
 from typing import Literal
@@ -9,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from coordination.interpretation.contracts import (
     AssumptionBasis,
     CandidateBasis,
+    CandidateClarification,
     CandidateTaskContract,
     ClarificationBasis,
     EvidenceBasis,
@@ -234,3 +237,84 @@ def admit_candidate(
     else:
         status = "admitted"
     return AdmissionResult(status=status, issues=tuple(issues))
+
+
+def actionable_clarifications(
+    contract: CandidateTaskContract,
+    admission: AdmissionResult,
+) -> tuple[CandidateClarification, ...]:
+    """Return every manager action required by a clarification admission result."""
+
+    questions = list(contract.clarifications)
+    used_keys = {question.question_key for question in questions}
+    for index, issue in enumerate(admission.issues, start=1):
+        if issue.disposition != "clarify" or issue.code == "model_clarification":
+            continue
+        suffix = hashlib.sha256(f"{issue.code}:{issue.path}".encode()).hexdigest()[:8]
+        question_key = f"admission_{index}_{suffix}"
+        collision = 1
+        while question_key in used_keys:
+            collision += 1
+            question_key = f"admission_{index}_{suffix}_{collision}"
+        used_keys.add(question_key)
+
+        category: Literal["missing_data", "authority", "timezone", "ambiguity", "disclosure"]
+        if issue.code in {
+            "authority_unknown",
+            "deadline_authority_unknown",
+            "material_assumption",
+            "unconfirmed_source_authority",
+        }:
+            category = "authority"
+        elif issue.code == "insufficient_context":
+            category = "missing_data"
+        elif issue.code == "sensitive_request":
+            category = "disclosure"
+        else:
+            category = "ambiguity"
+
+        related_task_keys: tuple[str, ...] = ()
+        question = f"Resolve this planning issue before continuing: {issue.message}"
+        assumption_match = re.fullmatch(r"assumptions\[(\d+)\]", issue.path)
+        unsupported_match = re.fullmatch(r"unsupported\[(\d+)\]", issue.path)
+        deadline_match = re.fullmatch(
+            r"tasks\[(\d+)\]\.deadline\.flexibility", issue.path
+        )
+        if issue.code == "material_assumption" and assumption_match is not None:
+            assumption_index = int(assumption_match.group(1))
+            if assumption_index < len(contract.assumptions):
+                assumption = contract.assumptions[assumption_index]
+                authority = assumption.authority_required.replace("_", " ")
+                question = (
+                    f"Confirm or correct this material assumption: {assumption.statement} "
+                    f"Required decision authority: {authority}."
+                )
+        elif unsupported_match is not None:
+            unsupported_index = int(unsupported_match.group(1))
+            if unsupported_index < len(contract.unsupported):
+                unsupported = contract.unsupported[unsupported_index]
+                related_task_keys = unsupported.related_task_keys
+                question = (
+                    "The requested plan contains this unresolved item: "
+                    f"{unsupported.description} Explain how it should be handled."
+                )
+        elif deadline_match is not None:
+            task_index = int(deadline_match.group(1))
+            if task_index < len(contract.tasks):
+                task = contract.tasks[task_index]
+                related_task_keys = (task.task_key,)
+                question = (
+                    f"Is the deadline for {task.title} fixed or negotiable, and who has "
+                    "authority to make that decision?"
+                )
+
+        questions.append(
+            CandidateClarification(
+                question_key=question_key,
+                category=category,
+                question=question[:1000],
+                blocks_planning=True,
+                related_task_keys=related_task_keys,
+            )
+        )
+    return tuple(questions)

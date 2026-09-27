@@ -23,7 +23,7 @@ class GatewayConfiguration(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     model: str = Field(min_length=1, max_length=200)
-    prompt_version: str = "interpretation-v1"
+    prompt_version: str = "interpretation-v2"
     schema_version: Literal["candidate-task-contract.v1"] = "candidate-task-contract.v1"
     safety_profile: str = "provider-default-no-tools-v1"
     timeout_seconds: int = Field(default=60, ge=1, le=120)
