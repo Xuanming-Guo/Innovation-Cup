@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
@@ -273,9 +274,9 @@ def test_submit_clarification_answers_returns_the_derived_request(
         correlation_id=SESSION_ID,
     )
 
-    result = PostgresInterpretationStore(
-        "postgresql://unused"
-    ).submit_clarification_answers(context=context(), command=value)
+    result = PostgresInterpretationStore("postgresql://unused").submit_clarification_answers(
+        context=context(), command=value
+    )
 
     assert result.request_id == DERIVED_REQUEST_ID
     assert result.request_version == 2
@@ -340,9 +341,9 @@ def test_worker_reconciliation_read_uses_only_the_worker_role(
         [{"status": "interpreted", "candidate_digest": "ab" * 32}],
     )
 
-    result = PostgresInterpretationStore(
-        "postgresql://unused"
-    ).get_worker_request_state(context=context(), request_id=REQUEST_ID)
+    result = PostgresInterpretationStore("postgresql://unused").get_worker_request_state(
+        context=context(), request_id=REQUEST_ID
+    )
 
     assert result.status == "interpreted"
     assert result.candidate_digest == "ab" * 32
@@ -350,3 +351,81 @@ def test_worker_reconciliation_read_uses_only_the_worker_role(
     statement = connection.calls[0][0].lower()
     assert "app.durable_jobs" not in statement
     assert "app.planning_requests" in statement
+
+
+@pytest.mark.parametrize("project_id", [PROJECT_ID, None])
+def test_request_view_returns_saved_intake_and_project_under_the_existing_scope(
+    monkeypatch: pytest.MonkeyPatch, project_id: UUID | None
+) -> None:
+    row: QueryRow = {
+        "id": REQUEST_ID,
+        "status": "failed",
+        "request_version": 1,
+        "original_prompt": "Prepare the reviewed operating guide.",
+        "project_id": project_id,
+        "latest_outcome": "invalid_output",
+        "candidate_digest": None,
+        "candidate_id": None,
+        "snapshot_id": None,
+        "plan_id": None,
+    }
+    for stage in ("interpretation_job", "materialization_job", "planning_job"):
+        row[f"{stage}_id"] = None
+        row[f"{stage}_state"] = None
+    connection, transactions = install_role_recording_connection(monkeypatch, [row])
+    selected = replace(context(), demo_run_id=SOURCE_ID, demo_actor_session_id=SOURCE_VERSION_ID)
+
+    result = PostgresInterpretationStore("postgresql://unused").get_request(
+        context=selected, request_id=REQUEST_ID
+    )
+
+    assert result.original_request == row["original_prompt"]
+    assert result.project_id == project_id
+    assert connection.calls[0][1] == (COMPANY_ID, REQUEST_ID)
+    assert "request.original_prompt, request.project_id" in connection.calls[0][0]
+    assert len(connection.calls) == 1
+    assert transactions[0]["role"] == "coordination_api"
+    assert transactions[0]["actor_id"] == USER_ID
+    assert transactions[0]["demo_run_id"] == SOURCE_ID
+    assert transactions[0]["demo_actor_session_id"] == SOURCE_VERSION_ID
+
+
+@pytest.mark.parametrize("state", ["leased", "review_required", "succeeded"])
+def test_request_view_projects_the_alto_authoring_job(
+    monkeypatch: pytest.MonkeyPatch,
+    state: str,
+) -> None:
+    row: QueryRow = {
+        "id": REQUEST_ID,
+        "status": "interpreted",
+        "request_version": 1,
+        "original_prompt": "Saved launch request",
+        "project_id": PROJECT_ID,
+        "latest_outcome": "admitted",
+        "candidate_digest": "ab" * 32,
+        "candidate_id": CANDIDATE_ID,
+        "snapshot_id": SOURCE_ID,
+        "plan_id": None,
+        "interpretation_job_id": None,
+        "interpretation_job_state": None,
+        "materialization_job_id": None,
+        "materialization_job_state": None,
+        "planning_job_id": SESSION_ID,
+        "planning_job_state": state,
+        "planning_job_kind": "plan.propose",
+        "planning_job_attempt_count": 1,
+        "planning_job_max_attempts": 3,
+        "planning_job_error_code": None,
+    }
+    connection = install_connection(monkeypatch, [row, [], []])
+    result = PostgresInterpretationStore("postgresql://unused").get_request(
+        context=context(),
+        request_id=REQUEST_ID,
+    )
+    assert result.planning_job_state == state
+    assert result.planning_job is not None
+    assert result.planning_job.job_kind == "plan.propose"
+    query = connection.calls[0][0]
+    assert "value.job_kind in ('plan.propose', 'planning.run')" in query
+    assert "value.aggregate_id = snapshot.id" in query
+    assert "value.company_id = request.company_id" in query

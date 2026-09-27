@@ -84,7 +84,7 @@ export function runtimeEnvironment(existingContents, buildCommit) {
   ].join("\n");
 }
 
-function run(command, args, { capture = false, allowFailure = false } = {}) {
+function run(command, args, { capture = false, allowFailure = false, includeStderr = false } = {}) {
   const result = spawnSync(command, args, {
     cwd: HOST_DIRECTORY,
     encoding: "utf8",
@@ -95,11 +95,11 @@ function run(command, args, { capture = false, allowFailure = false } = {}) {
   if (result.status !== 0 && !allowFailure) {
     throw new Error(`${command} exited with status ${result.status}`);
   }
-  return capture ? result.stdout.trim() : "";
+  return capture ? `${result.stdout}${includeStderr ? result.stderr : ""}`.trim() : "";
 }
 
-function dockerCompose(arguments_) {
-  return run("docker", [
+function dockerCompose(arguments_, options, runner = run) {
+  return runner("docker", [
     "compose",
     "--env-file",
     ".env",
@@ -108,7 +108,94 @@ function dockerCompose(arguments_) {
     "-f",
     "compose.yaml",
     ...arguments_,
-  ]);
+  ], options);
+}
+
+export function hasExpiredQuickTunnelSession(logs) {
+  const events = [];
+  for (const line of logs.split(/\r?\n/u)) {
+    if (!/Unauthorized:\s*Tunnel not found/iu.test(line)
+      && !/Registered tunnel connection/iu.test(line)) continue;
+    events.push({
+      timestamp: line.match(/^\d{4}-\d{2}-\d{2}T\S+/u)?.[0] ?? null,
+      expired: /Unauthorized:\s*Tunnel not found/iu.test(line),
+    });
+  }
+  // Docker may place stdout and stderr in separate captured buffers. Its timestamps
+  // preserve chronology when those buffers are combined for inspection.
+  if (events.every((event) => event.timestamp !== null)) {
+    events.sort((left, right) => left.timestamp.localeCompare(right.timestamp));
+  }
+  return events.at(-1)?.expired ?? false;
+}
+
+function existingTunnelSessionExpired(runner) {
+  try {
+    const containerId = dockerCompose(["ps", "-a", "-q", "tunnel"], { capture: true }, runner);
+    if (!/^[a-f0-9]{12,64}$/u.test(containerId)) return false;
+    const state = JSON.parse(runner("docker", [
+      "inspect", "--format",
+      '{"running":{{.State.Running}},"startedAt":{{json .State.StartedAt}}}',
+      containerId,
+    ], { capture: true }));
+    if (state.running !== true || typeof state.startedAt !== "string"
+      || !/^\d{4}-\d{2}-\d{2}T[\d:.]+Z$/u.test(state.startedAt)) return false;
+    const logs = runner("docker", [
+      "logs", "--timestamps", "--since", state.startedAt, "--tail", "200", containerId,
+    ], { capture: true, includeStderr: true });
+    return hasExpiredQuickTunnelSession(logs);
+  } catch {
+    // Inspection failure is not evidence that a tunnel should be rotated. The
+    // normal startup path still reports Docker/configuration failures below.
+    return false;
+  }
+}
+
+function currentRegisteredOrigin(runner) {
+  const output = dockerCompose([
+    "exec", "-T", "registrar", "python", "-m", "coordination.hosting.registrar", "--status",
+  ], { capture: true }, runner);
+  let status;
+  try {
+    status = JSON.parse(output);
+  } catch {
+    throw new Error("The registrar did not return valid current readiness status");
+  }
+  if (status?.ready !== true || typeof status.api_origin !== "string"
+    || !/^https:\/\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.trycloudflare\.com$/u.test(status.api_origin)) {
+    throw new Error("The public endpoint is not currently registered and ready");
+  }
+  return status.api_origin;
+}
+
+export function startHostServices({ runner = run, log = console.log } = {}) {
+  let recovered = false;
+  function recoverExpiredTunnel() {
+    if (recovered || !existingTunnelSessionExpired(runner)) return false;
+    recovered = true;
+    log("Cloudflare rejected the existing Quick Tunnel session. Recreating only the tunnel once; API, worker and stored data are retained.");
+    dockerCompose(["up", "-d", "--no-deps", "--force-recreate", "tunnel"], undefined, runner);
+    return true;
+  }
+  try {
+    recoverExpiredTunnel();
+    try {
+      dockerCompose(["up", "-d", "--build", "--wait", "--wait-timeout", "300"], undefined, runner);
+      return currentRegisteredOrigin(runner);
+    } catch (error) {
+      if (!recoverExpiredTunnel()) throw error;
+      dockerCompose(["up", "-d", "--wait", "--wait-timeout", "300"], undefined, runner);
+      return currentRegisteredOrigin(runner);
+    }
+  } catch (error) {
+    dockerCompose([
+      "logs", "--tail", "100", "api", "worker", "tunnel", "registrar",
+    ], { allowFailure: true }, runner);
+    if (recovered) {
+      throw new Error("Host startup failed after one Quick Tunnel recovery attempt. Check the readiness diagnostics above; no further automatic restart was performed.", { cause: error });
+    }
+    throw error;
+  }
 }
 
 function ensureHostFiles() {
@@ -130,21 +217,7 @@ function start() {
     encoding: "utf8",
     mode: 0o600,
   });
-  try {
-    dockerCompose(["up", "-d", "--build", "--wait", "--wait-timeout", "300"]);
-  } catch (error) {
-    run("docker", [
-      "compose", "--env-file", ".env", "--env-file", ".env.runtime",
-      "-f", "compose.yaml", "logs", "--tail", "100", "api", "worker", "tunnel", "registrar",
-    ], { allowFailure: true });
-    throw error;
-  }
-  const logs = run("docker", [
-    "compose", "--env-file", ".env", "--env-file", ".env.runtime",
-    "-f", "compose.yaml", "logs", "--no-color", "--tail", "40", "registrar",
-  ], { capture: true });
-  const matches = [...logs.matchAll(/https:\/\/[a-z0-9-]+\.trycloudflare\.com/giu)];
-  const origin = matches.at(-1)?.[0] ?? "the registered tunnel";
+  const origin = startHostServices();
   console.log(`\nCoordination Engine host is online at ${origin}.`);
   console.log("Keep this laptop awake, online, and running Docker Desktop.");
 }

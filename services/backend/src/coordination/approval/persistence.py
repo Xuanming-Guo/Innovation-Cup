@@ -25,6 +25,11 @@ from coordination.approval.contracts import (
 )
 from coordination.auth.models import CompanyContext
 from coordination.db.session import company_transaction
+from coordination.planning.fixed_contracts import (
+    FixedCheckReport,
+    FixedValidationReport,
+    PlanProposalV2,
+)
 
 
 class ApprovalStoreError(RuntimeError):
@@ -73,20 +78,171 @@ def _hex(value: Any) -> str:
     return bytes(value).hex()
 
 
+def _review_status(
+    *, committed: bool, binding_current: bool, planning_statuses: list[str]
+) -> PlanReviewStatus:
+    if committed:
+        return "committed"
+    if not binding_current:
+        return "stale"
+    if "rejected" in planning_statuses:
+        return "rejected"
+    if planning_statuses and all(status == "approved" for status in planning_statuses):
+        return "approved"
+    return "proposed"
+
+
+def read_review_status(
+    connection: Any, *, context: CompanyContext, plan_id: UUID
+) -> PlanReviewStatus:
+    """Read approval eligibility without rebuilding tasks or opening a second transaction."""
+    plan = connection.execute(
+        """
+        select snapshot.base_company_revision,
+          app.scope_planning_revision(plan.company_id,false) as planning_revision,
+          app.plan_sources_are_current(plan.company_id,plan.id) as sources_current,
+          exists(select 1 from app.plan_commitments commitment
+            where commitment.company_id=plan.company_id and commitment.plan_id=plan.id)
+            as committed
+        from app.plans plan
+        join app.planning_snapshots snapshot
+          on snapshot.company_id=plan.company_id and snapshot.id=plan.snapshot_id
+        where plan.company_id=%s and plan.id=%s
+          and plan.demo_run_id is not distinct from %s
+        """,
+        (context.company_id, plan_id, context.demo_run_id),
+    ).fetchone()
+    if plan is None:
+        raise PlanNotFoundError("plan was not found")
+    rows = connection.execute(
+        """
+        select decision.decision,decision.expires_at
+        from app.plan_approval_requirements requirement
+        left join lateral (
+          select latest.decision,latest.expires_at
+          from app.plan_approval_decisions latest
+          where latest.company_id=requirement.company_id
+            and latest.requirement_id=requirement.id
+          order by latest.decided_at desc,latest.id desc limit 1
+        ) decision on true
+        where requirement.company_id=%s and requirement.plan_id=%s
+          and requirement.approval_domain='planning'
+        """,
+        (context.company_id, plan_id),
+    ).fetchall()
+    now = datetime.now(UTC)
+    statuses = [
+        "expired"
+        if row["decision"] == "approved"
+        and row["expires_at"] is not None
+        and row["expires_at"] <= now
+        else row["decision"] or "pending"
+        for row in rows
+    ]
+    return _review_status(
+        committed=bool(plan["committed"]),
+        binding_current=plan["planning_revision"] == plan["base_company_revision"]
+        and bool(plan["sources_current"]),
+        planning_statuses=statuses,
+    )
+
+
+def _fixed_review_tasks(
+    connection: Any, *, context: CompanyContext, plan: dict[str, Any]
+) -> tuple[PlanTaskView, ...]:
+    """Project the exact fixed proposal without rebuilding its constraint graph."""
+    stored = connection.execute(
+        """
+        select candidate_payload, candidate_digest, author_kind
+        from app.ai_plan_proposals
+        where company_id = %s and id = %s and snapshot_id = %s
+          and demo_run_id is not distinct from %s
+        """,
+        (context.company_id, plan["ai_proposal_id"], plan["snapshot_id"], context.demo_run_id),
+    ).fetchone()
+    if stored is None:
+        raise ApprovalStoreError("the exact fixed proposal is unavailable")
+
+    try:
+        proposal = PlanProposalV2.model_validate(stored["candidate_payload"]["proposal"])
+        if (
+            proposal.proposal_id != plan["ai_proposal_id"]
+            or proposal.company_id != context.company_id
+            or proposal.demo_run_id != context.demo_run_id
+            or proposal.demo_run_id != plan["demo_run_id"]
+            or proposal.request_id != plan["request_id"]
+            or proposal.snapshot_id != plan["snapshot_id"]
+            or proposal.snapshot_digest != _hex(plan["snapshot_digest"])
+            or proposal.source_manifest_digest != _hex(plan["source_manifest_digest"])
+            or proposal.candidate_digest != _hex(stored["candidate_digest"])
+            or proposal.candidate_digest != _hex(plan["proposal_digest"])
+            or proposal.author_kind != stored["author_kind"]
+            or proposal.author_kind != plan["author_kind"]
+        ):
+            raise ApprovalStoreError("the fixed proposal does not match the plan binding")
+
+        placements = connection.execute(
+            """
+            select task_id, start_slot, end_slot, owner_resource_id
+            from app.plan_task_placements
+            where company_id = %s and plan_id = %s
+              and demo_run_id is not distinct from %s
+            """,
+            (context.company_id, plan["id"], context.demo_run_id),
+        ).fetchall()
+        definitions = {task.task_id: task for task in proposal.draft.tasks}
+        if (
+            len(definitions) != len(proposal.draft.tasks)
+            or len(placements) != len(definitions)
+            or {row["task_id"] for row in placements} != set(definitions)
+        ):
+            raise ApprovalStoreError("the fixed proposal task set does not match its placements")
+
+        horizon_start = cast(datetime, plan["horizon_start"]).astimezone(UTC)
+        slot_minutes = cast(int, plan["slot_minutes"])
+        tasks = []
+        for row in placements:
+            task = definitions[row["task_id"]]
+            start_at = horizon_start + timedelta(minutes=row["start_slot"] * slot_minutes)
+            finish_at = horizon_start + timedelta(minutes=row["end_slot"] * slot_minutes)
+            if (
+                task.owner_resource_id != row["owner_resource_id"]
+                or task.start.astimezone(UTC) != start_at
+                or task.end.astimezone(UTC) != finish_at
+            ):
+                raise ApprovalStoreError(
+                    "the fixed proposal schedule does not match its placements"
+                )
+            tasks.append(
+                PlanTaskView(
+                    task_id=task.task_id,
+                    task_key=task.task_key,
+                    title=task.title,
+                    scheduling_kind=task.scheduling_kind,
+                    start_at=start_at,
+                    finish_at=finish_at,
+                    owner_resource_id=row["owner_resource_id"],
+                )
+            )
+        return tuple(sorted(tasks, key=lambda task: (task.start_at, task.task_key)))
+    except (KeyError, TypeError, ValueError, OverflowError) as error:
+        raise ApprovalStoreError("the stored fixed proposal could not be read safely") from error
+
+
 class PostgresApprovalStore:
     def __init__(self, dsn: str, *, connect_timeout_seconds: int = 5) -> None:
         self._dsn = dsn
         self._connect_timeout_seconds = connect_timeout_seconds
 
-    def _transaction(
-        self, context: CompanyContext, purpose: str
-    ) -> AbstractContextManager[Any]:
+    def _transaction(self, context: CompanyContext, purpose: str) -> AbstractContextManager[Any]:
         return company_transaction(
             self._dsn,
             role="coordination_api",
             actor_id=context.actor.user_id,
             company_id=context.company_id,
             purpose=purpose,
+            demo_run_id=context.demo_run_id,
+            demo_actor_session_id=context.demo_actor_session_id,
             connect_timeout_seconds=self._connect_timeout_seconds,
         )
 
@@ -96,11 +252,14 @@ class PostgresApprovalStore:
                 plan = connection.execute(
                     """
                     select plan.id, plan.request_id, plan.classification, plan.proposal_digest,
+                           plan.author_kind, plan.ai_proposal_id, plan.snapshot_id,
+                           plan.demo_run_id,
                            request.original_prompt, snapshot.snapshot_digest,
                            snapshot.source_manifest_digest, snapshot.base_company_revision,
                            snapshot.horizon_start, snapshot.slot_minutes,
                            snapshot.policy ->> 'policy_version' as policy_version,
-                           company.planning_revision, company.policy_revision,
+                           app.scope_planning_revision(company.id,false) as planning_revision,
+                             company.policy_revision,
                            commitment.id as commitment_id,
                            app.plan_sources_are_current(plan.company_id, plan.id) as sources_current
                     from app.plans as plan
@@ -112,45 +271,53 @@ class PostgresApprovalStore:
                     left join app.plan_commitments as commitment
                       on commitment.company_id = plan.company_id and commitment.plan_id = plan.id
                     where plan.company_id = %s and plan.id = %s
+                      and plan.demo_run_id is not distinct from %s
                     """,
-                    (context.company_id, plan_id),
+                    (context.company_id, plan_id, context.demo_run_id),
                 ).fetchone()
                 if plan is None:
                     raise PlanNotFoundError("plan was not found")
 
-                task_rows = connection.execute(
-                    """
-                    select placement.task_id, placement.start_slot, placement.end_slot,
-                           placement.owner_resource_id, definition.payload
-                    from app.plan_task_placements as placement
-                    join app.plans as plan
-                      on plan.company_id = placement.company_id and plan.id = placement.plan_id
-                    join app.validated_constraints as definition
-                      on definition.company_id = placement.company_id
-                     and definition.request_id = plan.request_id
-                     and definition.payload ->> 'family' = 'task_definition'
-                     and definition.payload ->> 'task_id' = placement.task_id::text
-                    where placement.company_id = %s and placement.plan_id = %s
-                    order by placement.start_slot, definition.payload ->> 'task_key'
-                    """,
-                    (context.company_id, plan_id),
-                ).fetchall()
-                slot_minutes = cast(int, plan["slot_minutes"])
-                horizon_start = plan["horizon_start"]
-                tasks = tuple(
-                    PlanTaskView(
-                        task_id=row["task_id"],
-                        task_key=row["payload"]["task_key"],
-                        title=row["payload"]["title"],
-                        scheduling_kind=row["payload"]["scheduling_kind"],
-                        start_at=horizon_start
-                        + timedelta(minutes=row["start_slot"] * slot_minutes),
-                        finish_at=horizon_start
-                        + timedelta(minutes=row["end_slot"] * slot_minutes),
-                        owner_resource_id=row["owner_resource_id"],
+                if plan["author_kind"] != "legacy_solver":
+                    tasks = _fixed_review_tasks(connection, context=context, plan=plan)
+                else:
+                    task_rows = connection.execute(
+                        """
+                        select placement.task_id, placement.start_slot, placement.end_slot,
+                               placement.owner_resource_id, definition.payload
+                        from app.plan_task_placements as placement
+                        join app.plans as plan
+                          on plan.company_id = placement.company_id and plan.id = placement.plan_id
+                        join app.validated_constraints as definition
+                          on definition.company_id = placement.company_id
+                         and definition.request_id = plan.request_id
+                         and definition.payload ->> 'family' = 'task_definition'
+                         and definition.payload ->> 'task_id' = placement.task_id::text
+                        join app.planning_snapshot_constraints as snapshot_member
+                          on snapshot_member.company_id = plan.company_id
+                         and snapshot_member.snapshot_id = plan.snapshot_id
+                         and snapshot_member.constraint_id = definition.id
+                        where placement.company_id = %s and placement.plan_id = %s
+                        order by placement.start_slot, definition.payload ->> 'task_key'
+                        """,
+                        (context.company_id, plan_id),
+                    ).fetchall()
+                    slot_minutes = cast(int, plan["slot_minutes"])
+                    horizon_start = plan["horizon_start"]
+                    tasks = tuple(
+                        PlanTaskView(
+                            task_id=row["task_id"],
+                            task_key=row["payload"]["task_key"],
+                            title=row["payload"]["title"],
+                            scheduling_kind=row["payload"]["scheduling_kind"],
+                            start_at=horizon_start
+                            + timedelta(minutes=row["start_slot"] * slot_minutes),
+                            finish_at=horizon_start
+                            + timedelta(minutes=row["end_slot"] * slot_minutes),
+                            owner_resource_id=row["owner_resource_id"],
+                        )
+                        for row in task_rows
                     )
-                    for row in task_rows
-                )
 
                 change_rows = connection.execute(
                     """
@@ -225,26 +392,16 @@ class PostgresApprovalStore:
                     )
 
                 planning_requirements = [
-                    requirement
-                    for requirement in requirements
-                    if requirement.domain == "planning"
+                    requirement for requirement in requirements if requirement.domain == "planning"
                 ]
-                binding_current = (
-                    plan["planning_revision"] == plan["base_company_revision"]
-                    and bool(plan["sources_current"])
+                binding_current = plan["planning_revision"] == plan[
+                    "base_company_revision"
+                ] and bool(plan["sources_current"])
+                review_status = _review_status(
+                    committed=plan["commitment_id"] is not None,
+                    binding_current=binding_current,
+                    planning_statuses=[item.status for item in planning_requirements],
                 )
-                if plan["commitment_id"] is not None:
-                    review_status: PlanReviewStatus = "committed"
-                elif not binding_current:
-                    review_status = "stale"
-                elif any(item.status == "rejected" for item in planning_requirements):
-                    review_status = "rejected"
-                elif planning_requirements and all(
-                    item.status == "approved" for item in planning_requirements
-                ):
-                    review_status = "approved"
-                else:
-                    review_status = "proposed"
 
                 return PlanReview(
                     plan_id=plan["id"],
@@ -264,6 +421,7 @@ class PostgresApprovalStore:
                     changes=changes,
                     requirements=tuple(requirements),
                     can_commit=review_status == "approved",
+                    author_kind=plan["author_kind"],
                 )
         except PlanNotFoundError:
             raise
@@ -275,13 +433,26 @@ class PostgresApprovalStore:
             with self._transaction(context, "approval:evidence") as connection:
                 solver = connection.execute(
                     """
-                    select run.application_classification, run.raw_status, run.termination,
+                    select plan.author_kind, run.application_classification, run.raw_status,
+                      run.termination,
                            run.solver_version, run.compiler_version, run.validator_version,
                            run.runtime_ms, run.objective_vector,
-                           run.diagnostic_constraint_keys
+                           run.diagnostic_constraint_keys,
+                           verification.diagnostics as fixed_report,
+                           validation.validator_version as fixed_validator_version,
+                           validation.passed as fixed_validation_passed,
+                           validation.candidate_digest as fixed_validation_digest,
+                           validation.issues as fixed_validation_issues,
+                           verification.snapshot_digest as fixed_snapshot_digest
                     from app.plans as plan
-                    join app.solver_runs as run
+                    left join app.solver_runs as run
                       on run.company_id = plan.company_id and run.id = plan.solver_run_id
+                    left join app.plan_verification_runs verification
+                      on verification.company_id=plan.company_id and
+                        verification.id=plan.verification_run_id
+                    left join app.plan_validation_runs validation
+                      on validation.company_id=plan.company_id and
+                        validation.id=plan.validation_run_id
                     where plan.company_id = %s and plan.id = %s
                     """,
                     (context.company_id, plan_id),
@@ -331,6 +502,21 @@ class PostgresApprovalStore:
                     plan_id=plan_id,
                     constraints=constraints,
                     assumptions=assumptions,
+                    author_kind=solver["author_kind"],
+                    fixed_verification=FixedCheckReport.model_validate(
+                        solver["fixed_report"]["report"]
+                    )
+                    if solver["fixed_report"] is not None
+                    else None,
+                    independent_validation=FixedValidationReport(
+                        validator_version=solver["fixed_validator_version"],
+                        candidate_digest=_hex(solver["fixed_validation_digest"]),
+                        snapshot_digest=_hex(solver["fixed_snapshot_digest"]),
+                        passed=solver["fixed_validation_passed"],
+                        issues=solver["fixed_validation_issues"],
+                    )
+                    if solver["fixed_validator_version"] is not None
+                    else None,
                     solver=SolverDiagnostic(
                         classification=solver["application_classification"],
                         raw_status=solver["raw_status"],
@@ -340,10 +526,10 @@ class PostgresApprovalStore:
                         validator_version=solver["validator_version"],
                         runtime_ms=solver["runtime_ms"],
                         objective_vector=tuple(solver["objective_vector"]),
-                        diagnostic_constraint_keys=tuple(
-                            solver["diagnostic_constraint_keys"]
-                        ),
-                    ),
+                        diagnostic_constraint_keys=tuple(solver["diagnostic_constraint_keys"]),
+                    )
+                    if solver["application_classification"] is not None
+                    else None,
                 )
         except PlanNotFoundError:
             raise

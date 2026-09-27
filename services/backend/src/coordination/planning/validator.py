@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 from collections import defaultdict
+from collections.abc import Mapping
+from datetime import UTC, timedelta
 from uuid import UUID
+from zoneinfo import ZoneInfo
 
 from coordination.planning.contracts import (
     PlanningScope,
@@ -20,7 +23,9 @@ def _expanded_slots(blocks: list[ScheduleBlock]) -> list[int]:
     return [slot for block in blocks for slot in range(block.start_slot, block.end_slot)]
 
 
-def _segment_lengths(slots: list[int], *, slots_per_day: int) -> list[tuple[int, int]]:
+def _segment_lengths(
+    slots: list[int], *, slots_per_day: int, local_days: Mapping[int, object] | None = None
+) -> list[tuple[int, int]]:
     if not slots:
         return []
     values = sorted(set(slots))
@@ -28,7 +33,12 @@ def _segment_lengths(slots: list[int], *, slots_per_day: int) -> list[tuple[int,
     start = values[0]
     previous = values[0]
     for slot in values[1:]:
-        if slot != previous + 1 or slot // slots_per_day != previous // slots_per_day:
+        same_day = (
+            (local_days[slot] == local_days[previous])
+            if local_days is not None
+            else (slot // slots_per_day == previous // slots_per_day)
+        )
+        if slot != previous + 1 or not same_day:
             segments.append((start, previous - start + 1))
             start = slot
         previous = slot
@@ -167,10 +177,13 @@ def validate_schedule(
                         task.eligibility_constraint_id or task.definition_constraint_id,
                     ),
                 )
-            if participant_blocks:
+            expected_participants = set(task.participant_resource_ids) - {
+                placement.owner_resource_id
+            }
+            if {block.resource_id for block in participant_blocks} != expected_participants:
                 issue(
                     "unexpected_participant_block",
-                    "active single-owner task contains participant blocks",
+                    "active task participants do not match the admitted participant set",
                     task=task,
                 )
             if any(
@@ -184,6 +197,23 @@ def validate_schedule(
                     resource_id=placement.owner_resource_id,
                 )
             slots = _expanded_slots(owner_blocks)
+            for participant_id in expected_participants:
+                participant_reservations = [
+                    block for block in participant_blocks if block.resource_id == participant_id
+                ]
+                participant_slots = _expanded_slots(participant_reservations)
+                if sorted(participant_slots) != sorted(slots) or any(
+                    block.capacity_units != 1 for block in participant_reservations
+                ):
+                    issue(
+                        "participant_effort_mismatch",
+                        "every active participant must reserve the owner's full active interval",
+                        task=task,
+                        resource_id=participant_id,
+                        constraint_ids=(
+                            task.participants_constraint_id or task.definition_constraint_id,
+                        ),
+                    )
             if len(slots) != len(set(slots)):
                 issue(
                     "duplicate_task_capacity",
@@ -207,7 +237,22 @@ def validate_schedule(
                     task=task,
                 )
             slots_per_day = max(1, 1_440 // normalized.snapshot.slot_minutes)
-            segments = _segment_lengths(slots, slots_per_day=slots_per_day)
+            owner = (
+                normalized.resources.get(placement.owner_resource_id)
+                if placement.owner_resource_id is not None
+                else None
+            )
+            zone = ZoneInfo(owner.timezone if owner is not None else "UTC")
+            local_days = {
+                slot: (
+                    normalized.snapshot.horizon_start.astimezone(UTC)
+                    + timedelta(minutes=slot * normalized.snapshot.slot_minutes)
+                )
+                .astimezone(zone)
+                .date()
+                for slot in set(slots)
+            }
+            segments = _segment_lengths(slots, slots_per_day=slots_per_day, local_days=local_days)
             if not task.split_allowed and len(segments) > 1:
                 issue(
                     "unauthorized_split",
@@ -227,9 +272,9 @@ def validate_schedule(
                         task.segmentation_constraint_id or task.definition_constraint_id,
                     ),
                 )
-            by_day: dict[int, int] = defaultdict(int)
+            by_day: dict[object, int] = defaultdict(int)
             for start, _length in segments:
-                by_day[start // slots_per_day] += 1
+                by_day[local_days[start]] += 1
             if any(count > (task.max_segments_per_day or 1) for count in by_day.values()):
                 issue(
                     "excessive_fragmentation",
@@ -398,6 +443,20 @@ def validate_schedule(
                     constraint_ids=(review.constraint_id,),
                 )
 
+    for gate in normalized.execution_gates:
+        predecessor = placement_map.get(gate.predecessor_task_id)
+        successor = placement_map.get(gate.successor_task_id)
+        if (
+            predecessor is None
+            or successor is None
+            or successor.start_slot < predecessor.end_slot + gate.minimum_lag_slots
+        ):
+            issue(
+                "execution_gate_order",
+                "successor reservation precedes its required decision/artifact gate",
+                task_id=gate.successor_task_id,
+            )
+
     usage: dict[tuple[UUID, int], int] = defaultdict(int)
     budget_usage: dict[tuple[UUID, int], int] = defaultdict(int)
     for block in blocks:
@@ -420,12 +479,23 @@ def validate_schedule(
                     resource_id=resource.resource_id,
                     constraint_ids=(resource.constraint_id,),
                 )
-        slots_per_day = max(1, 1_440 // normalized.snapshot.slot_minutes)
+        zone = ZoneInfo(resource.timezone)
+        first_day = normalized.snapshot.horizon_start.astimezone(zone).date()
         for day_index, budget in resource.daily_budgets.items():
             consumed = sum(
                 units
                 for (resource_id, slot), units in budget_usage.items()
-                if resource_id == resource.resource_id and slot // slots_per_day == day_index
+                if resource_id == resource.resource_id
+                and (
+                    (
+                        normalized.snapshot.horizon_start.astimezone(UTC)
+                        + timedelta(minutes=slot * normalized.snapshot.slot_minutes)
+                    )
+                    .astimezone(zone)
+                    .date()
+                    - first_day
+                ).days
+                == day_index
             )
             if consumed > budget:
                 issue(

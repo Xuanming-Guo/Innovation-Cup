@@ -66,7 +66,7 @@ const tauriConfig = JSON.parse(await readFile(
   path.join(repositoryRoot, "apps", "desktop", "src-tauri", "tauri.conf.json"),
   "utf8",
 ));
-const commit = (process.env.GITHUB_SHA || commandVersion("git", ["rev-parse", "HEAD"]).split(/\s/)[0]).trim();
+const commit = (process.env.RELEASE_COMMIT || process.env.GITHUB_SHA || commandVersion("git", ["rev-parse", "HEAD"]).split(/\s/)[0]).trim();
 if (!/^[0-9a-f]{40}$/i.test(commit)) throw new Error("Build commit must be a full 40-character SHA");
 
 const artifacts = await Promise.all(artifactFiles.map(async (filename) => {

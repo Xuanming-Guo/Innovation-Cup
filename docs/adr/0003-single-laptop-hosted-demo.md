@@ -39,6 +39,14 @@ refresh, so a restarted tunnel does not require rebuilding installers. The API a
 separate least-privileged database logins. The manager still configures the company Google AI
 credential through Connections; no provider credential is part of host or installer configuration.
 
+The tunnel container supervises only its own pinned `cloudflared` child. If Cloudflare returns the
+exact permanent `Unauthorized: Tunnel not found` response, the supervisor terminates that child and
+requests a fresh Quick Tunnel after a capped backoff. Ordinary DNS, TLS, QUIC and timeout failures
+remain cloudflared reconnect conditions and do not rotate the endpoint. The supervisor has no Docker
+socket and cannot restart the API or worker. The registrar independently validates and publishes the
+new origin. Compose also gives external-facing services two configurable upstream DNS resolvers;
+Docker's embedded resolver continues to resolve private service names.
+
 ## Consequences
 
 - The host laptop needs Docker Desktop, Node 24, Git, the repository clone and one ignored
@@ -50,6 +58,8 @@ credential through Connections; no provider credential is part of host or instal
 - Cloudflare Quick Tunnels are free and suitable for a controlled demo, but they are explicitly a
   testing/development facility without a production SLA. A production deployment should use a
   stable named tunnel/domain or another continuously available container host.
+- The tunnel supervisor repairs a revoked Quick Tunnel session, but it cannot make an accountless
+  tunnel, the laptop, Docker Desktop, an ISP or an upstream DNS service highly available.
 - Windows and macOS may warn about the current unsigned/ad-hoc installers. This ADR does not
   change the signing/notarisation gate.
 

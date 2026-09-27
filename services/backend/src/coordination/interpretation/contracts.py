@@ -7,6 +7,35 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+# Public planning progress may expose these fixed codes, never arbitrary provider
+# messages or model content stored by a future/older worker implementation.
+PLANNING_MODEL_ERROR_CODES = frozenset(
+    {
+        "model_invalid_output",
+        "model_output_truncated",
+        "model_empty_output",
+        "model_incomplete_output",
+        "model_refusal",
+        "model_timeout",
+        "model_throttled",
+        "model_transient_error",
+        "model_permanent_error",
+        "model_bad_request",
+        "model_auth_rejected",
+        "model_forbidden",
+        "model_not_found",
+        "prior_work_version_changed",
+        "admitted_task_facts_changed",
+        "unchanged_candidate",
+        "revision_outside_violation_scope",
+        "revision_changed_admitted_work",
+    }
+)
+
+
+def safe_planning_model_error_code(code: str | None) -> str | None:
+    return code if code in PLANNING_MODEL_ERROR_CODES else None
+
 
 class StrictContract(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -69,7 +98,7 @@ class CandidateDeadline(StrictContract):
 
 
 class CandidateRequirement(StrictContract):
-    requirement_key: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    requirement_key: str = Field(pattern=r"^[a-z][a-z0-9_.-]{0,63}$")
     kind: Literal["skill", "qualification", "permission", "tool", "input", "review"]
     description: str = Field(min_length=1, max_length=1000)
     strength: Literal["hard", "preferred"]

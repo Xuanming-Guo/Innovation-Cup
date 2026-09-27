@@ -85,6 +85,171 @@
       "file": "20260926026000_actionable_admission_clarifications.sql",
       "sha256": "05ea8325dbecc66e8841a82a750908dc5d8fb2de7c7a17fcbeb84ce52ea38aa7",
       "version": "20260926026000"
+    },
+    {
+      "file": "20260927010000_alto_demo_identity_runs.sql",
+      "sha256": "e6891b0b5aa3b4a2be5c7f66333f759f2f85421030fce47659a75121e4379d0f",
+      "version": "20260927010000"
+    },
+    {
+      "file": "20260927011000_alto_run_scope_integrity.sql",
+      "sha256": "d46c12a9cf35b620b7d861d259f32819b8d0c83925972fdf38a272729a41ae26",
+      "version": "20260927011000"
+    },
+    {
+      "file": "20260927012000_alto_workspace_domains.sql",
+      "sha256": "f17a67e5946ffa30a0eacf5c0d1d7b73ee11add04edd3ae0b487dd46580f3563",
+      "version": "20260927012000"
+    },
+    {
+      "file": "20260927013000_alto_ai_proposals_fixed_verification.sql",
+      "sha256": "a98f99a240495850f155e8c65dbf71eef8e18340c0608e1e7e444ae5d0fa870e",
+      "version": "20260927013000"
+    },
+    {
+      "file": "20260927014000_alto_execution_authority.sql",
+      "sha256": "6c50b7659db74632f096aad02c07b1004c7fa68d9bef9d77b12d76bb615bb5b2",
+      "version": "20260927014000"
+    },
+    {
+      "file": "20260927015000_alto_durable_run_fencing.sql",
+      "sha256": "fef4418153a579cf262a4b30ca89a04b90d1548f5fec0e9b91d299104665ac14",
+      "version": "20260927015000"
+    },
+    {
+      "file": "20260927016000_alto_demo_provider_vault.sql",
+      "sha256": "d9e7df1f8791aaa2321684aaddafacf070ab792d96dae9af7f31e99f41472680",
+      "version": "20260927016000"
+    },
+    {
+      "file": "20260927017000_alto_private_storage_lifecycle.sql",
+      "sha256": "6938cffa538d7f0e430e5170f8a7876ed0a1f98c352a9aaac65930f096b1fd97",
+      "version": "20260927017000"
+    },
+    {
+      "file": "20260927018000_alto_scenario_fork_and_clock.sql",
+      "sha256": "0f57e86fe51147f35eb6c6a85b5d4ef87702d81b23316830cb5b39b7c6cdafbe",
+      "version": "20260927018000"
+    },
+    {
+      "file": "20260927019000_alto_privacy_and_command_completion.sql",
+      "sha256": "d09e0320b367c25743f703e462dca4f752116ade379a7a1cc53ccc8805be3b78",
+      "version": "20260927019000"
+    },
+    {
+      "file": "20260927020000_alto_guarded_execution_materialization.sql",
+      "sha256": "1cbf07905c2bf1c69ded74c77b71d78018c447883a72da58f8b7ec103d93c605",
+      "version": "20260927020000"
+    },
+    {
+      "file": "20260927021000_alto_worker_storage_capability.sql",
+      "sha256": "b0c9e37422039f13a36db78c29308fac8fec08f9cb17f5cacd1be76c3ba5c957",
+      "version": "20260927021000"
+    },
+    {
+      "file": "20260927022000_alto_audio_retention_and_worker_context.sql",
+      "sha256": "acaff2d78387ad241a007a24065eace9af11acdb979c09f5d95cc68d08b4f91a",
+      "version": "20260927022000"
+    },
+    {
+      "file": "20260927023000_alto_exact_review_and_goal_gates.sql",
+      "sha256": "f32b0432f3ec3482d5065664566bdd38b1ac6c529c9e19f7fb6f9955d156b9a2",
+      "version": "20260927023000"
+    },
+    {
+      "file": "20260927024000_alto_recorded_authority_and_brief_views.sql",
+      "sha256": "a1070f88900e1c2c19b0c2e67360aebad49d6ec1d760d07a3e5c9a2eaef93779",
+      "version": "20260927024000"
+    },
+    {
+      "file": "20260927025000_alto_consent_notifications_and_reconciliation.sql",
+      "sha256": "5f3bccb33f168c615c87ff33b737b7d71db2f3c472eb052557d04a04f767a32f",
+      "version": "20260927025000"
+    },
+    {
+      "file": "20260927026000_alto_retention_and_connection_receipts.sql",
+      "sha256": "8272f8a5a26e75f02b29a60bac206980f08b402850ebaf25bd5657753a34a345",
+      "version": "20260927026000"
+    },
+    {
+      "file": "20260927027000_alto_pinned_scenario_authority.sql",
+      "sha256": "46ab15fa99ad2355dbd3bec35f2b523fa48e23f0322b9e5a88572a6bd81305bf",
+      "version": "20260927027000"
+    },
+    {
+      "file": "20260927028000_alto_worker_projection_and_capacity_freshness.sql",
+      "sha256": "8f9a2f4e3645ab1b713287fd8f4aeabd5dc6c53ae25c8aecb4cef3ca3eb7e2f6",
+      "version": "20260927028000"
+    },
+    {
+      "file": "20260927029000_alto_self_declared_profile_skills.sql",
+      "sha256": "a478cc0c2c228545adede364bb3bd50c2868ac4f65bc9b6af7072c33693f6b0b",
+      "version": "20260927029000"
+    },
+    {
+      "file": "20260927030000_alto_exact_consent_recipient_read.sql",
+      "sha256": "5af0108fe5d443815364506f48155268ee7c1fdd4b7803a192291cd3c916fd30",
+      "version": "20260927030000"
+    },
+    {
+      "file": "20260927031000_alto_legacy_outbox_scope_conflicts.sql",
+      "sha256": "c586fe83a7f5ff1ea9e4fbcb10664eb6fec16e8d94835254a93de8e1faf68609",
+      "version": "20260927031000"
+    },
+    {
+      "file": "20260927032000_alto_private_insert_returning_policies.sql",
+      "sha256": "dd75c8c4eda34be6d27bddeda6df3f0aa25558a1b6a6ee34af3bbdcc0d44ee62",
+      "version": "20260927032000"
+    },
+    {
+      "file": "20260927033000_alto_cancellation_audit_integrity.sql",
+      "sha256": "98bc2948dd6665c7d5174d7a6461d1637df05600925bab3de4cae752aa5cf83e",
+      "version": "20260927033000"
+    },
+    {
+      "file": "20260927034000_alto_job_lease_renewal_result.sql",
+      "sha256": "f1d8f1b143895580948c0d60b9e15c0f0f1373ab27810e23014489035a52e52b",
+      "version": "20260927034000"
+    },
+    {
+      "file": "20260927035000_alto_model_run_generated_scope.sql",
+      "sha256": "a01e9eda5787c440601e8b8543cfd78614e18f2c36580e1c4dc8d672d6e4a419",
+      "version": "20260927035000"
+    },
+    {
+      "file": "20260927036000_alto_exact_proposal_assistant.sql",
+      "sha256": "e233599e6f8bd38cffd47b59c8e74a480f2adbefd83ab3a88f43524d4bd23f96",
+      "version": "20260927036000"
+    },
+    {
+      "file": "20260927037000_alto_confirmed_assistant_plan_actions.sql",
+      "sha256": "997e1056e0ae77cbe0377c61f3bb9f06bf7c9b72abf10464220c99ac375eccaa",
+      "version": "20260927037000"
+    },
+    {
+      "file": "20260927038000_alto_bounded_live_plan_revision.sql",
+      "sha256": "d4c138b49c8ee29fe7979c42dcb13fbb82841d905cb807fb3704795635fa3537",
+      "version": "20260927038000"
+    },
+    {
+      "file": "20260927039000_alto_hackathon_quickstart.sql",
+      "sha256": "d2d10ad7d39f53474391fe1ff4e4c14e09945c71f66bcbe904bde9458ca972fa",
+      "version": "20260927039000"
+    },
+    {
+      "file": "20260927040000_alto_expired_job_reconciliation.sql",
+      "sha256": "00a1deb66204c8188c5d7d4bdb5a5892e7487c573c5fb9bf8e4d8ca47d7e6471",
+      "version": "20260927040000"
+    },
+    {
+      "file": "20260927041000_alto_locked_demo_job_continuity.sql",
+      "sha256": "e861cd1b5353b72a62db28163c9b52f6071259ebe7c7a1f4b0c464989f40c33e",
+      "version": "20260927041000"
+    },
+    {
+      "file": "20260927042000_alto_locked_demo_session_rebind.sql",
+      "sha256": "8b87fa29ced7cc22868abd1e8a2117beed43d4d90b5e24969ffaccd9659daea4",
+      "version": "20260927042000"
     }
   ]
 }

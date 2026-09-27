@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import UUID, uuid5
@@ -16,7 +15,6 @@ from coordination.interpretation.contracts import (
     ClarificationBasis,
     EvidenceBasis,
 )
-from coordination.planning.compiler import COMPILER_VERSION
 from coordination.planning.contracts import (
     DailyBudget,
     DeadlinePayload,
@@ -33,6 +31,7 @@ from coordination.planning.contracts import (
     ValidatedConstraint,
     WorkingWindowPayload,
 )
+from coordination.planning.fixed_verifier import FIXED_COMPILER_VERSION
 
 MATERIALIZER_VERSION = "coordination-candidate-materializer.v1"
 
@@ -100,7 +99,7 @@ class MaterializationInput(StrictMaterializationModel):
     requester_membership_id: UUID
     resources: tuple[PlanningResourceProfile, ...] = Field(min_length=1, max_length=500)
     frozen_at: datetime
-    slot_minutes: int = Field(default=30, ge=5, le=240)
+    slot_minutes: int = Field(default=15, ge=5, le=240)
 
     @field_validator("frozen_at")
     @classmethod
@@ -113,9 +112,7 @@ class MaterializationInput(StrictMaterializationModel):
 def _source_ids(bases: tuple[CandidateBasis, ...]) -> tuple[UUID, ...]:
     if any(isinstance(basis, AssumptionBasis) for basis in bases):
         raise MaterializationError("planning constraints require confirmed bases")
-    source_ids = {
-        basis.source_version_id for basis in bases if isinstance(basis, EvidenceBasis)
-    }
+    source_ids = {basis.source_version_id for basis in bases if isinstance(basis, EvidenceBasis)}
     return tuple(sorted(source_ids, key=str))
 
 
@@ -160,7 +157,9 @@ def _deadline_slot(deadline: datetime, horizon_start: datetime, slot_minutes: in
     elapsed = (deadline.astimezone(UTC) - horizon_start).total_seconds() / 60
     if elapsed <= 0:
         raise MaterializationError("candidate deadline precedes the planning horizon")
-    return math.ceil(elapsed / slot_minutes)
+    if elapsed % slot_minutes:
+        raise MaterializationError("deadline must align exactly to the planning granularity")
+    return int(elapsed // slot_minutes)
 
 
 def _priority_tier(value: str | None) -> int:
@@ -174,8 +173,7 @@ def _task_eligibility(
     hard_capabilities = {
         requirement.requirement_key
         for requirement in task.requirements
-        if requirement.strength == "hard"
-        and requirement.kind in {"skill", "qualification", "tool"}
+        if requirement.strength == "hard" and requirement.kind in {"skill", "qualification", "tool"}
     }
     hard_permissions = {
         requirement.requirement_key
@@ -236,7 +234,9 @@ def _dependency_constraint(
 ) -> ValidatedConstraint:
     if dependency.dependency_type == "information":
         raise MaterializationError("information dependencies need an explicit confirmed handoff")
-    lag_slots = math.ceil(dependency.minimum_lag_minutes / slot_minutes)
+    if dependency.minimum_lag_minutes % slot_minutes:
+        raise MaterializationError("dependency lag must align exactly to the planning granularity")
+    lag_slots = dependency.minimum_lag_minutes // slot_minutes
     return _constraint(
         constraint_id=(
             f"dependency.{dependency.predecessor_task_key}.{dependency.successor_task_key}"
@@ -334,7 +334,11 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
         )
         if deadline_slot > horizon_slots:
             raise MaterializationError("candidate deadline exceeds the planning horizon")
-        effort_slots = math.ceil(task.estimate.active_minutes / value.slot_minutes)
+        if task.estimate.active_minutes % value.slot_minutes:
+            raise MaterializationError(
+                "active effort must align exactly to the planning granularity"
+            )
+        effort_slots = task.estimate.active_minutes // value.slot_minutes
         eligible = _task_eligibility(task, value.resources)
         requirement_sources = tuple(
             sorted(
@@ -377,7 +381,9 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                     constraint_id=f"task.{task.task_key}.effort",
                     company_id=contract.company_id,
                     payload=EffortPayload(
-                        family="effort", task_id=task_id, active_slots=effort_slots,
+                        family="effort",
+                        task_id=task_id,
+                        active_slots=effort_slots,
                         elapsed_slots=effort_slots,
                     ),
                     source_version_ids=estimate_sources,
@@ -387,17 +393,15 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                     constraint_id=f"task.{task.task_key}.eligibility",
                     company_id=contract.company_id,
                     payload=EligibilityPayload(
-                        family="eligibility", task_id=task_id,
+                        family="eligibility",
+                        task_id=task_id,
                         allowed_resource_ids=eligible,
                     ),
                     source_version_ids=requirement_sources or task_sources,
                     authority_refs=tuple(
                         sorted(
                             set(requirement_authority_refs)
-                            | {
-                                f"resource-profile:{resource_id}"
-                                for resource_id in eligible
-                            }
+                            | {f"resource-profile:{resource_id}" for resource_id in eligible}
                         )
                     ),
                 ),
@@ -405,8 +409,10 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                     constraint_id=f"task.{task.task_key}.window",
                     company_id=contract.company_id,
                     payload=WorkingWindowPayload(
-                        family="working_window", task_id=task_id,
-                        release_slot=0, end_slot=deadline_slot,
+                        family="working_window",
+                        task_id=task_id,
+                        release_slot=0,
+                        end_slot=deadline_slot,
                     ),
                     source_version_ids=task_sources,
                     authority_refs=tuple(sorted({authority, *task_authority_refs})),
@@ -415,7 +421,8 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                     constraint_id=f"task.{task.task_key}.deadline",
                     company_id=contract.company_id,
                     payload=DeadlinePayload(
-                        family="deadline", task_id=task_id,
+                        family="deadline",
+                        task_id=task_id,
                         requested_finish_slot=deadline_slot,
                         hard_finish_slot=(
                             deadline_slot
@@ -451,7 +458,8 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                     constraint_id=f"task.{task.task_key}.priority",
                     company_id=contract.company_id,
                     payload=PriorityPayload(
-                        family="priority", task_id=task_id,
+                        family="priority",
+                        task_id=task_id,
                         tier=_priority_tier(value.requested_priority_key),
                     ),
                     authority_refs=(authority, policy_authority),
@@ -460,8 +468,10 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                     constraint_id=f"task.{task.task_key}.segmentation",
                     company_id=contract.company_id,
                     payload=SegmentationPayload(
-                        family="segmentation", task_id=task_id,
-                        split_allowed=False, minimum_segment_slots=effort_slots,
+                        family="segmentation",
+                        task_id=task_id,
+                        split_allowed=False,
+                        minimum_segment_slots=effort_slots,
                         max_segments_per_day=1,
                     ),
                     authority_refs=(policy_authority,),
@@ -470,8 +480,11 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                     constraint_id=f"task.{task.task_key}.movement",
                     company_id=contract.company_id,
                     payload=MovementPayload(
-                        family="movement", task_id=task_id, movement="new",
-                        existing_resource_id=None, existing_slots=(),
+                        family="movement",
+                        task_id=task_id,
+                        movement="new",
+                        existing_resource_id=None,
+                        existing_slots=(),
                     ),
                     authority_refs=(authority,),
                 ),
@@ -503,13 +516,13 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
         permission_revision=f"policy:{value.policy_revision}",
         profile_revision=f"profiles:{profile_revision}",
         estimate_revision=f"estimates:{estimate_revision}",
-        compiler_version=COMPILER_VERSION,
+        compiler_version=FIXED_COMPILER_VERSION,
         policy=PlanningPolicy(
-            policy_version="coordination-planning-policy.v1",
+            policy_version="alto-fixed-planning-policy.v1",
             timeout_ms=5_000,
             resource_limit=2_000_000,
-            allow_authorized_repair=True,
-            max_repair_attempts=1,
+            allow_authorized_repair=False,
+            max_repair_attempts=0,
         ),
         constraints=tuple(constraints),
         frozen_at=value.frozen_at,

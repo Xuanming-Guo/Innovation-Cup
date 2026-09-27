@@ -9,7 +9,7 @@ import {
 } from "./api-client";
 import { CompanyConnections } from "./company-connections";
 import { EmployeeWorkspace } from "./employee-workspace";
-import { PlanReviewWorkspace } from "./plan-review";
+import { PlanningConversation } from "./planning-conversation";
 
 const api: AuthorisedApiContext = {
   apiOrigin: "https://api.example.invalid",
@@ -55,12 +55,14 @@ describe("connected workspaces", () => {
       }),
     );
 
-    render(<PlanReviewWorkspace api={api} />);
+    render(<PlanningConversation api={api} initialDraft="Prepare the release handoff." />);
 
-    expect(await screen.findByText("Software release commitments")).toBeVisible();
+    await screen.findByText("Software release commitments");
+    fireEvent.click(screen.getByText(/Sources for this request/));
+    expect(screen.getByText("Software release commitments")).toBeVisible();
     const deadline = screen.getByLabelText("Target deadline") as HTMLInputElement;
     expect(deadline.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
-    expect(screen.getByRole("button", { name: "Create checked plan" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Prepare plan" })).toBeEnabled();
     expect(screen.queryByText(/Sample data/i)).not.toBeInTheDocument();
   });
 
@@ -175,10 +177,10 @@ describe("connected workspaces", () => {
       }),
     );
 
-    render(<PlanReviewWorkspace api={api} />);
+    render(<PlanningConversation api={api} requestId="request-1" />);
 
     const answer = await screen.findByLabelText("Which manager approves assignments?");
-    const resume = screen.getByRole("button", { name: "Submit answers and resume" });
+    const resume = screen.getByRole("button", { name: "Answer and continue" });
     expect(resume).toBeDisabled();
     fireEvent.change(answer, { target: { value: "The requesting manager." } });
     expect(resume).toBeEnabled();

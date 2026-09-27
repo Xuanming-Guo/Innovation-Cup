@@ -13,9 +13,47 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+# Only public client configuration is made available to the native build jobs.
+env:
+  VITE_PRODUCT_NAME: ALTO
+  VITE_HACKATHON_DEMO: "true"
+  VITE_API_MODE: supabase-discovery
+  VITE_API_ORIGIN: ""
+  VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
+  VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
+  VITE_DEFAULT_COMPANY_ID: ${{ vars.VITE_DEFAULT_COMPANY_ID }}
+
 jobs:
+  release-contract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.contract.outputs.version }}
+      commit: ${{ steps.contract.outputs.commit }}
+    steps:
+      - name: Check out repository and main history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v5.0.0
+        with:
+          node-version: 24
+
+      - name: Enforce versions, tag and reviewed main ancestry
+        id: contract
+        run: node scripts/release-contract.mjs
+
+      - name: Validate locked public judge configuration
+        run: node scripts/validate-public-config.mjs --judge
+
+      - name: Test release safeguards
+        run: node --test scripts/validate-public-config.test.mjs scripts/release-automation.test.mjs
+
   native-artifact:
     name: ${{ matrix.name }}
+    needs: release-contract
     strategy:
       fail-fast: false
       matrix:
@@ -27,7 +65,8 @@ jobs:
             platform: windows
             architecture: x64
             host_architecture: AMD64
-            artifact_name: coordination-engine-windows-x64
+            artifact_name: ALTO-windows-x64
+            filename: ALTO-windows-x64-setup.exe
             signing: unsigned
             notarization: not-applicable
           - name: macOS Apple Silicon DMG
@@ -37,7 +76,8 @@ jobs:
             platform: macos
             architecture: arm64
             host_architecture: arm64
-            artifact_name: coordination-engine-macos-arm64
+            artifact_name: ALTO-mac-apple-silicon
+            filename: ALTO-mac-apple-silicon.dmg
             signing: ad-hoc
             notarization: not-notarized
           - name: macOS Intel DMG
@@ -47,14 +87,18 @@ jobs:
             platform: macos
             architecture: x64
             host_architecture: x86_64
-            artifact_name: coordination-engine-macos-x64
+            artifact_name: ALTO-mac-intel
+            filename: ALTO-mac-intel.dmg
             signing: ad-hoc
             notarization: not-notarized
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 40
+    timeout-minutes: 60
     steps:
-      - name: Check out repository
+      - name: Check out release commit
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-contract.outputs.commit }}
+          persist-credentials: false
 
       - name: Set up Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v5.0.0
@@ -86,15 +130,6 @@ jobs:
             exit 1
           }
 
-      - name: Validate baked public configuration
-        env:
-          VITE_API_MODE: ${{ vars.VITE_API_MODE }}
-          VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          VITE_DEFAULT_COMPANY_ID: ${{ vars.VITE_DEFAULT_COMPANY_ID }}
-        run: npm run release:config:check
-
       - name: Install locked JavaScript dependencies
         run: npm ci
 
@@ -102,12 +137,6 @@ jobs:
         env:
           APPLE_SIGNING_IDENTITY: ${{ runner.os == 'macOS' && '-' || '' }}
           MACOSX_DEPLOYMENT_TARGET: ${{ runner.os == 'macOS' && '13.0' || '' }}
-          VITE_PRODUCT_NAME: ${{ vars.VITE_PRODUCT_NAME }}
-          VITE_API_MODE: ${{ vars.VITE_API_MODE }}
-          VITE_API_ORIGIN: ${{ vars.VITE_API_ORIGIN }}
-          VITE_SUPABASE_URL: ${{ vars.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ vars.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          VITE_DEFAULT_COMPANY_ID: ${{ vars.VITE_DEFAULT_COMPANY_ID }}
         run: npm --workspace @coordination/desktop run tauri -- build --target ${{ matrix.target }} --bundles ${{ matrix.bundles }}
 
       - name: Stage Windows distributable
@@ -116,36 +145,106 @@ jobs:
         run: |
           $destination = 'artifacts/release/${{ matrix.artifact_name }}'
           New-Item -ItemType Directory -Force -Path $destination | Out-Null
-          Copy-Item -Path 'apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe' -Destination $destination
+          $installers = @(Get-ChildItem -Path 'apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/nsis/*.exe' -File)
+          if ($installers.Count -ne 1) { throw 'Expected exactly one NSIS installer' }
+          Copy-Item -LiteralPath $installers[0].FullName -Destination "$destination/${{ matrix.filename }}"
 
-      - name: Stage macOS distributable
+      - name: Inspect and stage macOS distributable
         if: runner.os == 'macOS'
         shell: bash
         run: |
+          shopt -s nullglob
+          apps=(apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app)
+          images=(apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg)
+          test "${#apps[@]}" = 1
+          test "${#images[@]}" = 1
+          executable=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "${apps[0]}/Contents/Info.plist")
+          test "$(lipo -archs "${apps[0]}/Contents/MacOS/$executable")" = '${{ matrix.host_architecture }}'
+          codesign --verify --deep --strict "${apps[0]}"
+          codesign --display --verbose=4 "${apps[0]}" 2>&1 | grep -F 'Signature=adhoc'
+          hdiutil verify "${images[0]}"
           destination='artifacts/release/${{ matrix.artifact_name }}'
           mkdir -p "$destination"
-          cp apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/dmg/*.dmg "$destination/"
+          cp "${images[0]}" "$destination/${{ matrix.filename }}"
 
-      - name: Generate and verify release manifest
+      - name: Generate and verify platform manifest
         shell: bash
+        env:
+          RELEASE_COMMIT: ${{ needs.release-contract.outputs.commit }}
         run: |
           directory='artifacts/release/${{ matrix.artifact_name }}'
           node scripts/release-manifest.mjs \
             --input "$directory" \
-            --output "$directory/release-manifest.json" \
+            --output "$directory/${{ matrix.artifact_name }}-manifest.json" \
             --platform '${{ matrix.platform }}' \
             --arch '${{ matrix.architecture }}' \
             --target '${{ matrix.target }}' \
             --signing '${{ matrix.signing }}' \
             --notarization '${{ matrix.notarization }}'
-          node scripts/verify-release.mjs "$directory/release-manifest.json"
+          node scripts/verify-release.mjs "$directory/${{ matrix.artifact_name }}-manifest.json"
 
-      - name: Upload native artifact
+      - name: Upload native candidate artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: ${{ matrix.artifact_name }}
-          path: |
-            artifacts/release/${{ matrix.artifact_name }}/
-            apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle/macos/*.app
+          path: artifacts/release/${{ matrix.artifact_name }}/
           if-no-files-found: error
+          overwrite: true
           retention-days: 30
+
+  release-set:
+    name: Verify complete three-platform release
+    needs: [release-contract, native-artifact]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-contract.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v5.0.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: ALTO-*
+          merge-multiple: true
+          path: artifacts/release-set
+      - name: Verify complete set and generate checksums
+        env:
+          RELEASE_COMMIT: ${{ needs.release-contract.outputs.commit }}
+        run: node scripts/release-set.mjs artifacts/release-set
+      - name: Retain verified complete set
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: verified-release-set
+          path: artifacts/release-set/
+          if-no-files-found: error
+          overwrite: true
+          retention-days: 30
+
+  publish:
+    name: Publish complete tagged release
+    if: github.event_name == 'push' && github.ref_type == 'tag'
+    needs: [release-contract, release-set]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.release-contract.outputs.commit }}
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v5.0.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: verified-release-set
+          path: artifacts/release-set
+      - name: Upload to draft, verify remote checksums, then publish latest
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          RELEASE_COMMIT: ${{ needs.release-contract.outputs.commit }}
+        run: node scripts/publish-release.mjs artifacts/release-set

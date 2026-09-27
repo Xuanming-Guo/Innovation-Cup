@@ -87,7 +87,6 @@ def test_verifies_required_supabase_session_claims(rsa_keys: tuple[object, objec
         ("aud", "wrong-audience"),
         ("iss", "https://attacker.invalid/auth/v1"),
         ("role", "service_role"),
-        ("is_anonymous", True),
         ("sub", "not-a-uuid"),
         ("session_id", "not-a-uuid"),
         ("aal", "aal3"),
@@ -121,3 +120,15 @@ def test_rejects_expiry_missing_kid_and_symmetric_algorithm(
     )
     with pytest.raises(AuthenticationError):
         verifier(public_key).verify(hs_token)
+
+
+def test_verifies_anonymous_session_as_explicit_identity_state(
+    rsa_keys: tuple[object, object],
+) -> None:
+    private_key, public_key = rsa_keys
+
+    actor = verifier(public_key).verify(
+        encode(claims(is_anonymous=True), private_key)
+    )
+
+    assert actor.is_anonymous is True

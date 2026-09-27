@@ -5,10 +5,12 @@ from dataclasses import dataclass
 from uuid import UUID
 
 from coordination.planning.contracts import (
+    ActiveParticipantsPayload,
     DeadlinePayload,
     DependencyPayload,
     EffortPayload,
     EligibilityPayload,
+    ExecutionGatePayload,
     FixedAttendancePayload,
     MovementPayload,
     PlanningSnapshot,
@@ -20,6 +22,7 @@ from coordination.planning.contracts import (
     SharedResourceDemand,
     SharedResourcePayload,
     TaskDefinitionPayload,
+    TaskReviewPolicyPayload,
     ValidationIssue,
     WorkingWindowPayload,
 )
@@ -89,6 +92,8 @@ class TaskSpec:
     fixed_resource_ids: tuple[UUID, ...] = ()
     fixed_slots: tuple[int, ...] = ()
     fixed_constraint_id: str | None = None
+    participant_resource_ids: tuple[UUID, ...] = ()
+    participants_constraint_id: str | None = None
     deadline: DeadlinePayload | None = None
     deadline_constraint_id: str | None = None
     priority_tier: int = 5
@@ -103,6 +108,8 @@ class TaskSpec:
     existing_resource_id: UUID | None = None
     existing_slots: tuple[int, ...] = ()
     movement_constraint_id: str | None = None
+    review_policy: TaskReviewPolicyPayload | None = None
+    review_policy_constraint_id: str | None = None
 
     @property
     def constraint_ids(self) -> tuple[str, ...]:
@@ -111,11 +118,13 @@ class TaskSpec:
             self.eligibility_constraint_id,
             self.window_constraint_id,
             self.fixed_constraint_id,
+            self.participants_constraint_id,
             self.deadline_constraint_id,
             self.priority_constraint_id,
             self.shared_constraint_id,
             self.segmentation_constraint_id,
             self.movement_constraint_id,
+            self.review_policy_constraint_id,
         )
         return (self.definition_constraint_id, *(value for value in optional if value))
 
@@ -129,6 +138,7 @@ class NormalizedPlanningModel:
     dependencies: tuple[DependencySpec, ...]
     reviews: tuple[ReviewSpec, ...]
     constraint_ids: tuple[str, ...]
+    execution_gates: tuple[ExecutionGatePayload, ...] = ()
 
 
 def _cycle_exists(
@@ -166,6 +176,7 @@ def normalize_snapshot(snapshot: PlanningSnapshot) -> NormalizedPlanningModel:
     reservations: list[ReservationSpec] = []
     dependencies: list[DependencySpec] = []
     reviews: list[ReviewSpec] = []
+    execution_gates: list[ExecutionGatePayload] = []
 
     def issue(
         code: str,
@@ -309,6 +320,11 @@ def normalize_snapshot(snapshot: PlanningSnapshot) -> NormalizedPlanningModel:
                 task.fixed_resource_ids = payload.participant_resource_ids
                 task.fixed_slots = payload.slots
                 task.fixed_constraint_id = constraint_id
+        elif isinstance(payload, ActiveParticipantsPayload):
+            task = task_for(payload.task_id, payload.family, constraint_id)
+            if task:
+                task.participant_resource_ids = payload.participant_resource_ids
+                task.participants_constraint_id = constraint_id
         elif isinstance(payload, DeadlinePayload):
             task = task_for(payload.task_id, payload.family, constraint_id)
             if task:
@@ -348,6 +364,13 @@ def normalize_snapshot(snapshot: PlanningSnapshot) -> NormalizedPlanningModel:
                     constraint_id=constraint_id,
                 )
             )
+        elif isinstance(payload, ExecutionGatePayload):
+            execution_gates.append(payload)
+        elif isinstance(payload, TaskReviewPolicyPayload):
+            task = task_for(payload.task_id, payload.family, constraint_id)
+            if task:
+                task.review_policy = payload
+                task.review_policy_constraint_id = constraint_id
         elif isinstance(payload, ReviewPayload):
             reviews.append(
                 ReviewSpec(
@@ -375,6 +398,24 @@ def normalize_snapshot(snapshot: PlanningSnapshot) -> NormalizedPlanningModel:
         issue("resource_limit_exceeded", "snapshot exceeds the configured resource limit")
 
     for task in tasks.values():
+        if task.participant_resource_ids:
+            if task.scheduling_kind not in ("flexible_active", "review"):
+                issue(
+                    "unsupported_active_participants",
+                    "active participants require active work",
+                    task_id=task.task_id,
+                    constraint_ids=task.constraint_ids,
+                )
+            for participant_id in task.participant_resource_ids:
+                resource = resources.get(participant_id)
+                if resource is None or resource.resource_kind != "human":
+                    issue(
+                        "invalid_active_participant",
+                        "active participant must be a known human",
+                        task_id=task.task_id,
+                        resource_id=participant_id,
+                        constraint_ids=task.constraint_ids,
+                    )
         ids = task.constraint_ids
         if task.effort_constraint_id is None:
             issue(
@@ -664,7 +705,30 @@ def normalize_snapshot(snapshot: PlanningSnapshot) -> NormalizedPlanningModel:
                 constraint_ids=(dependency.constraint_id,),
             )
 
-    if _cycle_exists(set(tasks), tuple(dependencies), tuple(reviews)):
+    for gate in execution_gates:
+        if gate.predecessor_task_id not in tasks or gate.successor_task_id not in tasks:
+            issue("unknown_execution_gate_task", "execution gate refers to an unknown task")
+    for task in tasks.values():
+        if task.review_policy is not None and set(task.review_policy.review_task_ids) != {
+            review.review_task_id for review in reviews if review.reviewed_task_id == task.task_id
+        }:
+            issue(
+                "review_policy_reservation_mismatch",
+                "review policy must name exactly its admitted review reservations",
+                task_id=task.task_id,
+                constraint_ids=task.constraint_ids,
+            )
+    gate_edges = tuple(
+        DependencySpec(
+            gate.predecessor_task_id,
+            gate.successor_task_id,
+            gate.minimum_lag_slots,
+            False,
+            "execution_gate",
+        )
+        for gate in execution_gates
+    )
+    if _cycle_exists(set(tasks), (*dependencies, *gate_edges), tuple(reviews)):
         issue(
             "dependency_cycle",
             "task dependencies and reviews contain a directed cycle",
@@ -691,5 +755,6 @@ def normalize_snapshot(snapshot: PlanningSnapshot) -> NormalizedPlanningModel:
         reservations=tuple(reservations),
         dependencies=tuple(dependencies),
         reviews=tuple(reviews),
+        execution_gates=tuple(execution_gates),
         constraint_ids=tuple(constraint.constraint_id for constraint in snapshot.constraints),
     )

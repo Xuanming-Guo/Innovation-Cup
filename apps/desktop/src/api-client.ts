@@ -1,7 +1,12 @@
+import { invalidateAltoResourceCache, rejectAltoResourceScope } from "./alto-resource-cache";
+
 export interface AuthorisedApiContext {
   apiOrigin: string;
   companyId: string;
   accessToken: string;
+  authUserId?: string;
+  demoRunId?: string;
+  demoActorSessionId?: string;
 }
 
 export interface PlanningSource {
@@ -21,6 +26,12 @@ export interface PlanningRequestSummary {
 export interface PlanningContext {
   sources: PlanningSource[];
   requests: PlanningRequestSummary[];
+  demo_intake?: {
+    kind: "northstar_launch";
+    title: string;
+    original_request: string;
+    description: string;
+  } | null;
 }
 
 export interface GeminiProviderConfiguration {
@@ -39,6 +50,10 @@ export interface GeminiProviderConfiguration {
 
 export interface PlanningRequestDetail {
   request_id: string;
+  original_request?: string;
+  project_id?: string | null;
+  intake_supported?: boolean;
+  intake_limitation?: string | null;
   status: string;
   request_version: number;
   latest_outcome: string | null;
@@ -49,6 +64,9 @@ export interface PlanningRequestDetail {
   interpretation_job_state: string | null;
   materialization_job_state: string | null;
   planning_job_state: string | null;
+  interpretation_job?: PlanningStageJob | null;
+  materialization_job?: PlanningStageJob | null;
+  planning_job?: PlanningStageJob | null;
   clarifications: Array<{
     question_key: string;
     category: string;
@@ -56,6 +74,26 @@ export interface PlanningRequestDetail {
     blocks_planning: boolean;
     status: string;
   }>;
+}
+
+export interface PlanningStageJob {
+  job_id: string;
+  state: string;
+  attempt_count: number;
+  max_attempts: number;
+  last_error_code: string | null;
+  model_call_count?: number | null;
+  latest_model_error_code?: string | null;
+  can_retry?: boolean;
+}
+
+// A saved request must stay reachable if enqueueing subsequently fails. Retrying
+// the same stage is safer than asking the manager to create a duplicate request.
+export class PlanningStartError extends Error {
+  constructor(public readonly requestId: string, cause: unknown) {
+    super(cause instanceof Error ? cause.message : "The request was saved, but processing could not start.");
+    this.name = "PlanningStartError";
+  }
 }
 
 export interface PlanBinding {
@@ -68,6 +106,7 @@ export interface PlanBinding {
 }
 
 export interface PlanReview {
+  author_kind?: "legacy_solver" | "ai_authored" | "authored_replay" | "authored_check";
   plan_id: string;
   request_id: string;
   request_summary: string;
@@ -102,6 +141,16 @@ export interface PlanReview {
 
 export interface PlanEvidence {
   plan_id: string;
+  author_kind?: "legacy_solver" | "ai_authored" | "authored_replay" | "authored_check";
+  fixed_verification?: {
+    product_status: string;
+    native_status: string;
+    required_rule_ids: string[];
+    covered_rule_ids: string[];
+    unverified_required_rule_ids: string[];
+    diagnostic_rule_ids: string[];
+  } | null;
+  independent_validation?: { passed: boolean; candidate_digest: string; validator_version: string; issues: unknown[] } | null;
   constraints: Array<{
     constraint_key: string;
     family: string;
@@ -117,7 +166,7 @@ export interface PlanEvidence {
     validator_version: string | null;
     runtime_ms: number;
     diagnostic_constraint_keys: string[];
-  };
+  } | null;
 }
 
 export interface EmployeeTask {
@@ -165,18 +214,23 @@ function headers(context: AuthorisedApiContext, mutating = false): Record<string
   return {
     Authorization: `Bearer ${context.accessToken}`,
     "X-Company-ID": context.companyId,
+    ...(context.demoRunId ? { "X-Demo-Run-ID": context.demoRunId } : {}),
+    ...(context.demoActorSessionId ? { "X-Demo-Actor-Session-ID": context.demoActorSessionId } : {}),
     ...(mutating ? { "Content-Type": "application/json" } : {}),
   };
 }
 
-async function requestJson<T>(url: string, init: RequestInit): Promise<T> {
+async function requestJson<T>(url: string, init: RequestInit, context?: AuthorisedApiContext): Promise<T> {
   const response = await fetch(url, init);
   if (!response.ok) {
     const value = (await response.json().catch(() => null)) as { detail?: unknown } | null;
     const detail = typeof value?.detail === "string" ? value.detail : `HTTP ${response.status}`;
+    if (context && init.method && init.method !== "GET") rejectAltoResourceScope(context, response.status, detail);
     throw new Error(detail);
   }
-  return response.json() as Promise<T>;
+  const value = await response.json() as T;
+  if (context && init.method && init.method !== "GET") invalidateAltoResourceCache(context);
+  return value;
 }
 
 function idempotencyKey(prefix: string): string {
@@ -218,7 +272,7 @@ export function configureGeminiProvider(
         : { service_account_json: credential.value }),
       correlation_id: crypto.randomUUID(),
     }),
-  });
+  }, context);
 }
 
 export function removeGeminiProvider(
@@ -228,7 +282,7 @@ export function removeGeminiProvider(
   return requestJson(companyUrl(context, `/ai-provider/gemini?correlation_id=${correlationId}`), {
     method: "DELETE",
     headers: headers(context),
-  });
+  }, context);
 }
 
 export async function createPlanningRequest(
@@ -238,6 +292,7 @@ export async function createPlanningRequest(
     sourceIds: string[];
     requestedDeadline: string;
     requestedPriorityKey: string;
+    idempotencyKey?: string;
   },
 ): Promise<{ request_id: string }> {
   const deadline = input.requestedDeadline
@@ -252,7 +307,7 @@ export async function createPlanningRequest(
       method: "POST",
       headers: {
         ...headers(context, true),
-        "Idempotency-Key": idempotencyKey("planning-request"),
+        "Idempotency-Key": input.idempotencyKey ?? idempotencyKey("planning-request"),
       },
       body: JSON.stringify({
         project_id: null,
@@ -265,19 +320,56 @@ export async function createPlanningRequest(
           : null,
       }),
     },
+    context,
   );
-  await requestJson(
-    companyUrl(context, `/planning-requests/${created.request_id}/interpret`),
-    {
-      method: "POST",
-      headers: {
-        ...headers(context, true),
-        "Idempotency-Key": idempotencyKey("interpretation"),
-      },
-      body: "{}",
-    },
-  );
+  try {
+    await startPlanningInterpretation(context, created.request_id);
+  } catch (error) {
+    throw new PlanningStartError(created.request_id, error);
+  }
   return created;
+}
+
+export function startPlanningInterpretation(
+  context: AuthorisedApiContext,
+  requestId: string,
+): Promise<unknown> {
+  return requestJson(companyUrl(context, `/planning-requests/${encodeURIComponent(requestId)}/interpret`), {
+    method: "POST",
+    headers: { ...headers(context, true), "Idempotency-Key": `interpretation:${requestId}` },
+    body: "{}",
+  }, context);
+}
+
+export async function createNorthstarPlanningRequest(
+  context: AuthorisedApiContext,
+  commandKey: string,
+): Promise<{ request_id: string }> {
+  if (!context.demoRunId) throw new Error("Select a demo workspace before preparing Northstar.");
+  const created = await requestJson<{ request_id: string }>(companyUrl(context, `/demo/runs/${encodeURIComponent(context.demoRunId)}/launch-request`), {
+    method: "POST",
+    headers: { ...headers(context, true), "Idempotency-Key": commandKey },
+    body: "{}",
+  }, context);
+  try {
+    await startPlanningInterpretation(context, created.request_id);
+  } catch (error) {
+    throw new PlanningStartError(created.request_id, error);
+  }
+  return created;
+}
+
+export function retryPlanningJob(
+  context: AuthorisedApiContext,
+  jobId: string,
+  reason: string,
+  retryKey: string,
+): Promise<PlanningStageJob> {
+  return requestJson(companyUrl(context, `/jobs/${encodeURIComponent(jobId)}/retry`), {
+    method: "POST",
+    headers: { ...headers(context, true), "Idempotency-Key": retryKey },
+    body: JSON.stringify({ reason: reason.trim() }),
+  }, context);
 }
 
 export function getPlanningRequest(
@@ -293,6 +385,7 @@ export async function answerPlanningClarifications(
   context: AuthorisedApiContext,
   request: PlanningRequestDetail,
   answers: Record<string, string>,
+  commandKey?: string,
 ): Promise<{ request_id: string }> {
   if (!request.candidate_contract_id) {
     throw new Error("The clarification candidate is unavailable");
@@ -303,7 +396,7 @@ export async function answerPlanningClarifications(
       method: "POST",
       headers: {
         ...headers(context, true),
-        "Idempotency-Key": idempotencyKey("clarification-answers"),
+        "Idempotency-Key": commandKey ?? idempotencyKey("clarification-answers"),
       },
       body: JSON.stringify({
         request_version: request.request_version,
@@ -311,18 +404,13 @@ export async function answerPlanningClarifications(
         answers,
       }),
     },
+    context,
   );
-  await requestJson(
-    companyUrl(context, `/planning-requests/${resumed.request_id}/interpret`),
-    {
-      method: "POST",
-      headers: {
-        ...headers(context, true),
-        "Idempotency-Key": idempotencyKey("clarification-interpretation"),
-      },
-      body: "{}",
-    },
-  );
+  try {
+    await startPlanningInterpretation(context, resumed.request_id);
+  } catch (error) {
+    throw new PlanningStartError(resumed.request_id, error);
+  }
   return resumed;
 }
 
@@ -357,7 +445,7 @@ export function approveRequirement(
       explanation: "Approved after reviewing the exact proposal and disclosure boundary.",
       correlation_id: crypto.randomUUID(),
     }),
-  });
+  }, context);
 }
 
 export function commitPlan(context: AuthorisedApiContext, plan: PlanReview): Promise<unknown> {
@@ -368,7 +456,7 @@ export function commitPlan(context: AuthorisedApiContext, plan: PlanReview): Pro
       "Idempotency-Key": idempotencyKey("plan-commit"),
     },
     body: JSON.stringify({ binding: plan.binding, correlation_id: crypto.randomUUID() }),
-  });
+  }, context);
 }
 
 export async function getEmployeeTasks(
@@ -399,7 +487,7 @@ export function transitionTask(
       payload: {},
       correlation_id: crypto.randomUUID(),
     }),
-  });
+  }, context);
 }
 
 export function submitTask(
@@ -421,7 +509,7 @@ export function submitTask(
       expected_task_version: task.row_version,
       correlation_id: crypto.randomUUID(),
     }),
-  });
+  }, context);
 }
 
 export async function getPendingReviews(
@@ -459,5 +547,6 @@ export function reviewSubmission(
         correlation_id: crypto.randomUUID(),
       }),
     },
+    context,
   );
 }

@@ -1,0 +1,48 @@
+{
+  "generated_at": "2026-09-27T09:23:39.900Z",
+  "browser": "Edg/154.0.4258.37",
+  "viewport": "1672x941",
+  "captures": [
+    {
+      "id": "F01-demo-role-chooser",
+      "route": "/settings/demo",
+      "file": "F01-demo-role-chooser.png",
+      "title": "ALTO · Northstar",
+      "heading": "How would you like to use ALTO?",
+      "scrollWidth": 1657,
+      "scrollHeight": 994,
+      "viewportWidth": 1672,
+      "alerts": [],
+      "errors": [],
+      "evidence": "browser fixture only; no live model, backend or installed-native claim"
+    },
+    {
+      "id": "F02-plan-request-preview",
+      "route": "/home",
+      "file": "F02-plan-request-preview.png",
+      "title": "ALTO · Northstar",
+      "heading": "Plan work with ALTO",
+      "scrollWidth": 1657,
+      "scrollHeight": 957,
+      "viewportWidth": 1672,
+      "alerts": [],
+      "errors": [],
+      "evidence": "browser fixture only; no live model, backend or installed-native claim"
+    },
+    {
+      "id": "F03-stopped-planning-conversation",
+      "route": "/home?request=visual-failed",
+      "file": "F03-stopped-planning-conversation.png",
+      "title": "ALTO · Northstar",
+      "heading": "Your planning request",
+      "scrollWidth": 1657,
+      "scrollHeight": 957,
+      "viewportWidth": 1672,
+      "alerts": [
+        "Planning stopped — not awaiting your approvalThe AI response did not pass the required format or validation checks. No plan is ready to approve.No additional provider call happens unless you explicitly request a retry.Processing detailsStage: Understanding your requestError: model_invalid_outputAttempts: 1 · Stage reference: visual-stage-onlyReview retry optionsRefresh status"
+      ],
+      "errors": [],
+      "evidence": "browser fixture only; no live model, backend or installed-native claim"
+    }
+  ]
+}

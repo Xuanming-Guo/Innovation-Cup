@@ -23,6 +23,7 @@ htmlcov/
 
 # Build, evaluation and local runtime artifacts
 artifacts/
+tmp/
 .cache/
 *.log
 supabase/.branches/

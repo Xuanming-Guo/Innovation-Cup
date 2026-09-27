@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 async function hashFile(filename) {
   const bytes = await readFile(filename);
@@ -15,17 +16,12 @@ async function findManifests(target) {
   for (const entry of entries) {
     const itemPath = path.join(target, entry.name);
     if (entry.isDirectory()) manifests.push(...await findManifests(itemPath));
-    else if (entry.name === "release-manifest.json") manifests.push(itemPath);
+    else if (entry.name === "release-manifest.json" || /^ALTO-.+-manifest\.json$/.test(entry.name)) manifests.push(itemPath);
   }
   return manifests;
 }
 
-const target = process.argv[2];
-if (!target) throw new Error("Usage: node scripts/verify-release.mjs <manifest-or-directory>");
-const manifests = await findManifests(path.resolve(target));
-if (manifests.length === 0) throw new Error("No release-manifest.json files found");
-
-for (const manifestFilename of manifests) {
+export async function verifyManifest(manifestFilename) {
   const manifest = JSON.parse(await readFile(manifestFilename, "utf8"));
   if (manifest.schemaVersion !== 1) throw new Error(`${manifestFilename}: unsupported schema version`);
   if (!/^[0-9a-f]{40}$/i.test(manifest.commit)) throw new Error(`${manifestFilename}: invalid commit`);
@@ -38,15 +34,31 @@ for (const manifestFilename of manifests) {
 
   const manifestDirectory = path.dirname(manifestFilename);
   for (const artifact of manifest.artifacts) {
+    if (typeof artifact.filename !== "string" || artifact.filename.includes("\\")) {
+      throw new Error(`${manifestFilename}: invalid artifact filename`);
+    }
     const artifactFilename = path.resolve(manifestDirectory, artifact.filename);
     if (!artifactFilename.startsWith(`${manifestDirectory}${path.sep}`)) {
       throw new Error(`${manifestFilename}: artifact escapes manifest directory`);
     }
     const metadata = await stat(artifactFilename);
-    if (metadata.size !== artifact.bytes) throw new Error(`${artifactFilename}: size mismatch`);
+    if (!metadata.isFile() || metadata.size <= 0 || metadata.size !== artifact.bytes) {
+      throw new Error(`${artifactFilename}: size mismatch or empty artifact`);
+    }
     if (await hashFile(artifactFilename) !== artifact.sha256) {
       throw new Error(`${artifactFilename}: SHA-256 mismatch`);
     }
   }
-  console.log(`Verified ${manifestFilename}`);
+  return manifest;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  const target = process.argv[2];
+  if (!target) throw new Error("Usage: node scripts/verify-release.mjs <manifest-or-directory>");
+  const manifests = await findManifests(path.resolve(target));
+  if (manifests.length === 0) throw new Error("No release manifests found");
+  for (const filename of manifests) {
+    await verifyManifest(filename);
+    console.log(`Verified ${filename}`);
+  }
 }

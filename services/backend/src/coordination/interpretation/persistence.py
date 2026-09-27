@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from importlib.metadata import version
 from typing import Any, Protocol, cast
-from uuid import UUID, uuid4
+from uuid import UUID, uuid4, uuid5
 
 import psycopg
 from psycopg.types.json import Jsonb
@@ -15,6 +15,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 from coordination.auth.models import CompanyContext
 from coordination.db.session import company_transaction
 from coordination.interpretation.admission import actionable_clarifications
+from coordination.interpretation.contracts import safe_planning_model_error_code
 from coordination.interpretation.gateway import GatewayConfiguration
 from coordination.interpretation.projection import (
     CapacityFact,
@@ -26,7 +27,13 @@ from coordination.interpretation.projection import (
     PermittedEmployee,
     SourceVersionEvidence,
 )
+from coordination.interpretation.prompt import (
+    AUTOMATIC_ADMISSION_REPAIR_CODES,
+    InterpretationRepairContext,
+    InterpretationRepairIssue,
+)
 from coordination.interpretation.service import InterpretationOutcome, InterpretationRunRecorder
+from coordination.planning.fixed_contracts import MAX_FIXED_PLAN_PROPOSALS
 
 SUPPORTED_CONSTRAINT_TYPES = (
     "acceptance_review",
@@ -113,8 +120,13 @@ class SubmitClarificationAnswers(BaseModel):
     @classmethod
     def validate_answers(cls, value: dict[str, str]) -> dict[str, str]:
         for key, answer in value.items():
-            if not key or len(key) > 64 or not key[0].islower() or any(
-                character not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for character in key
+            if (
+                not key
+                or len(key) > 64
+                or not key[0].islower()
+                or any(
+                    character not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for character in key
+                )
             ):
                 raise ValueError("clarification answer keys are invalid")
             if not answer.strip() or len(answer.strip()) > 4000:
@@ -124,9 +136,7 @@ class SubmitClarificationAnswers(BaseModel):
     @property
     def digest(self) -> bytes:
         payload = json.dumps(
-            self.model_dump(
-                mode="json", exclude={"idempotency_key", "correlation_id"}
-            ),
+            self.model_dump(mode="json", exclude={"idempotency_key", "correlation_id"}),
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,
@@ -158,6 +168,9 @@ class PlanningStageJob:
     attempt_count: int
     max_attempts: int
     last_error_code: str | None
+    job_kind: str = "planning.run"
+    model_call_count: int | None = None
+    latest_model_error_code: str | None = None
 
 
 def _planning_stage_job(row: dict[str, Any], prefix: str) -> PlanningStageJob | None:
@@ -170,6 +183,11 @@ def _planning_stage_job(row: dict[str, Any], prefix: str) -> PlanningStageJob | 
         attempt_count=cast(int, row[f"{prefix}_attempt_count"]),
         max_attempts=cast(int, row[f"{prefix}_max_attempts"]),
         last_error_code=cast(str | None, row[f"{prefix}_error_code"]),
+        job_kind=cast(str, row.get(f"{prefix}_kind", "planning.run")),
+        model_call_count=cast(int | None, row.get(f"{prefix}_model_call_count")),
+        latest_model_error_code=safe_planning_model_error_code(
+            cast(str | None, row.get(f"{prefix}_latest_model_error_code"))
+        ),
     )
 
 
@@ -202,6 +220,8 @@ class PlanningRequestView:
     interpretation_job: PlanningStageJob | None = None
     materialization_job: PlanningStageJob | None = None
     planning_job: PlanningStageJob | None = None
+    original_request: str | None = None
+    project_id: UUID | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -270,6 +290,63 @@ class PostgresInterpretationStore:
         self._dsn = dsn
         self._connect_timeout_seconds = connect_timeout_seconds
 
+    def load_repair_context(
+        self,
+        *,
+        context: CompanyContext,
+        request_id: UUID,
+    ) -> InterpretationRepairContext | None:
+        """Only safe diagnostics from this request's latest immutable rejection.
+
+        No raw model content, issue messages or prior source text enters a repair
+        prompt. Current evidence must be retrieved and authorized separately.
+        """
+        try:
+            with company_transaction(
+                self._dsn,
+                role="coordination_worker",
+                actor_id=context.actor.user_id,
+                company_id=context.company_id,
+                purpose="interpretation:repair-context",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
+                connect_timeout_seconds=self._connect_timeout_seconds,
+            ) as connection:
+                row = connection.execute(
+                    """
+                    select candidate.contract_digest, candidate.validation_issues
+                    from app.candidate_contracts candidate
+                    join app.planning_requests request on request.company_id=candidate.company_id
+                      and request.id=candidate.request_id
+                    where candidate.company_id=%s and candidate.request_id=%s
+                      and candidate.demo_run_id is not distinct from %s
+                      and request.demo_run_id is not distinct from %s
+                      and candidate.admission_status='rejected' and request.status='failed'
+                    order by candidate.created_at desc,candidate.id desc limit 1
+                    """,
+                    (context.company_id, request_id, context.demo_run_id, context.demo_run_id),
+                ).fetchone()
+            if row is None:
+                return None
+            issues = row["validation_issues"]
+            if not issues or any(
+                issue.get("code") not in AUTOMATIC_ADMISSION_REPAIR_CODES
+                or issue.get("disposition") != "reject"
+                for issue in issues
+            ):
+                return None
+            return InterpretationRepairContext(
+                previous_contract_digest=bytes(row["contract_digest"]).hex(),
+                issues=tuple(
+                    InterpretationRepairIssue(code=issue["code"], path=issue["path"])
+                    for issue in issues[:24]
+                ),
+            )
+        except psycopg.Error as error:
+            raise InterpretationStoreUnavailableError("repair context is unavailable") from error
+        except (ValueError, TypeError, KeyError) as error:
+            raise InterpretationStateConflictError("repair context cannot be admitted") from error
+
     def recorder(
         self,
         *,
@@ -298,6 +375,8 @@ class PostgresInterpretationStore:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="planning-request:create",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 if command.project_id is not None:
@@ -439,6 +518,8 @@ class PostgresInterpretationStore:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="planning-request:answer-clarifications",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 row = connection.execute(
@@ -500,6 +581,8 @@ class PostgresInterpretationStore:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="planning-request:context",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 source_rows = connection.execute(
@@ -524,9 +607,7 @@ class PostgresInterpretationStore:
                     (context.company_id,),
                 ).fetchall()
         except psycopg.Error as error:
-            raise InterpretationStoreUnavailableError(
-                "planning context is unavailable"
-            ) from error
+            raise InterpretationStoreUnavailableError("planning context is unavailable") from error
         return (
             tuple(
                 PlanningSourceOption(
@@ -556,11 +637,14 @@ class PostgresInterpretationStore:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="planning-request:read",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 row = connection.execute(
                     """
                     select request.id, request.status, request.request_version,
+                           request.original_prompt, request.project_id,
                            run.outcome as latest_outcome,
                            encode(candidate.contract_digest, 'hex') as candidate_digest,
                            candidate.id as candidate_id,
@@ -570,14 +654,17 @@ class PostgresInterpretationStore:
                            materialization_job.state as materialization_job_state,
                            planning_job.state as planning_job_state,
                            interpretation_job.id as interpretation_job_id,
+                           interpretation_job.job_kind as interpretation_job_kind,
                            interpretation_job.attempt_count as interpretation_job_attempt_count,
                            interpretation_job.max_attempts as interpretation_job_max_attempts,
                            interpretation_job.last_error_code as interpretation_job_error_code,
                            materialization_job.id as materialization_job_id,
+                           materialization_job.job_kind as materialization_job_kind,
                            materialization_job.attempt_count as materialization_job_attempt_count,
                            materialization_job.max_attempts as materialization_job_max_attempts,
                            materialization_job.last_error_code as materialization_job_error_code,
                            planning_job.id as planning_job_id,
+                           planning_job.job_kind as planning_job_kind,
                            planning_job.attempt_count as planning_job_attempt_count,
                            planning_job.max_attempts as planning_job_max_attempts,
                            planning_job.last_error_code as planning_job_error_code
@@ -615,10 +702,14 @@ class PostgresInterpretationStore:
                       on materialization_job.company_id = request.company_id
                      and materialization_job.job_kind = 'planning.materialize'
                      and materialization_job.aggregate_id = candidate.id
-                    left join app.durable_jobs as planning_job
-                      on planning_job.company_id = request.company_id
-                     and planning_job.job_kind = 'planning.run'
-                     and planning_job.aggregate_id = snapshot.id
+                    left join lateral (
+                      select value.* from app.durable_jobs as value
+                      where value.company_id = request.company_id
+                        and value.job_kind in ('plan.propose', 'planning.run')
+                        and value.aggregate_id = snapshot.id
+                      order by (value.job_kind = 'plan.propose') desc,
+                        value.created_at desc, value.id desc limit 1
+                    ) as planning_job on true
                     where request.company_id = %s and request.id = %s
                     """,
                     (context.company_id, request_id),
@@ -636,6 +727,33 @@ class PostgresInterpretationStore:
                         """,
                         (context.company_id, row["candidate_id"]),
                     ).fetchall()
+                if row.get("planning_job_kind") == "plan.propose" and row["planning_job_id"]:
+                    # Match only this durable workflow's bounded authoring attempts.
+                    # A request can also have interpretation, assistant or older
+                    # snapshot runs; those must not inflate planning progress.
+                    model_ids = [
+                        uuid5(row["planning_job_id"], f"author:{round_index}:attempt:{attempt}")
+                        for round_index in range(1, MAX_FIXED_PLAN_PROPOSALS + 1)
+                        for attempt in range(1, 21)
+                    ]
+                    model_rows = connection.execute(
+                        """
+                        select model.status, model.error_code
+                        from app.model_runs as model
+                        where model.company_id = %s and model.request_id = %s
+                          and model.demo_run_id is not distinct from %s
+                          and model.id = any(%s::uuid[])
+                          and model.stage in ('plan.propose', 'plan.revise')
+                        order by model.started_at desc, model.id desc
+                        """,
+                        (context.company_id, request_id, context.demo_run_id, model_ids),
+                    ).fetchall()
+                    row["planning_job_model_call_count"] = len(model_rows)
+                    row["planning_job_latest_model_error_code"] = (
+                        safe_planning_model_error_code(model_rows[0]["error_code"])
+                        if model_rows and model_rows[0]["status"] == "failed"
+                        else None
+                    )
         except PlanningRequestNotFoundError:
             raise
         except psycopg.Error as error:
@@ -645,6 +763,8 @@ class PostgresInterpretationStore:
 
         return PlanningRequestView(
             request_id=cast(UUID, row["id"]),
+            original_request=cast(str, row["original_prompt"]),
+            project_id=cast(UUID | None, row["project_id"]),
             status=cast(str, row["status"]),
             request_version=cast(int, row["request_version"]),
             latest_outcome=cast(str | None, row["latest_outcome"]),
@@ -682,6 +802,8 @@ class PostgresInterpretationStore:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="planning-request:worker-reconcile",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 row = connection.execute(
@@ -731,6 +853,8 @@ class PostgresInterpretationStore:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="interpretation:retrieve",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 request = connection.execute(
@@ -1024,6 +1148,8 @@ class PostgresInterpretationRecorder(InterpretationRunRecorder):
             actor_id=self._context.actor.user_id,
             company_id=self._context.company_id,
             purpose=purpose,
+            demo_run_id=self._context.demo_run_id,
+            demo_actor_session_id=self._context.demo_actor_session_id,
             connect_timeout_seconds=self._connect_timeout_seconds,
         )
 

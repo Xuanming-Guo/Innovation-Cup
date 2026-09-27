@@ -130,9 +130,7 @@ class InterpretationProjection(StrictProjection):
     commitments: tuple[ExistingCommitment, ...] = Field(max_length=5000)
     capacity: tuple[CapacityFact, ...] = Field(max_length=5000)
     dependencies: tuple[ExistingDependency, ...] = Field(max_length=5000)
-    clarification_answers: tuple[ClarificationAnswer, ...] = Field(
-        default=(), max_length=100
-    )
+    clarification_answers: tuple[ClarificationAnswer, ...] = Field(default=(), max_length=100)
     supported_constraint_types: tuple[str, ...] = Field(min_length=1, max_length=30)
     missing_data: tuple[MissingDataMarker, ...] = Field(max_length=20)
 

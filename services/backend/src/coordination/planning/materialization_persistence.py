@@ -29,13 +29,9 @@ class PostgresCandidateMaterializer:
     def __init__(self, dsn: str, *, connect_timeout_seconds: int = 5) -> None:
         self._dsn = dsn
         self._connect_timeout_seconds = connect_timeout_seconds
-        self._ledger = PostgresPlanningLedger(
-            dsn, connect_timeout_seconds=connect_timeout_seconds
-        )
+        self._ledger = PostgresPlanningLedger(dsn, connect_timeout_seconds=connect_timeout_seconds)
 
-    def materialize(
-        self, *, context: CompanyContext, candidate_contract_id: UUID
-    ) -> UUID:
+    def materialize(self, *, context: CompanyContext, candidate_contract_id: UUID) -> UUID:
         try:
             with company_transaction(
                 self._dsn,
@@ -43,6 +39,8 @@ class PostgresCandidateMaterializer:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="planning:materialize-candidate",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 candidate = connection.execute(
@@ -50,7 +48,8 @@ class PostgresCandidateMaterializer:
                     select candidate.id, candidate.contract_json, candidate.created_at,
                            candidate.request_id, request.requested_priority_key,
                            request.requester_membership_id, retrieval.projection_digest,
-                           company.planning_revision, company.policy_revision
+                           app.scope_planning_revision(company.id,false) as planning_revision,
+                             company.policy_revision
                     from app.candidate_contracts as candidate
                     join app.planning_requests as request
                       on request.company_id = candidate.company_id

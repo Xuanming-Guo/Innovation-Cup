@@ -3,6 +3,62 @@
 This ledger distinguishes repository evidence from intended scope. Update it in every PR that
 changes capability state.
 
+## ALTO branch evidence (26–27 September 2026)
+
+The current local branch is `feat/alto-product`; the ALTO product work, release preparation and
+completed README updates remain in the local working tree and have not been published through an
+ALTO release PR. The landing page was deployed separately and its stable download links still
+depend on a future published GitHub Release.
+The founder supplied successful hosted migration/Edge deployment records. With separate
+explicit approvals, the agent subsequently applied lease-renewal migration
+`20260927034000`, model-checkpoint migration `20260927035000`, and exact-proposal assistant
+migration `20260927036000`, each after confirming the linked project and its own one-migration
+dry run. The resulting dry run was up to date for the repository tip that existed at that point.
+Confirmed-assistant-action migration `20260927037000` and bounded Live-plan revision migration
+`20260927038000` were subsequently applied after a linked dry run showed exactly those two files,
+with no seeds or role changes. The founder then explicitly approved locked hackathon activation:
+the linked dry run listed only `20260927039000_alto_hackathon_quickstart.sql`, it was applied with
+Vault/config/seed/role updates skipped, and a final dry run reported no pending migrations. Hosted
+That activation established hosted history through `20260927039000`. A later read-only inspection
+during release preparation found 49 hosted migrations through `20260927041000`, including
+expired-job reconciliation (`40000`) and locked-demo job continuity (`41000`). The repository has
+50 immutable migrations through locked-demo session rebinding (`42000`), which remains pending.
+Anonymous Auth was enabled through an independently
+diffed one-property config push, and Northstar's validated active Vertex v2 reference was enabled
+as the operator-managed default without reading its Vault secret.
+The [ALTO journal](development/alto-implementation-journal.md)
+records current verification and the [runbook](development/alto-runbook.md) explains setup.
+
+| Capability | Local implementation | Evidence / remaining gate |
+|---|---|---|
+| Storyboard desktop | Shared ALTO shell, manager/employee Home, projects/graph/rules, task work, reviews, calendar, People, settings and Simulation | [20-screen coverage](storyboard-coverage.md); native installed acceptance remains separate |
+| Everyday planning and role setup | Home planning conversation, saved-request inbox, explicit manager/employee demo roles, exact-plan graph selection, recorded-stage activity circle and bounded recovery | Focused mocked UI/API regressions; actual ALTO authoring stage is projected, and polling spans stage handoffs. Current Live verification is recorded separately in the journal |
+| Planning progress summary | Persisted-stage summary of current activity, completed checks and next user action across running, question, access-stop, failure, proposal and committed states | 37 focused conversation regressions; no hidden reasoning, raw model output, private source content or simulated progress |
+| Proposal-preview task actions | Proposed graph nodes are clearly distinguished from committed work; brief/work controls remain unavailable until exact approval and commit | 11 focused graph/contract regressions; committed task actions remain enabled |
+| Workspace loading and tab continuity | Bounded requests/session startup; scoped in-memory stale-while-revalidate, deduplicated reads, explicit role/session recovery | Resource/cache/Auth regressions; no private browser-storage cache or relaxed server authority |
+| Public tunnel runtime recovery | Real tunnel connectivity healthcheck, safe registrar failure categories, current registered URL, bounded startup recovery, tunnel-child-only runtime repair for an exactly rejected Quick Tunnel session, and configurable external DNS fallbacks | 20 registrar + 16 launcher tests and 6 isolated supervisor tests passed. Runtime repair has no Docker socket and does not restart API/worker; integrated `host:start` rebuilt the image and all five services reached healthy |
+| Live interpretation recovery | Authenticated pinned-source pre-admission, immutable rejected candidates, scoped source-bound task guidance and a three-attempt interpretation bound; no automatic human decision or assignment | 133 focused backend regressions passed. The second approved Live request automatically repaired its contract on attempt 2 and saved a source-checked snapshot; later persistence stopped with no saved plan |
+| Ordinary-job lease renewal | Additive migration `20260927034000` preserves fences and returns the job update result instead of the outbox update result | 15 earlier disposable pgTAP assertions passed; explicitly approved hosted application succeeded September 27, and runtime function-definition check confirms the fix |
+| Live model checkpoint persistence | Additive migration `20260927035000` excludes generated `scope_id` from a BEFORE-trigger comparison, preserving immutable inputs, terminal records and worker lease guards | 23 focused pgTAP assertions plus function owner/ACL/settings comparison passed, all rolled back. Separately approved hosted application succeeded September 27; exact corrected definition and unchanged attributes verified. No unknown model result is recovered; full Live completion remains unverified |
+| Run/actor isolation | Real Auth identity plus audited synthetic actor sessions, independent clock/revision and run-scoped data | Disposable non-owner HTTP/DB smoke verifies bootstrap, 50 profiles, actor-specific projections and private content isolation |
+| Locked hackathon quickstart | Per-install anonymous Auth, isolated reusable live run, Maya default/person switching, immutable operator-managed Vault binding, restart control, masked settings, required versioned Maya first-run tour and fresh-request recovery from a saved schedule failure | The tour uses the real durable assistant and canonical launch endpoints with stable idempotency keys, completion persistence and explicit About replay. All 150 desktop tests, typecheck, ESLint, production web build and unsigned Windows NSIS packaging pass. Native installed visual acceptance and a fresh Live scheduling request remain separate gates |
+| Locked hackathon AI limits | Per-anonymous-user admission of 12 unique AI command keys/minute plus one worker-wide blocking window of 120 Gemini SDK calls/minute | Reads, polling, approvals and accepted key replays do not consume command capacity. HTTP 429 carries a safe message and `Retry-After`; accepted jobs wait under their current lease. All 347 backend and 154 desktop tests, static checks, production build, five-service host health and unsigned Windows packaging pass. Limits remain process-local and require a shared PostgreSQL reservation design before horizontal scaling. |
+| Fixed-candidate planning | Complete typed candidate, fixed-value Z3, independent validation, all-confirmed-conflict repair feedback, trusted dependency/review scope, bounded five-version output and exact approvals; locked hackathon Northstar directly verifies canonical P1 without a schedule-authoring provider call | Earlier separate-login D0/P1 → 18 approvals → 17 committed/accepted tasks → R2 completion passed. The deterministic judge path records truthful `authored_replay` provenance and zero model rounds, and fails closed if P1 does not pass the same verifier. Ordinary deployments retain AI authoring and the five-proposal budget; a rebuilt-host fresh-request smoke remains pending |
+| Planning attempt visibility | Worker retries and exact scoped model-run counts are separate; latest model errors use a finite safe allowlist | Existing failed request reads one worker attempt, three AI attempts recorded and final response truncation. No raw model output or billing claim; legacy stages retain nullable fields |
+| Private preferences | Owner-only feedback, tentative suggestions, exact named sharing, editing/revocation and ID-only notifications | HTTP/DB smoke verifies Maya audience, Jordan denial and revocation; no personality/performance inference |
+| Assistant and voice | Bounded current-authority projection, durable replies, exact proposal-bound verification evidence, confirmed planning-action previews, clean-file transcription and expiry cleanup | Graph chat binds the selected immutable proposal and exposes recorded violations without AI. Migrations `20260927036000` and `20260927037000` are live; rebuilding API/worker activates the corresponding application paths. A new provider answer, Storage deployment and microphone acceptance remain separate gates |
+| Personal calendar scope | Manager and employee **My calendar** views are restricted to the authenticated/effective demo employee; permitted project deadlines remain separate markers | 25 focused workspace tests; null employee bindings fail closed instead of widening to all company calendars; rebuilt API is active |
+| Private files | Real ClamAV stream client, structural/media validation and leased object-bound Edge capabilities | Clean/error/malware verdict and byte-validation regressions; deployed scanner/Storage integration remains an operator check |
+| Native overlay | Separate always-on-top Tauri window and opt-in global shortcut | Windows compile and unsigned NSIS build passed; configured release/installed interaction and macOS verification remain separate |
+| Native distribution | Three-platform workflow bakes locked judge discovery configuration, enforces four-file version consistency, stages stable installers and platform manifests, and verifies the complete checksum set before draft publication | Manual runs remain temporary candidates. Tagged publication uses a separate write-permitted job and refuses to replace a published release. Local release safeguard tests passed; the first ALTO native CI run, public release and installed acceptance remain pending |
+| Supabase upgrade | 24 original ALTO migrations plus nine additive lease/checkpoint/assistant/revision/hackathon/continuity follow-ups; original seventeen retained unchanged | Historical 41-file replay/populated-upgrade and 308 SQL assertions passed; current manifest contains 50 immutable migrations. Read-only hosted history inspected during release preparation contains 49 through 41000; session-rebinding migration 42000 remains pending |
+
+## Historical pre-ALTO baseline
+
+The table below preserves the earlier implementation evidence. Its migration counts,
+open issues, release artifacts and live probes describe that baseline, not an ALTO
+deployment or the current branch's final verification result.
+
 | Capability | State | Evidence | Remaining gate |
 |---|---|---|---|
 | Repository governance | Implemented | Repository contract workflow and development guide | Protect `main` in GitHub settings |

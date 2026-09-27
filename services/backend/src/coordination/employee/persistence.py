@@ -88,18 +88,20 @@ class PostgresEmployeeStore:
             actor_id=context.actor.user_id,
             company_id=context.company_id,
             purpose=purpose,
+            demo_run_id=context.demo_run_id,
+            demo_actor_session_id=context.demo_actor_session_id,
             connect_timeout_seconds=self._connect_timeout_seconds,
         )
 
     def list_tasks(self, *, context: CompanyContext, view: TaskView) -> tuple[EmployeeTask, ...]:
-        if context.employee_id is None:
+        if context.effective_employee_id is None:
             raise EmployeeAuthorityError("an active employee profile is required")
         filters = {
             "today": "item.status in ('assigned', 'acknowledged', 'in_progress') "
-            "and item.start_at < date_trunc('day', clock_timestamp()) + interval '1 day' "
-            "and item.finish_at >= date_trunc('day', clock_timestamp())",
+            "and item.start_at < calendar_day.day_start + interval '1 day' "
+            "and item.finish_at >= calendar_day.day_start",
             "upcoming": "item.status in ('assigned', 'acknowledged') "
-            "and item.start_at >= date_trunc('day', clock_timestamp()) + interval '1 day'",
+            "and item.start_at >= calendar_day.day_start + interval '1 day'",
             "blocked": "item.status = 'blocked'",
             "submitted": "item.status in ('submitted', 'revision_requested', 'accepted')",
         }
@@ -118,6 +120,12 @@ class PostgresEmployeeStore:
                            brief.id as brief_id, brief.version as brief_version,
                            brief.brief_payload
                     from app.work_items as item
+                    join app.companies company on company.id=item.company_id
+                    left join app.demo_runs run on run.company_id=item.company_id and
+                    run.id=item.demo_run_id
+                    cross join lateral(select
+                    date_trunc('day',coalesce(run.clock_at,statement_timestamp()),
+                      company.default_timezone) as day_start) calendar_day
                     join app.work_assignments as assignment
                       on assignment.company_id = item.company_id
                      and assignment.task_id = item.task_id
@@ -150,7 +158,7 @@ class PostgresEmployeeStore:
                       and {filters[view]}
                     order by item.start_at, item.task_key
                     """,
-                    (context.company_id, context.employee_id),
+                    (context.company_id, context.effective_employee_id),
                 ).fetchall()
                 return tuple(
                     EmployeeTask(
@@ -350,10 +358,8 @@ class PostgresEmployeeStore:
         except psycopg.Error as error:
             raise EmployeeStoreError("submission could not be loaded") from error
 
-    def list_pending_reviews(
-        self, *, context: CompanyContext
-    ) -> tuple[SubmissionReviewView, ...]:
-        if context.employee_id is None:
+    def list_pending_reviews(self, *, context: CompanyContext) -> tuple[SubmissionReviewView, ...]:
+        if context.effective_employee_id is None:
             raise EmployeeAuthorityError("an active reviewer profile is required")
         try:
             with self._transaction(context, "employee:pending-reviews") as connection:
@@ -369,14 +375,11 @@ class PostgresEmployeeStore:
                       and policy.reviewer_employee_id = %s
                     order by submission.submitted_at, submission.id
                     """,
-                    (context.company_id, context.employee_id),
+                    (context.company_id, context.effective_employee_id),
                 ).fetchall()
         except psycopg.Error as error:
             raise EmployeeStoreError("pending reviews could not be loaded") from error
-        return tuple(
-            self.get_submission(context=context, submission_id=row["id"])
-            for row in rows
-        )
+        return tuple(self.get_submission(context=context, submission_id=row["id"]) for row in rows)
 
     def review(
         self, *, context: CompanyContext, submission_id: UUID, command: ReviewCommand

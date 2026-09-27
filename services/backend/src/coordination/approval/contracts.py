@@ -8,6 +8,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from coordination.planning.fixed_contracts import FixedCheckReport, FixedValidationReport
+
 ApprovalDomain = Literal["planning", "disclosure"]
 ApprovalDecision = Literal["approved", "rejected"]
 ApprovalRequirementStatus = Literal["pending", "approved", "rejected", "expired"]
@@ -91,6 +93,9 @@ class PlanReview(StrictApprovalModel):
     changes: tuple[PlanChangeView, ...]
     requirements: tuple[ApprovalRequirementView, ...]
     can_commit: bool
+    author_kind: Literal["legacy_solver", "ai_authored", "authored_replay", "authored_check"] = (
+        "legacy_solver"
+    )
 
 
 class ConstraintEvidence(StrictApprovalModel):
@@ -118,7 +123,12 @@ class PlanEvidence(StrictApprovalModel):
     plan_id: UUID
     constraints: tuple[ConstraintEvidence, ...]
     assumptions: tuple[str, ...]
-    solver: SolverDiagnostic
+    solver: SolverDiagnostic | None = None
+    author_kind: Literal["legacy_solver", "ai_authored", "authored_replay", "authored_check"] = (
+        "legacy_solver"
+    )
+    fixed_verification: FixedCheckReport | None = None
+    independent_validation: FixedValidationReport | None = None
 
 
 class ApprovalCommand(StrictApprovalModel):

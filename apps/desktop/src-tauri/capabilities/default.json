@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimal capability set for the main Coordination Engine window",
+  "description": "Minimal capability set for the main ALTO window",
   "windows": ["main"],
   "permissions": ["core:default"]
 }

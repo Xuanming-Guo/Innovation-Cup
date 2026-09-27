@@ -30,6 +30,7 @@ from coordination.ai_provider.validation import (
     GeminiCredentialValidationUnavailableError,
     InvalidGeminiCredentialError,
 )
+from coordination.ai_rate_limit import DemoAiCommandLimiter, admit_demo_ai_command
 from coordination.approval.contracts import (
     ApprovalCommand,
     ApprovalDecisionResult,
@@ -50,6 +51,7 @@ from coordination.approval.persistence import (
     ScheduleConflictError,
 )
 from coordination.auth.dependencies import CompanyContextDependency
+from coordination.auth.models import CompanyContext
 from coordination.config import Settings, get_settings
 from coordination.db.health import DatabaseReadinessDependency
 from coordination.durable.contracts import JobView, NotificationPage, NotificationView, QueueMetrics
@@ -83,20 +85,88 @@ from coordination.employee.persistence import (
     EmployeeStoreError,
     EmployeeTaskNotFoundError,
 )
-from coordination.interpretation.dependencies import InterpretationStoreDependency
+from coordination.interpretation.contracts import safe_planning_model_error_code
+from coordination.interpretation.dependencies import (
+    InterpretationStoreDependency,
+    get_interpretation_store,
+)
 from coordination.interpretation.persistence import (
     ClarificationStateConflictError,
     CreatePlanningRequest,
+    InterpretationStore,
     InterpretationStoreUnavailableError,
     PlanningRequestIdempotencyConflictError,
     PlanningRequestNotFoundError,
     PlanningRequestSourceNotFoundError,
     SubmitClarificationAnswers,
 )
+from coordination.planning.fixed_contracts import MAX_FIXED_PLAN_PROPOSALS
+from coordination.planning.northstar import NORTHSTAR_INTAKE
+from coordination.workspace.persistence import (
+    WorkspaceConflictError,
+    WorkspaceInputError,
+    WorkspaceNotFoundError,
+    WorkspaceUnavailableError,
+)
+from coordination.workspace.routes import router as workspace_router
 
 
 class StrictResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
+
+
+DEMO_INTAKE_LIMITATION = (
+    "This demo supports only the approved Northstar launch request. "
+    "Free-form demo planning does not have the required typed authority. "
+    "Use 'Prepare the Northstar launch plan' from Home; Ask a question remains available."
+)
+
+
+def _demo_intake_supported(context: CompanyContext, prompt: str | None) -> bool:
+    return context.demo_run_id is None or (prompt or "").strip() == NORTHSTAR_INTAKE
+
+
+def _require_supported_demo_intake(context: CompanyContext, prompt: str | None) -> None:
+    if not _demo_intake_supported(context, prompt):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=DEMO_INTAKE_LIMITATION,
+        )
+
+
+def get_demo_intake_store(
+    context: CompanyContextDependency,
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> InterpretationStore | None:
+    # Preserve non-demo enqueue's existing dependency boundary. Only a demo run
+    # needs the extra read that rejects unsupported legacy requests before spend.
+    return get_interpretation_store(settings) if context.demo_run_id is not None else None
+
+
+DemoIntakeStoreDependency = Annotated[InterpretationStore | None, Depends(get_demo_intake_store)]
+
+
+def _require_supported_saved_demo_request(
+    context: CompanyContext, request_id: UUID, store: InterpretationStore | None
+) -> None:
+    if context.demo_run_id is None:
+        return
+    if store is None:
+        raise HTTPException(status_code=503, detail="demo intake validation is unavailable")
+    try:
+        saved = store.get_request(context=context, request_id=request_id)
+    except PlanningRequestNotFoundError as error:
+        raise HTTPException(status_code=404, detail="planning request was not found") from error
+    except InterpretationStoreUnavailableError as error:
+        raise HTTPException(
+            status_code=503, detail="demo intake validation is unavailable"
+        ) from error
+    _require_supported_demo_intake(context, saved.original_request)
+
+
+class DemoProviderVersionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    profile_version_id: UUID
 
 
 class LivenessResponse(StrictResponse):
@@ -200,8 +270,13 @@ class ClarificationAnswersRequest(StrictResponse):
     def validate_answers(cls, value: dict[str, str]) -> dict[str, str]:
         normalized: dict[str, str] = {}
         for key, answer in value.items():
-            if not key or len(key) > 64 or not key[0].islower() or any(
-                character not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for character in key
+            if (
+                not key
+                or len(key) > 64
+                or not key[0].islower()
+                or any(
+                    character not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for character in key
+                )
             ):
                 raise ValueError("clarification answer keys are invalid")
             stripped = answer.strip()
@@ -225,10 +300,17 @@ class PlanningStageJobResponse(StrictResponse):
     attempt_count: int
     max_attempts: int
     last_error_code: str | None
+    model_call_count: int | None = Field(default=None, ge=0)
+    latest_model_error_code: str | None = None
+    can_retry: bool = False
 
 
 class PlanningRequestDetailResponse(StrictResponse):
     request_id: UUID
+    original_request: str = ""
+    project_id: UUID | None = None
+    intake_supported: bool = True
+    intake_limitation: str | None = None
     status: str
     request_version: int
     latest_outcome: str | None
@@ -259,9 +341,17 @@ class PlanningRequestSummaryResponse(StrictResponse):
     created_at: datetime
 
 
+class DemoPlanningIntakeResponse(StrictResponse):
+    kind: Literal["northstar_launch"] = "northstar_launch"
+    title: str = "Approved Northstar launch"
+    original_request: str = NORTHSTAR_INTAKE
+    description: str = DEMO_INTAKE_LIMITATION
+
+
 class PlanningContextResponse(StrictResponse):
     sources: tuple[PlanningSourceResponse, ...]
     requests: tuple[PlanningRequestSummaryResponse, ...]
+    demo_intake: DemoPlanningIntakeResponse | None = None
 
 
 class PlanDecisionRequest(StrictResponse):
@@ -408,19 +498,58 @@ SettingsDependency = Annotated[Settings, Depends(get_settings)]
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    demo_ai_command_limiter = DemoAiCommandLimiter(
+        settings.demo_ai_commands_per_minute if settings.hackathon_demo else None
+    )
     application = FastAPI(
-        title="Coordination Engine API",
+        title="ALTO API",
         version="1.0.0",
         docs_url="/docs",
         redoc_url=None,
     )
+    application.state.demo_ai_command_limiter = demo_ai_command_limiter
     application.add_middleware(
         CORSMiddleware,
         allow_origins=list(settings.cors_origin_allowlist),
         allow_credentials=False,
-        allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-        allow_headers=["Authorization", "Content-Type", "Idempotency-Key", "X-Company-ID"],
+        allow_methods=["GET", "POST", "PATCH", "PUT", "DELETE", "OPTIONS"],
+        allow_headers=[
+            "Authorization",
+            "Content-Type",
+            "Idempotency-Key",
+            "X-Company-ID",
+            "X-Demo-Run-ID",
+            "X-Demo-Actor-Session-ID",
+        ],
     )
+    application.include_router(workspace_router)
+
+    @application.exception_handler(WorkspaceNotFoundError)
+    async def workspace_not_found(
+        _request: Request, _error: WorkspaceNotFoundError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=404, content={"detail": "record was not found"})
+
+    @application.exception_handler(WorkspaceConflictError)
+    async def workspace_conflict(_request: Request, _error: WorkspaceConflictError) -> JSONResponse:
+        return JSONResponse(
+            status_code=409, content={"detail": "record changed; refresh and review again"}
+        )
+
+    @application.exception_handler(WorkspaceInputError)
+    async def workspace_input(_request: Request, _error: WorkspaceInputError) -> JSONResponse:
+        return JSONResponse(
+            status_code=422, content={"detail": "command is not valid in the current state"}
+        )
+
+    @application.exception_handler(WorkspaceUnavailableError)
+    async def workspace_unavailable(
+        _request: Request, _error: WorkspaceUnavailableError
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=503,
+            content={"detail": "workspace unavailable; check host and required migrations"},
+        )
 
     @application.exception_handler(RequestValidationError)
     async def redact_request_validation_input(
@@ -492,7 +621,8 @@ def create_app() -> FastAPI:
         context: CompanyContextDependency,
         store: AiProviderStoreDependency,
     ) -> AiProviderConfiguration:
-        _require_company_admin(company_id, context)
+        _reject_anonymous_operator(context)
+        _require_demo_provider_owner_or_admin(company_id, context)
         try:
             return store.get_configuration(context=context)
         except AiProviderAuthorityError as error:
@@ -517,7 +647,8 @@ def create_app() -> FastAPI:
         store: AiProviderStoreDependency,
         validator: GeminiCredentialValidatorDependency,
     ) -> AiProviderConfiguration:
-        _require_company_admin(company_id, context)
+        _reject_anonymous_operator(context)
+        _require_demo_provider_owner_or_admin(company_id, context)
         credential = body.credential_value()
         try:
             validation = validator.validate(
@@ -583,6 +714,73 @@ def create_app() -> FastAPI:
                 detail="AI provider configuration could not be stored",
             ) from error
 
+    @application.get("/v1/companies/{company_id}/ai-provider/demo-binding")
+    def get_demo_provider_binding(
+        company_id: UUID, context: CompanyContextDependency, store: AiProviderStoreDependency
+    ) -> dict[str, object]:
+        _require_demo_provider_owner_or_admin(company_id, context)
+        if context.demo_run_id is None:
+            raise HTTPException(status_code=409, detail="select an owned demo run first")
+        try:
+            return store.get_demo_binding(context=context)
+        except AiProviderAuthorityError as error:
+            raise HTTPException(
+                status_code=403, detail="provider owner authority is required"
+            ) from error
+        except AiProviderStoreUnavailableError as error:
+            raise HTTPException(
+                status_code=503, detail="demo provider binding is unavailable"
+            ) from error
+
+    @application.post("/v1/companies/{company_id}/ai-provider/demo-binding")
+    def bind_demo_provider(
+        company_id: UUID,
+        body: DemoProviderVersionRequest,
+        context: CompanyContextDependency,
+        store: AiProviderStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> dict[str, object]:
+        _reject_anonymous_operator(context)
+        _require_demo_provider_owner_or_admin(company_id, context)
+        try:
+            store.bind_demo_version(context=context, profile_version_id=body.profile_version_id)
+            return store.get_demo_binding(context=context)
+        except AiProviderAuthorityError as error:
+            raise HTTPException(
+                status_code=403, detail="this provider version or live run is not owned by you"
+            ) from error
+        except AiProviderStoreUnavailableError as error:
+            raise HTTPException(
+                status_code=409,
+                detail="run binding is immutable; start a new live run to change provider version",
+            ) from error
+
+    @application.delete("/v1/companies/{company_id}/ai-provider/demo-versions/{profile_version_id}")
+    def revoke_demo_provider(
+        company_id: UUID,
+        profile_version_id: UUID,
+        context: CompanyContextDependency,
+        store: AiProviderStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> dict[str, object]:
+        _reject_anonymous_operator(context)
+        _require_demo_provider_owner_or_admin(company_id, context)
+        try:
+            store.revoke_demo_version(context=context, profile_version_id=profile_version_id)
+            return {"profile_version_id": str(profile_version_id), "status": "revoked"}
+        except AiProviderAuthorityError as error:
+            raise HTTPException(
+                status_code=403, detail="provider version owner authority is required"
+            ) from error
+        except AiProviderStoreUnavailableError as error:
+            raise HTTPException(
+                status_code=503, detail="provider revocation is unavailable"
+            ) from error
+
     @application.delete(
         "/v1/companies/{company_id}/ai-provider/gemini",
         response_model=AiProviderConfiguration,
@@ -626,10 +824,11 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="company was not found"
             )
-        if context.administrative_role not in ("manager", "company_admin"):
+        if not context.can_manage_planning:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="manager authority is required"
             )
+        _require_supported_demo_intake(context, body.original_request)
         try:
             record = store.create_request(
                 context=context,
@@ -678,7 +877,7 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="company was not found"
             )
-        if context.administrative_role not in ("manager", "company_admin"):
+        if not context.can_manage_planning:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="manager authority is required"
             )
@@ -690,6 +889,7 @@ def create_app() -> FastAPI:
                 detail="planning context is unavailable",
             ) from error
         return PlanningContextResponse(
+            demo_intake=(DemoPlanningIntakeResponse() if context.demo_run_id is not None else None),
             sources=tuple(
                 PlanningSourceResponse(
                     source_id=value.source_id,
@@ -725,7 +925,7 @@ def create_app() -> FastAPI:
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="company was not found",
             )
-        if context.administrative_role not in ("manager", "company_admin"):
+        if not context.can_manage_planning:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="manager authority is required",
@@ -744,6 +944,14 @@ def create_app() -> FastAPI:
             ) from error
         return PlanningRequestDetailResponse(
             request_id=view.request_id,
+            original_request=view.original_request or "",
+            project_id=view.project_id,
+            intake_supported=_demo_intake_supported(context, view.original_request),
+            intake_limitation=(
+                None
+                if _demo_intake_supported(context, view.original_request)
+                else DEMO_INTAKE_LIMITATION
+            ),
             status=view.status,
             request_version=view.request_version,
             latest_outcome=view.latest_outcome,
@@ -771,6 +979,13 @@ def create_app() -> FastAPI:
                     attempt_count=view.interpretation_job.attempt_count,
                     max_attempts=view.interpretation_job.max_attempts,
                     last_error_code=view.interpretation_job.last_error_code,
+                    can_retry=(
+                        context.can_manage_planning
+                        and _demo_intake_supported(context, view.original_request)
+                        and view.interpretation_job.state in {"dead_letter", "review_required"}
+                        # Live interpretation has a fixed three-attempt provider budget.
+                        and view.interpretation_job.attempt_count < 3
+                    ),
                 )
                 if view.interpretation_job is not None
                 else None
@@ -782,6 +997,12 @@ def create_app() -> FastAPI:
                     attempt_count=view.materialization_job.attempt_count,
                     max_attempts=view.materialization_job.max_attempts,
                     last_error_code=view.materialization_job.last_error_code,
+                    can_retry=(
+                        context.can_manage_planning
+                        and _demo_intake_supported(context, view.original_request)
+                        and view.materialization_job.state in {"dead_letter", "review_required"}
+                        and view.materialization_job.attempt_count < 20
+                    ),
                 )
                 if view.materialization_job is not None
                 else None
@@ -793,6 +1014,31 @@ def create_app() -> FastAPI:
                     attempt_count=view.planning_job.attempt_count,
                     max_attempts=view.planning_job.max_attempts,
                     last_error_code=view.planning_job.last_error_code,
+                    model_call_count=(
+                        view.planning_job.model_call_count
+                        if view.planning_job.job_kind == "plan.propose"
+                        else None
+                    ),
+                    latest_model_error_code=(
+                        safe_planning_model_error_code(view.planning_job.latest_model_error_code)
+                        if view.planning_job.job_kind == "plan.propose"
+                        else None
+                    ),
+                    can_retry=(
+                        context.can_manage_planning
+                        and _demo_intake_supported(context, view.original_request)
+                        and view.planning_job.state in {"dead_letter", "review_required"}
+                        and (
+                            view.planning_job.job_kind == "planning.run"
+                            or (
+                                view.planning_job.job_kind == "plan.propose"
+                                and view.planning_job.last_error_code == "fixed_plan_not_verified"
+                                and (view.planning_job.model_call_count or 0)
+                                < MAX_FIXED_PLAN_PROPOSALS
+                            )
+                        )
+                        and view.planning_job.attempt_count < 20
+                    ),
                 )
                 if view.planning_job is not None
                 else None
@@ -819,11 +1065,13 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="company was not found"
             )
-        if context.administrative_role not in ("manager", "company_admin"):
+        if not context.can_manage_planning:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="manager authority is required",
             )
+        _require_supported_saved_demo_request(context, request_id, store)
+        admit_demo_ai_command(demo_ai_command_limiter, context, idempotency_key)
         try:
             record = store.submit_clarification_answers(
                 context=context,
@@ -880,6 +1128,7 @@ def create_app() -> FastAPI:
         request_id: UUID,
         context: CompanyContextDependency,
         store: DurableStoreDependency,
+        demo_store: DemoIntakeStoreDependency,
         idempotency_key: Annotated[
             str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
         ],
@@ -888,19 +1137,19 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND, detail="company was not found"
             )
-        if context.administrative_role not in ("manager", "company_admin"):
+        if not context.can_manage_planning:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN, detail="manager authority is required"
             )
+        _require_supported_saved_demo_request(context, request_id, demo_store)
+        admit_demo_ai_command(demo_ai_command_limiter, context, idempotency_key)
         try:
             return store.ensure_job(
                 context=context,
                 job_kind="interpretation.run",
                 aggregate_id=request_id,
                 idempotency_key=idempotency_key,
-                command_digest=_job_command_digest(
-                    company_id, "interpretation.run", request_id
-                ),
+                command_digest=_job_command_digest(company_id, "interpretation.run", request_id),
                 correlation_id=uuid5(request_id, "interpretation.run"),
             )
         except JobNotFoundError as error:
@@ -961,9 +1210,7 @@ def create_app() -> FastAPI:
         ],
     ) -> JobView:
         _require_manager_company(company_id, context)
-        digest = hashlib.sha256(
-            f"{company_id}:{job_id}:{body.reason}".encode()
-        ).digest()
+        digest = hashlib.sha256(f"{company_id}:{job_id}:{body.reason}".encode()).digest()
         try:
             return store.cancel_job(
                 context=context,
@@ -1002,15 +1249,26 @@ def create_app() -> FastAPI:
         body: JobRetryRequest,
         context: CompanyContextDependency,
         store: DurableStoreDependency,
+        demo_store: DemoIntakeStoreDependency,
         idempotency_key: Annotated[
             str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
         ],
     ) -> JobView:
         _require_manager_company(company_id, context)
-        digest = hashlib.sha256(
-            f"{company_id}:{job_id}:retry:{body.reason}".encode()
-        ).digest()
+        digest = hashlib.sha256(f"{company_id}:{job_id}:retry:{body.reason}".encode()).digest()
         try:
+            if context.demo_run_id is not None:
+                job = store.get_job(context=context, job_id=job_id)
+                if job.job_kind == "interpretation.run":
+                    _require_supported_saved_demo_request(context, job.aggregate_id, demo_store)
+                if job.job_kind in {
+                    "interpretation.run",
+                    "plan.propose",
+                    "assistant.respond",
+                    "preference.suggest",
+                    "voice.transcribe",
+                }:
+                    admit_demo_ai_command(demo_ai_command_limiter, context, idempotency_key)
             return store.retry_job(
                 context=context,
                 job_id=job_id,
@@ -1647,9 +1905,26 @@ def _record_ai_credential_test(
 
 def _require_manager_company(company_id: UUID, context: CompanyContextDependency) -> None:
     _require_same_company(company_id, context)
-    if context.administrative_role not in ("manager", "company_admin"):
+    if not context.can_manage_planning:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN, detail="manager authority is required"
+        )
+
+
+def _require_demo_provider_owner_or_admin(
+    company_id: UUID, context: CompanyContextDependency
+) -> None:
+    if context.demo_run_id is not None:
+        _require_same_company(company_id, context)
+    else:
+        _require_company_admin(company_id, context)
+
+
+def _reject_anonymous_operator(context: CompanyContext) -> None:
+    if context.actor.is_anonymous:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="operator credential management is unavailable to anonymous sessions",
         )
 
 

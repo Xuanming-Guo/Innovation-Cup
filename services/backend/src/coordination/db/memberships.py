@@ -17,6 +17,8 @@ class ActiveMembership:
     user_id: UUID
     administrative_role: AdministrativeRole
     employee_id: UUID | None
+    company_is_demo: bool = False
+    demo_policy_enabled: bool = False
 
 
 class MembershipResolver(Protocol):
@@ -52,7 +54,12 @@ class PostgresMembershipResolver:
                             membership.user_id,
                             membership.administrative_role,
                             employee.id as employee_id
+                            , company.is_demo as company_is_demo
+                            , coalesce(policy.enabled, false) as demo_policy_enabled
                         from app.company_memberships as membership
+                        join app.companies as company on company.id = membership.company_id
+                        left join app.demo_workspace_policies as policy
+                          on policy.company_id = membership.company_id
                         left join app.employee_profiles as employee
                           on employee.company_id = membership.company_id
                          and employee.membership_id = membership.id
@@ -74,4 +81,6 @@ class PostgresMembershipResolver:
             user_id=cast(UUID, row["user_id"]),
             administrative_role=cast(AdministrativeRole, row["administrative_role"]),
             employee_id=cast(UUID | None, row["employee_id"]),
+            company_is_demo=bool(row["company_is_demo"]),
+            demo_policy_enabled=bool(row["demo_policy_enabled"]),
         )

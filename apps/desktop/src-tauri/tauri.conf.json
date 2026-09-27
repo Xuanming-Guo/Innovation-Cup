@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Coordination Engine",
+  "productName": "ALTO",
   "version": "0.1.0",
   "identifier": "com.coordination.engine",
   "build": {
@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "Coordination Engine",
+        "title": "ALTO",
         "width": 1280,
         "height": 820,
         "minWidth": 920,
@@ -22,13 +22,20 @@
       }
     ],
     "security": {
-      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8000 https:"
+      "csp": "default-src 'self'; img-src 'self' asset: http://asset.localhost; media-src 'self' blob:; style-src 'self' 'unsafe-inline'; connect-src 'self' http://127.0.0.1:8000 https: wss:"
     }
   },
   "bundle": {
     "active": true,
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
     "category": "Business",
-    "copyright": "Copyright (c) 2026 Coordination Engine contributors",
+    "copyright": "Copyright (c) 2026 ALTO contributors",
     "shortDescription": "Permission-aware company coordination",
     "targets": "all",
     "macOS": {

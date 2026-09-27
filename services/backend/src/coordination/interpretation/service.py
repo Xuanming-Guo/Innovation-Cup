@@ -11,13 +11,16 @@ from uuid import UUID, uuid4
 from pydantic import BaseModel, ConfigDict, Field
 
 from coordination.interpretation.admission import AdmissionResult, admit_candidate
+from coordination.interpretation.contracts import CandidateTaskContract
 from coordination.interpretation.gateway import (
     GatewayConfiguration,
     GatewayResponse,
     GeminiGatewayError,
     InterpretationGateway,
+    RepairableInterpretationGateway,
 )
 from coordination.interpretation.projection import InterpretationProjection
+from coordination.interpretation.prompt import InterpretationRepairContext
 
 
 class InterpretationBudgetExceededError(ValueError):
@@ -81,6 +84,8 @@ class InterpretationService:
         clock: Callable[[], datetime] | None = None,
         monotonic_clock: Callable[[], int] | None = None,
         run_id_factory: Callable[[], UUID] | None = None,
+        admission_validator: Callable[[CandidateTaskContract], AdmissionResult] | None = None,
+        repair_context: InterpretationRepairContext | None = None,
     ) -> None:
         self._gateway = gateway
         self._recorder = recorder
@@ -88,6 +93,8 @@ class InterpretationService:
         self._clock = clock or (lambda: datetime.now(UTC))
         self._monotonic_clock = monotonic_clock or monotonic_ns
         self._run_id_factory = run_id_factory or uuid4
+        self._admission_validator = admission_validator
+        self._repair_context = repair_context
 
     def interpret(self, projection: InterpretationProjection) -> InterpretationOutcome:
         projection_payload = projection.canonical_json()
@@ -97,10 +104,19 @@ class InterpretationService:
         self._recorder.start(
             run_id=run_id,
             projection=projection,
-            configuration=self._gateway.configuration,
+            configuration=self._gateway.configuration.model_copy(
+                update={
+                    "interpretation_context_digest": self._repair_context.digest
+                    if self._repair_context
+                    else None,
+                }
+            ),
             started_at=started_at,
         )
-        if len(projection_payload) > self._max_projection_characters:
+        repair_characters = (
+            len(self._repair_context.canonical_json()) if self._repair_context else 0
+        )
+        if len(projection_payload) + repair_characters > self._max_projection_characters:
             latency_ms = max(0, (self._monotonic_clock() - started_ns) // 1_000_000)
             self._recorder.fail(
                 run_id=run_id,
@@ -111,7 +127,16 @@ class InterpretationService:
             )
             raise InterpretationBudgetExceededError(run_id)
         try:
-            response = self._gateway.generate(projection)
+            if self._repair_context is None:
+                response = self._gateway.generate(projection)
+            elif isinstance(self._gateway, RepairableInterpretationGateway):
+                response = self._gateway.generate_with_repair(
+                    projection,
+                    repair_context=self._repair_context,
+                )
+            else:
+                # Existing fixture/mock gateways need not implement live model repair.
+                raise GeminiGatewayError("gateway does not support audited repair context")
         except GeminiGatewayError as error:
             latency_ms = max(0, (self._monotonic_clock() - started_ns) // 1_000_000)
             self._recorder.fail(
@@ -128,6 +153,8 @@ class InterpretationService:
             ) from error
 
         admission = admit_candidate(response.contract, projection, now=self._clock())
+        if admission.status == "admitted" and self._admission_validator is not None:
+            admission = self._admission_validator(response.contract)
         contract_json = json.dumps(
             response.contract.model_dump(mode="json"),
             ensure_ascii=False,

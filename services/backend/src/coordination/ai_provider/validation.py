@@ -218,9 +218,7 @@ class GoogleGeminiCredentialValidator:
                     max_output_tokens=1024,
                     response_mime_type="application/json",
                     response_schema=candidate_response_schema(),
-                    automatic_function_calling=types.AutomaticFunctionCallingConfig(
-                        disable=True
-                    ),
+                    automatic_function_calling=types.AutomaticFunctionCallingConfig(disable=True),
                 ),
             )
         except (TypeError, ValueError) as error:

@@ -44,6 +44,11 @@ allowed_mime_types = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "text/csv",
   "text/plain",
+  "image/png",
+  "image/jpeg",
+  "audio/webm",
+  "audio/mp4",
+  "audio/wav",
 ]
 
 [storage.buckets.coordination-private]
@@ -54,6 +59,11 @@ allowed_mime_types = [
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "text/csv",
   "text/plain",
+  "image/png",
+  "image/jpeg",
+  "audio/webm",
+  "audio/mp4",
+  "audio/wav",
 ]
 
 [auth]
@@ -62,8 +72,13 @@ site_url = "http://127.0.0.1:1420"
 additional_redirect_urls = ["http://127.0.0.1:1420/**", "tauri://localhost/**"]
 jwt_expiry = 3600
 enable_signup = true
-enable_anonymous_sign_ins = false
+enable_anonymous_sign_ins = true
 
 [functions.storage-ticket]
 enabled = true
 verify_jwt = true
+
+# Authenticated by a DB-verified single-file job/cleanup lease capability, not a user JWT.
+[functions.worker-storage]
+enabled = true
+verify_jwt = false

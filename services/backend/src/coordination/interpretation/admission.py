@@ -277,9 +277,7 @@ def actionable_clarifications(
         question = f"Resolve this planning issue before continuing: {issue.message}"
         assumption_match = re.fullmatch(r"assumptions\[(\d+)\]", issue.path)
         unsupported_match = re.fullmatch(r"unsupported\[(\d+)\]", issue.path)
-        deadline_match = re.fullmatch(
-            r"tasks\[(\d+)\]\.deadline\.flexibility", issue.path
-        )
+        deadline_match = re.fullmatch(r"tasks\[(\d+)\]\.deadline\.flexibility", issue.path)
         if issue.code == "material_assumption" and assumption_match is not None:
             assumption_index = int(assumption_match.group(1))
             if assumption_index < len(contract.assumptions):

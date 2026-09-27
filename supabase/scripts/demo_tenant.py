@@ -331,7 +331,7 @@ def seed(connection: psycopg.Connection[tuple[object, ...]]) -> None:
             ) values
               (%s, %s, 'Europe/London', %s, %s, %s, 360, 1, 1, true),
               (%s, %s, 'Europe/London', %s, %s, %s, 360, 1, 1, true)
-            on conflict (company_id, resource_id) do update
+            on conflict (company_id, scope_id, resource_id) do update
             set timezone = excluded.timezone,
                 availability_windows = excluded.availability_windows,
                 capability_keys = excluded.capability_keys,

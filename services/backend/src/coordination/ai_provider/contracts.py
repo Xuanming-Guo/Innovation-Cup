@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Literal
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, SecretStr, model_validator
 
@@ -44,6 +45,8 @@ class AiProviderConfiguration(BaseModel):
     configured_at: datetime | None
     validated_at: datetime | None
     rotated_at: datetime | None
+    profile_id: UUID | None = None
+    profile_version_id: UUID | None = None
 
     @model_validator(mode="after")
     def provider_mode_matches(self) -> AiProviderConfiguration:

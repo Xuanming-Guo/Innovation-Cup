@@ -1,51 +1,84 @@
 # Native release matrix
 
-The release workflow builds on architecture-matching GitHub-hosted runners and uploads artifacts
-for 30 days. It does not create a public GitHub Release automatically.
+## Current automation state
 
-| Artifact | Native runner | Rust target | Package | Signature state | Installed smoke state |
+The **Native release artifacts** workflow builds all three targets on architecture-matching
+GitHub-hosted runners with `VITE_HACKATHON_DEMO=true`, public Supabase discovery configuration and
+the ALTO product name. Manual runs retain candidate artifacts for 30 days. Stable SemVer tag runs
+add a separate publication job with `contents: write`; build jobs retain read-only permissions.
+
+The workflow is prepared locally for the release PR. Implementation is not evidence of a completed
+native CI run or public release. The landing page's `/releases/latest/download/...` URLs become
+available once the tagged workflow successfully publishes the complete asset set.
+
+| Public build | Native runner | Rust target | Package | Signature state | Installed smoke state |
 |---|---|---|---|---|---|
-| Windows 11 x64 | `windows-2025` x64 | `x86_64-pc-windows-msvc` | NSIS `-setup.exe` | Unsigned | Not run by build CI |
-| macOS 13+ Apple Silicon | `macos-15` arm64 | `aarch64-apple-darwin` | `.app` and `.dmg` | Ad-hoc, not notarised | Not run by build CI |
-| macOS 13+ Intel | `macos-15-intel` x64 | `x86_64-apple-darwin` | `.app` and `.dmg` | Ad-hoc, not notarised | Not run by build CI |
+| Windows 11 x64 | `windows-2025` x64 | `x86_64-pc-windows-msvc` | NSIS `.exe` | Unsigned | Required before claiming installed support |
+| macOS 13+ Apple silicon | `macos-15` arm64 | `aarch64-apple-darwin` | `.app` and `.dmg` | Ad-hoc; not notarized | Not run; no Mac test hardware is available |
+| macOS 13+ Intel | `macos-15-intel` x64 | `x86_64-apple-darwin` | `.app` and `.dmg` | Ad-hoc; not notarized | Not run; no Mac test hardware is available |
 
-Each uploaded artifact contains its distributable, SHA-256 checksum in
-`release-manifest.json`, full build commit, toolchain versions and explicit signing/notarisation
-state. The Mac download is a DMG, not an EXE. Windows and Mac artifacts are separate native
-binaries.
+## Public `v0.1.0` contract
 
-Run **Native release artifacts** manually from GitHub Actions after merging a reviewed release
-commit, or push a reviewed SemVer tag such as `v0.1.0`. Download all three Action artifacts and
-run:
+The tagged workflow publishes these exact installer names:
 
-```powershell
-npm.cmd run release:check
-```
+- `ALTO-mac-apple-silicon.dmg`
+- `ALTO-windows-x64-setup.exe`
+- `ALTO-mac-intel.dmg`
 
-against an `artifacts/release/` tree containing the downloaded manifest directories. Then perform
-the connected cross-platform smoke procedure in
-[production and hosted-demo setup](development/production-setup.md). Do not change
-`installedAppSmokeTest` from `not-run` without recording real machine/OS evidence.
+Every package must use version `0.1.0` consistently across the root package, desktop package,
+Cargo package and Tauri configuration. The `v0.1.0` tag must point to the reviewed release commit
+on `main`.
 
-Before compilation, the workflow requires the repository Actions variables `VITE_API_MODE`,
-`VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY` and `VITE_DEFAULT_COMPANY_ID`. The selected
-laptop-host build uses `VITE_API_MODE=supabase-discovery` and omits `VITE_API_ORIGIN`; a static
-deployment must provide a canonical HTTPS origin. The validator accepts only an
-`sb_publishable_...` client key and a UUID. These are public build inputs, not Actions secrets. A
-missing or privileged-looking key fails the job rather than producing an installer that asks
-employees to configure deployment coordinates.
+The workflow fixes judge mode, discovery mode and product name, and requires these public values:
 
-Apple Developer ID signing/notarisation and Windows Authenticode signing need founder-owned
-certificates and CI secrets that are not present in the repository. These artifacts are suitable
-for controlled internal/demo distribution; they are not represented as frictionless public-store
-releases. Do not tell users to disable operating-system protections globally.
+- `VITE_HACKATHON_DEMO=true`
+- `VITE_API_MODE=supabase-discovery`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_DEFAULT_COMPANY_ID`
+- `VITE_PRODUCT_NAME=ALTO`
 
-## Latest build evidence
+These are public client configuration, not Actions secrets. The validator must reject a missing
+value, a malformed company UUID, a non-HTTPS Supabase URL or a privileged-looking key. Database
+passwords, runtime DSNs, Supabase secret/service-role keys, Vault contents and Google credentials
+must never be copied into the build environment or installer.
+
+Manual workflow dispatch remains a candidate-build path and uploads temporary Actions artifacts
+only. A reviewed SemVer tag must build all three platforms before publishing anything, normalize
+the files to the stable public names, generate a platform manifest for each package and create one
+top-level `SHA256SUMS.txt`. Each manifest records the commit, version, platform, architecture,
+target, checksum, signature/notarization state and installed-test state.
+
+Each native candidate contains its installer and `ALTO-<platform>-manifest.json`. The combined
+`verified-release-set` artifact contains all six files and `SHA256SUMS.txt`. The tagged workflow
+then creates a draft release, uploads and verifies the complete asset set, and
+only then publishes it as the latest release. It must fail if a published release already exists
+for the tag and must never replace assets on a published tag. A code correction requires a new
+patch version; a transient job failure may rerun only the unchanged tag workflow.
+
+The landing page follows the latest published release automatically. Publishing a complete newer
+release with the same stable filenames updates the three download links without a Pages rebuild.
+The **Release notes & checksums** link opens the release page containing the release description,
+platform manifests and `SHA256SUMS.txt`.
+
+## Signing and evidence boundary
+
+Apple Developer ID signing/notarization and Windows Authenticode signing require founder-owned
+certificates and CI secrets that are not present. The hackathon packages therefore remain Windows
+unsigned and macOS ad-hoc signed/not notarized. Opening instructions may explain how to approve the
+specific downloaded application, but must never tell users to disable operating-system protection
+globally.
+
+A successful compile, package inspection or checksum does not establish installed behavior. Do not
+change an `installedAppSmokeTest` field from `not-run` without recording the real machine, OS,
+architecture and observed result. Native macOS CI can establish architecture and package validity;
+it cannot be described as physical-Mac hardware testing.
+
+## Historical build evidence
 
 Workflow [run 1](https://github.com/Xuanming-Guo/Innovation-Cup/actions/runs/36256960403)
-completed successfully for commit `ec45bcbc35a5b912b0e27178f48f2e29a1df46f0` on 26 September
+completed for commit `ec45bcbc35a5b912b0e27178f48f2e29a1df46f0` on 26 September
 2026. It uploaded `coordination-engine-windows-x64`, `coordination-engine-macos-arm64` and
-`coordination-engine-macos-x64`, each with a verified `release-manifest.json`. GitHub retains this
-manual-run artifact set until 26 October 2026. That run predates required baked configuration, so
-it is generic and is not the final configured distribution. Compilation and upload passed;
-installed-app and connected cross-platform smoke tests remain not run.
+`coordination-engine-macos-x64`, each with a verified `release-manifest.json`. That run predates
+the locked judge configuration and stable public filenames. It is historical compilation evidence,
+not the public ALTO `v0.1.0` release or installed-platform evidence.
