@@ -336,15 +336,18 @@ begin
       p_candidate_contract_id, v_question.id, v_actor_membership_id,
       v_answer, extensions.digest(convert_to(v_answer, 'UTF8'), 'sha256')
     );
-    update app.clarification_questions
+    update app.clarification_questions as question
     set status = 'answered'
-    where company_id = p_company_id and id = v_question.id and status = 'open';
+    where question.company_id = p_company_id
+      and question.id = v_question.id
+      and question.status = 'open';
   end loop;
 
-  update app.planning_requests
+  update app.planning_requests as original
   set status = 'clarification_answered'
-  where company_id = p_company_id and id = p_request_id
-    and status = 'clarification_required';
+  where original.company_id = p_company_id
+    and original.id = p_request_id
+    and original.status = 'clarification_required';
 
   insert into app.audit_events (
     company_id, actor_membership_id, event_type, aggregate_type, aggregate_id,
