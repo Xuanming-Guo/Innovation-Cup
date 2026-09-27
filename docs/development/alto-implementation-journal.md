@@ -1054,3 +1054,13 @@ The founder explicitly declined applying migration 42000 to the hosted database.
 was left unchanged. Fresh uninterrupted sessions can proceed, but queued planning work may fail
 after a persona-session rotation, expiry or reopen until that migration is deployed. This
 limitation remains separate from installer compilation and distribution readiness.
+
+The subsequent automatic Supabase run passed all 397 database assertions, schema/function lint
+and Edge Function checks. Its cross-role integration audit then exposed a separate fixture issue:
+the default generated deadline retained wall-clock seconds and did not align to the materializer's
+strict 15-minute grid. The audit now reads the actual seeded availability horizon under the worker
+role and supplies that exact deadline explicitly. Missing capacity still fails closed; production
+materialization, authorization and workflow assertions are unchanged. A database-free reproduction
+confirmed the original rejection and verified that the corrected request passes the real
+materializer, Z3 and independent validation for all three fixture tasks. Full cross-role completion
+still requires the next automatic CI run.

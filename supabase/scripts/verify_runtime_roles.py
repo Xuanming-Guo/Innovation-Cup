@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import os
 from dataclasses import asdict
+from datetime import datetime
 from urllib.parse import urlparse
 from uuid import UUID, uuid4
 
@@ -13,6 +14,7 @@ from coordination.approval.contracts import ApprovalCommand, CommitCommand
 from coordination.approval.persistence import PostgresApprovalStore
 from coordination.auth.models import AuthenticatedUser, CompanyContext
 from coordination.config import Settings
+from coordination.db.session import company_transaction
 from coordination.durable.contracts import WorkerIdentity
 from coordination.durable.handlers import build_handlers
 from coordination.durable.persistence import PostgresDurableStore
@@ -151,8 +153,37 @@ def employee_context() -> CompanyContext:
     )
 
 
+def seeded_planning_deadline(worker_dsn: str, context: CompanyContext) -> datetime:
+    """Use the seeded capacity horizon, not a wall-clock-relative fixture deadline."""
+    with company_transaction(
+        worker_dsn,
+        role="coordination_worker",
+        actor_id=context.actor.user_id,
+        company_id=context.company_id,
+        purpose="local-audit:planning-deadline",
+    ) as connection:
+        row = connection.execute(
+            """
+            select max((availability.value->>'end_at')::timestamptz) as deadline
+            from app.planning_resource_profiles as profile
+            join app.execution_resources as resource
+              on resource.company_id = profile.company_id
+             and resource.id = profile.resource_id
+             and resource.status = 'active'
+            cross join lateral jsonb_array_elements(profile.availability_windows)
+              as availability(value)
+            where profile.company_id = %s and profile.active
+            """,
+            (context.company_id,),
+        ).fetchone()
+    if row is None or not isinstance(row["deadline"], datetime):
+        raise RuntimeError("runtime-role fixture has no seeded planning capacity")
+    return row["deadline"]
+
+
 def run_workflow(api_dsn: str, worker_dsn: str) -> dict[str, object]:
     context = manager_context()
+    deadline = seeded_planning_deadline(worker_dsn, context)
     audit_id = uuid4().hex
     request_store = PostgresInterpretationStore(api_dsn)
     request = request_store.create_request(
@@ -168,8 +199,8 @@ def run_workflow(api_dsn: str, worker_dsn: str) -> dict[str, object]:
                 CAPACITY_SOURCE_ID,
             ),
             requested_priority_key=None,
-            requested_deadline=None,
-            requested_deadline_timezone=None,
+            requested_deadline=deadline,
+            requested_deadline_timezone="Europe/London",
             idempotency_key=f"local-audit-request-{audit_id}",
         ),
     )
