@@ -99,6 +99,22 @@ class MissingDataMarker(StrictProjection):
     blocking: bool
 
 
+class ClarificationAnswer(StrictProjection):
+    response_id: UUID
+    question_key: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
+    category: Literal["missing_data", "authority", "timezone", "ambiguity", "disclosure"]
+    question: str = Field(min_length=1, max_length=1000)
+    answer: str = Field(min_length=1, max_length=4000)
+    answered_at: datetime
+    authority_role: Literal["manager", "company_admin"]
+
+    @model_validator(mode="after")
+    def validate_answered_at(self) -> ClarificationAnswer:
+        if self.answered_at.utcoffset() is None:
+            raise ValueError("answered_at must be timezone-aware")
+        return self
+
+
 class InterpretationProjection(StrictProjection):
     projection_version: Literal["interpretation-projection.v1"]
     company_id: UUID
@@ -114,6 +130,9 @@ class InterpretationProjection(StrictProjection):
     commitments: tuple[ExistingCommitment, ...] = Field(max_length=5000)
     capacity: tuple[CapacityFact, ...] = Field(max_length=5000)
     dependencies: tuple[ExistingDependency, ...] = Field(max_length=5000)
+    clarification_answers: tuple[ClarificationAnswer, ...] = Field(
+        default=(), max_length=100
+    )
     supported_constraint_types: tuple[str, ...] = Field(min_length=1, max_length=30)
     missing_data: tuple[MissingDataMarker, ...] = Field(max_length=20)
 

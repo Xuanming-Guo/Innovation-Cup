@@ -289,6 +289,43 @@ export function getPlanningRequest(
   });
 }
 
+export async function answerPlanningClarifications(
+  context: AuthorisedApiContext,
+  request: PlanningRequestDetail,
+  answers: Record<string, string>,
+): Promise<{ request_id: string }> {
+  if (!request.candidate_contract_id) {
+    throw new Error("The clarification candidate is unavailable");
+  }
+  const resumed = await requestJson<{ request_id: string }>(
+    companyUrl(context, `/planning-requests/${request.request_id}/clarifications`),
+    {
+      method: "POST",
+      headers: {
+        ...headers(context, true),
+        "Idempotency-Key": idempotencyKey("clarification-answers"),
+      },
+      body: JSON.stringify({
+        request_version: request.request_version,
+        candidate_contract_id: request.candidate_contract_id,
+        answers,
+      }),
+    },
+  );
+  await requestJson(
+    companyUrl(context, `/planning-requests/${resumed.request_id}/interpret`),
+    {
+      method: "POST",
+      headers: {
+        ...headers(context, true),
+        "Idempotency-Key": idempotencyKey("clarification-interpretation"),
+      },
+      body: "{}",
+    },
+  );
+  return resumed;
+}
+
 export function getPlan(context: AuthorisedApiContext, planId: string): Promise<PlanReview> {
   return requestJson(companyUrl(context, `/plans/${planId}`), { headers: headers(context) });
 }

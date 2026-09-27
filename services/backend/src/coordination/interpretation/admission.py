@@ -10,6 +10,7 @@ from coordination.interpretation.contracts import (
     AssumptionBasis,
     CandidateBasis,
     CandidateTaskContract,
+    ClarificationBasis,
     EvidenceBasis,
 )
 from coordination.interpretation.projection import InterpretationProjection
@@ -116,6 +117,9 @@ def admit_candidate(
     assumption_set = set(assumption_ids)
 
     source_versions = {source.source_version_id: source for source in projection.sources}
+    clarification_responses = {
+        answer.response_id: answer for answer in projection.clarification_answers
+    }
     for path, basis in _all_bases(contract):
         if isinstance(basis, EvidenceBasis):
             source = source_versions.get(basis.source_version_id)
@@ -142,6 +146,16 @@ def admit_candidate(
                 )
         elif isinstance(basis, AssumptionBasis) and basis.assumption_id not in assumption_set:
             issue("unknown_assumption", path, "basis refers to an unknown assumption", "reject")
+        elif (
+            isinstance(basis, ClarificationBasis)
+            and basis.response_id not in clarification_responses
+        ):
+            issue(
+                "unknown_clarification_response",
+                path,
+                "basis refers to a clarification response outside the permitted projection",
+                "reject",
+            )
 
     graph: dict[str, set[str]] = defaultdict(set)
     for index, dependency in enumerate(contract.dependencies):

@@ -1,5 +1,5 @@
 begin;
-select plan(20);
+select plan(22);
 
 select has_schema('app', 'private application schema exists');
 select has_schema('app_private', 'private operational schema exists');
@@ -14,6 +14,11 @@ select has_table('app', 'source_records', 'source records table exists');
 select has_table('app', 'source_versions', 'source versions table exists');
 select has_table('app', 'source_access_grants', 'source access grants table exists');
 select has_table('app', 'private_files', 'private files table exists');
+select has_table(
+  'app', 'clarification_answer_submissions',
+  'clarification answer submissions table exists'
+);
+select has_table('app', 'clarification_responses', 'clarification responses table exists');
 
 select ok(
   (
@@ -69,7 +74,7 @@ select ok(
 
 select is(
   (select count(*)::integer from app_private.migration_contract),
-  15,
+  16,
   'all ordered repository migrations registered their version'
 );
 

@@ -70,6 +70,7 @@ The quarantined-file job currently fails closed into `review_required` with
 `file_scanner_not_configured`; no file is declared clean without a real malware scanner and private
 object mover. Interpretation creates the admitted candidate, and planning consumes an already
 frozen snapshot; the durable trusted materialiser turns an admitted candidate into allowlisted
-constraints and that immutable snapshot. A manager-facing clarification answer/resume command and
-a cross-request action inbox remain open workflow work in #51; hosted migration, corrected live-provider
+constraints and that immutable snapshot. Manager clarification answers now create an immutable,
+version-bound derived request and resume through a fresh durable interpretation job. A unified
+cross-request action inbox remains open workflow work in #51; hosted migration, corrected live-provider
 and crash/restart evidence remain deployment/evaluation gates.

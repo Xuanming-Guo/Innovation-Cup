@@ -53,6 +53,7 @@ class FakeStore:
         self.created = created
         self.commands: list[Any] = []
         self.request_id = UUID("cccccccc-cccc-4ccc-8ccc-cccccccccccc")
+        self.derived_request_id = UUID("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
 
     def create_request(self, **values: Any) -> PlanningRequestRecord:
         self.commands.append(values)
@@ -80,6 +81,15 @@ class FakeStore:
                     status="open",
                 ),
             ),
+        )
+
+    def submit_clarification_answers(self, **values: Any) -> PlanningRequestRecord:
+        self.commands.append(values)
+        return PlanningRequestRecord(
+            request_id=self.derived_request_id,
+            status="pending_interpretation",
+            request_version=2,
+            created=self.created,
         )
 
 
@@ -170,6 +180,35 @@ def test_manager_can_read_current_interpretation_state() -> None:
                 "status": "open",
             }
         ],
+    }
+
+
+def test_manager_can_answer_blocking_clarifications_as_a_derived_request() -> None:
+    store = FakeStore()
+    candidate_id = UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
+    with client_for("manager", store) as client:
+        response = client.post(
+            f"/v1/companies/{COMPANY_ID}/planning-requests/{store.request_id}/clarifications",
+            headers={**request_headers(), "Idempotency-Key": "clarification-answer-0001"},
+            json={
+                "request_version": 1,
+                "candidate_contract_id": str(candidate_id),
+                "answers": {"task-owner": "The requesting manager holds approval authority."},
+            },
+        )
+
+    assert response.status_code == 201
+    assert response.json() == {
+        "request_id": str(store.derived_request_id),
+        "status": "pending_interpretation",
+        "request_version": 2,
+        "created": True,
+    }
+    command = store.commands[0]["command"]
+    assert command.request_id == store.request_id
+    assert command.candidate_contract_id == candidate_id
+    assert command.answers == {
+        "task-owner": "The requesting manager holds approval authority."
     }
 
 

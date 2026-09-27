@@ -1,7 +1,12 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { createPlanningRequest, type AuthorisedApiContext } from "./api-client";
+import {
+  answerPlanningClarifications,
+  createPlanningRequest,
+  type AuthorisedApiContext,
+  type PlanningRequestDetail,
+} from "./api-client";
 import { CompanyConnections } from "./company-connections";
 import { EmployeeWorkspace } from "./employee-workspace";
 import { PlanReviewWorkspace } from "./plan-review";
@@ -78,6 +83,105 @@ describe("connected workspaces", () => {
     expect(payload.requested_deadline).toMatch(/^2026-10-0[12]T\d{2}:00:00\.000Z$/);
     expect(payload.requested_deadline_timezone).toEqual(expect.any(String));
     expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("submits manager clarification answers and resumes the derived request", async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(json({ request_id: "request-2" })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+    const request: PlanningRequestDetail = {
+      request_id: "request-1",
+      status: "clarification_required",
+      request_version: 1,
+      latest_outcome: "clarification_required",
+      candidate_digest: "ab".repeat(32),
+      candidate_contract_id: "candidate-1",
+      snapshot_id: null,
+      plan_id: null,
+      interpretation_job_state: "succeeded",
+      materialization_job_state: null,
+      planning_job_state: null,
+      clarifications: [
+        {
+          question_key: "approval_authority",
+          category: "authority",
+          question: "Who approves the assignment?",
+          blocks_planning: true,
+          status: "open",
+        },
+      ],
+    };
+
+    await answerPlanningClarifications(api, request, {
+      approval_authority: "The requesting manager approves the assignment.",
+    });
+
+    const firstRequest = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(firstRequest[0]).toContain("/planning-requests/request-1/clarifications");
+    expect(JSON.parse(String(firstRequest[1].body))).toEqual({
+      request_version: 1,
+      candidate_contract_id: "candidate-1",
+      answers: {
+        approval_authority: "The requesting manager approves the assignment.",
+      },
+    });
+    const secondRequest = fetchMock.mock.calls[1] as [string, RequestInit];
+    expect(secondRequest[0]).toContain(
+      "/planning-requests/request-2/interpret",
+    );
+  });
+
+  it("renders blocking clarification questions as manager answer controls", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((input: string | URL | Request) => {
+        const url = String(input);
+        if (url.endsWith("/planning-context")) {
+          return Promise.resolve(json({
+            sources: [],
+            requests: [{
+              request_id: "request-1",
+              original_request: "Prepare the handoff.",
+              status: "clarification_required",
+              created_at: "2026-09-26T12:00:00Z",
+            }],
+          }));
+        }
+        if (url.endsWith("/planning-requests/request-1")) {
+          return Promise.resolve(json({
+            request_id: "request-1",
+            status: "clarification_required",
+            request_version: 1,
+            latest_outcome: "clarification_required",
+            candidate_digest: "ab".repeat(32),
+            candidate_contract_id: "candidate-1",
+            snapshot_id: null,
+            plan_id: null,
+            interpretation_job_state: "succeeded",
+            materialization_job_state: null,
+            planning_job_state: null,
+            clarifications: [{
+              question_key: "approval_authority",
+              category: "authority",
+              question: "Which manager approves assignments?",
+              blocks_planning: true,
+              status: "open",
+            }],
+          }));
+        }
+        if (url.endsWith("/reviews/pending")) return Promise.resolve(json({ reviews: [] }));
+        return Promise.reject(new Error(`unexpected request ${url}`));
+      }),
+    );
+
+    render(<PlanReviewWorkspace api={api} />);
+
+    const answer = await screen.findByLabelText("Which manager approves assignments?");
+    const resume = screen.getByRole("button", { name: "Submit answers and resume" });
+    expect(resume).toBeDisabled();
+    fireEvent.change(answer, { target: { value: "The requesting manager." } });
+    expect(resume).toBeEnabled();
   });
 
   it("renders only tasks returned by the authorised employee endpoint", async () => {

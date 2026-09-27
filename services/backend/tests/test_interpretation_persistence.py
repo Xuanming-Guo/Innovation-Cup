@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 from typing import Any
 from uuid import UUID
@@ -15,6 +16,7 @@ from coordination.interpretation.persistence import (
     CreatePlanningRequest,
     PlanningRequestIdempotencyConflictError,
     PostgresInterpretationStore,
+    SubmitClarificationAnswers,
 )
 
 COMPANY_ID = UUID("11111111-1111-4111-8111-111111111111")
@@ -25,6 +27,8 @@ REQUEST_ID = UUID("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
 PROJECT_ID = UUID("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee")
 SOURCE_ID = UUID("ffffffff-ffff-4fff-8fff-ffffffffffff")
 SOURCE_VERSION_ID = UUID("99999999-9999-4999-8999-999999999999")
+CANDIDATE_ID = UUID("88888888-8888-4888-8888-888888888888")
+DERIVED_REQUEST_ID = UUID("77777777-7777-4777-8777-777777777777")
 
 QueryRow = dict[str, Any]
 QueryResponse = QueryRow | list[QueryRow] | None | Exception
@@ -244,6 +248,88 @@ def test_create_request_rejects_an_idempotency_key_with_different_content(
         )
 
     assert len(connection.calls) == 1
+
+
+def test_submit_clarification_answers_returns_the_derived_request(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    connection = install_connection(
+        monkeypatch,
+        [
+            {
+                "request_id": DERIVED_REQUEST_ID,
+                "status": "pending_interpretation",
+                "request_version": 2,
+                "created": True,
+            }
+        ],
+    )
+    value = SubmitClarificationAnswers(
+        request_id=REQUEST_ID,
+        request_version=1,
+        candidate_contract_id=CANDIDATE_ID,
+        answers={"task_owner": "The requesting manager approves assignments."},
+        idempotency_key="clarification-answer-0001",
+        correlation_id=SESSION_ID,
+    )
+
+    result = PostgresInterpretationStore(
+        "postgresql://unused"
+    ).submit_clarification_answers(context=context(), command=value)
+
+    assert result.request_id == DERIVED_REQUEST_ID
+    assert result.request_version == 2
+    assert result.created is True
+    assert "submit_planning_clarifications" in connection.calls[0][0]
+
+
+def test_projection_uses_recorded_capacity_instead_of_a_false_missing_marker(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    now = datetime(2026, 9, 26, 12, 0, tzinfo=UTC)
+    employee_id = UUID("66666666-6666-4666-8666-666666666666")
+    install_role_recording_connection(
+        monkeypatch,
+        [
+            {
+                "id": REQUEST_ID,
+                "original_prompt": "Prepare the guide.",
+                "requested_priority_key": None,
+                "requested_deadline": None,
+                "requested_deadline_timezone": None,
+                "request_version": 1,
+            },
+            [],
+            {"count": 0},
+            [],
+            [
+                {
+                    "id": employee_id,
+                    "timezone": "UTC",
+                    "capability_keys": ["technical_review"],
+                    "permission_keys": [],
+                    "availability_windows": [
+                        {
+                            "start_at": now + timedelta(hours=1),
+                            "end_at": now + timedelta(hours=9),
+                        }
+                    ],
+                    "daily_active_minutes": 360,
+                }
+            ],
+            [],
+            [],
+        ],
+    )
+
+    bundle = PostgresInterpretationStore("postgresql://unused").load_projection(
+        context=context(), request_id=REQUEST_ID, retrieval_run_id=SESSION_ID, now=now
+    )
+
+    assert len(bundle.projection.capacity) == 1
+    assert bundle.projection.capacity[0].employee_id == employee_id
+    assert bundle.projection.capacity[0].available_active_minutes == 360
+    assert "capacity" not in {marker.kind for marker in bundle.projection.missing_data}
 
 
 def test_worker_reconciliation_read_uses_only_the_worker_role(

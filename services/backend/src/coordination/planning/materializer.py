@@ -8,10 +8,12 @@ from uuid import UUID, uuid5
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from coordination.interpretation.contracts import (
+    AssumptionBasis,
     CandidateBasis,
     CandidateDependency,
     CandidateTask,
     CandidateTaskContract,
+    ClarificationBasis,
     EvidenceBasis,
 )
 from coordination.planning.compiler import COMPILER_VERSION
@@ -109,12 +111,24 @@ class MaterializationInput(StrictMaterializationModel):
 
 
 def _source_ids(bases: tuple[CandidateBasis, ...]) -> tuple[UUID, ...]:
-    if any(not isinstance(basis, EvidenceBasis) for basis in bases):
-        raise MaterializationError("planning constraints require confirmed evidence bases")
+    if any(isinstance(basis, AssumptionBasis) for basis in bases):
+        raise MaterializationError("planning constraints require confirmed bases")
     source_ids = {
         basis.source_version_id for basis in bases if isinstance(basis, EvidenceBasis)
     }
     return tuple(sorted(source_ids, key=str))
+
+
+def _clarification_authority_refs(bases: tuple[CandidateBasis, ...]) -> tuple[str, ...]:
+    return tuple(
+        sorted(
+            {
+                f"clarification-response:{basis.response_id}"
+                for basis in bases
+                if isinstance(basis, ClarificationBasis)
+            }
+        )
+    )
 
 
 def _constraint(
@@ -236,6 +250,7 @@ def _dependency_constraint(
             acceptance_required=dependency.dependency_type == "acceptance_to_start",
         ),
         source_version_ids=_source_ids(dependency.bases),
+        authority_refs=_clarification_authority_refs(dependency.bases),
     )
 
 
@@ -305,6 +320,8 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
         task_id = task_ids[task.task_key]
         task_sources = _source_ids(task.bases)
         estimate_sources = _source_ids(task.estimate.bases)
+        task_authority_refs = _clarification_authority_refs(task.bases)
+        estimate_authority_refs = _clarification_authority_refs(task.estimate.bases)
         if not set(task_sources + estimate_sources).issubset(selected_sources):
             raise MaterializationError("candidate basis is outside the selected source manifest")
         deadline_slot = (
@@ -329,6 +346,15 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                 key=str,
             )
         )
+        requirement_authority_refs = tuple(
+            sorted(
+                {
+                    authority_ref
+                    for requirement in task.requirements
+                    for authority_ref in _clarification_authority_refs(requirement.bases)
+                }
+            )
+        )
         if not set(requirement_sources).issubset(selected_sources):
             raise MaterializationError("candidate requirement is outside the source manifest")
 
@@ -345,6 +371,7 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                         scheduling_kind=task.timing_type,
                     ),
                     source_version_ids=task_sources,
+                    authority_refs=task_authority_refs,
                 ),
                 _constraint(
                     constraint_id=f"task.{task.task_key}.effort",
@@ -354,6 +381,7 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                         elapsed_slots=effort_slots,
                     ),
                     source_version_ids=estimate_sources,
+                    authority_refs=estimate_authority_refs,
                 ),
                 _constraint(
                     constraint_id=f"task.{task.task_key}.eligibility",
@@ -364,7 +392,13 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                     ),
                     source_version_ids=requirement_sources or task_sources,
                     authority_refs=tuple(
-                        f"resource-profile:{resource_id}" for resource_id in eligible
+                        sorted(
+                            set(requirement_authority_refs)
+                            | {
+                                f"resource-profile:{resource_id}"
+                                for resource_id in eligible
+                            }
+                        )
                     ),
                 ),
                 _constraint(
@@ -375,7 +409,7 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                         release_slot=0, end_slot=deadline_slot,
                     ),
                     source_version_ids=task_sources,
-                    authority_refs=(authority,),
+                    authority_refs=tuple(sorted({authority, *task_authority_refs})),
                 ),
                 _constraint(
                     constraint_id=f"task.{task.task_key}.deadline",
@@ -395,7 +429,18 @@ def materialize_candidate(value: MaterializationInput) -> PlanningSnapshot:
                         if task.deadline is not None
                         else task_sources
                     ),
-                    authority_refs=(authority,),
+                    authority_refs=tuple(
+                        sorted(
+                            {
+                                authority,
+                                *(
+                                    _clarification_authority_refs(task.deadline.bases)
+                                    if task.deadline is not None
+                                    else task_authority_refs
+                                ),
+                            }
+                        )
+                    ),
                     negotiability=(
                         "locked"
                         if task.deadline is not None and task.deadline.flexibility == "fixed"

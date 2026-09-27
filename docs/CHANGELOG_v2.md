@@ -93,6 +93,16 @@ leaves priority unset until policy defines a valid key. This enables a fresh req
 without inventing company policy; answering and resuming a genuinely necessary clarification
 remains the separate issue #51 workflow.
 
+A later connected run showed that the interpreter still reported capacity as missing even though
+the trusted materialisation profile already contained current availability windows. Interpretation
+now projects those recorded windows and committed schedule blocks instead of emitting a false
+missing-capacity marker. Legitimate blocking questions have an inline manager response path:
+answers are immutable and bound to the exact request version, candidate, question, actor,
+idempotency digest and audit event; submitting all blocking answers creates a derived request
+version and resumes through the existing durable worker. Candidate facts may cite only response IDs
+present in that permission-bounded projection. The earlier model evidence remains unchanged. The
+unified cross-request action inbox remains the unfinished part of issue #51.
+
 The accompanying backend audit adds stage-level job diagnostics and a guarded manager recovery
 command for side-effect-free terminal planning jobs, repairs stranded interpretation state on a
 later fenced retry, and removes dead retry configuration plus duplicate idle worker output. It also
