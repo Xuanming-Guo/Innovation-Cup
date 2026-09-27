@@ -85,7 +85,7 @@ local/remote drift, `db push --dry-run` previews the target changes, and only th
 `db push` changes the hosted database.
 
 Stop if hosted history is not an exact prefix before the push, or if the final list does not match
-the fifteen files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
+the seventeen files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
 copies into the Dashboard SQL editor: that applies untracked bytes and loses reliable migration
 history.
 

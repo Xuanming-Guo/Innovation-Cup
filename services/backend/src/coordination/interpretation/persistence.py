@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from coordination.auth.models import CompanyContext
 from coordination.db.session import company_transaction
+from coordination.interpretation.admission import actionable_clarifications
 from coordination.interpretation.gateway import GatewayConfiguration
 from coordination.interpretation.projection import (
     CapacityFact,
@@ -1137,7 +1138,11 @@ class PostgresInterpretationRecorder(InterpretationRunRecorder):
 
     def complete(self, outcome: InterpretationOutcome, *, completed_at: datetime) -> None:
         contract = outcome.response.contract
-        request_status = "interpreted" if outcome.status == "admitted" else "clarification_required"
+        request_status = {
+            "admitted": "interpreted",
+            "clarification_required": "clarification_required",
+            "rejected": "failed",
+        }[outcome.status]
         try:
             with self._transaction("interpretation:complete") as connection:
                 connection.execute(
@@ -1186,7 +1191,7 @@ class PostgresInterpretationRecorder(InterpretationRunRecorder):
                 ).fetchone()
                 if candidate is None:
                     raise InterpretationStoreUnavailableError("candidate contract was not stored")
-                for question in contract.clarifications:
+                for question in actionable_clarifications(contract, outcome.admission):
                     connection.execute(
                         """
                         insert into app.clarification_questions (

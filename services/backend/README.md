@@ -34,7 +34,9 @@ If admission returns blocking questions, an active manager submits every current
 to `POST /v1/companies/{company_id}/planning-requests/{request_id}/clarifications`. The command is
 idempotent and bound to the exact request version and candidate. It stores immutable responses,
 creates a derived request version and leaves the earlier evidence unchanged; the client then starts
-the derived request through the same durable `/interpret` operation.
+the derived request through the same durable `/interpret` operation. Questions produced by trusted
+admission checks are persisted alongside model-authored questions; a deferred database invariant
+prevents a clarification-required candidate from committing with no visible blocking action.
 
 The `coordination.planning` package implements the trusted post-interpretation boundary:
 `ValidatedConstraint` records are frozen into a canonical `PlanningSnapshot`, compiled through

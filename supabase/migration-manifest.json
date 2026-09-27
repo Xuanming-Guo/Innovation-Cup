@@ -80,6 +80,11 @@
       "file": "20260926025000_clarification_resume.sql",
       "sha256": "9f3810d5abb0238c387c1e29e809947a211ef290692edf44dcd0b6fe17a94fb4",
       "version": "20260926025000"
+    },
+    {
+      "file": "20260926026000_actionable_admission_clarifications.sql",
+      "sha256": "05ea8325dbecc66e8841a82a750908dc5d8fb2de7c7a17fcbeb84ce52ea38aa7",
+      "version": "20260926026000"
     }
   ]
 }
