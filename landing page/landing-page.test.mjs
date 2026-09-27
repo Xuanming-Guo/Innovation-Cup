@@ -26,7 +26,6 @@ test("exposes exactly three stable native download links", () => {
 test("keeps compatibility and release limitations visible", () => {
   assert.ok(html.includes("macOS 13+"));
   assert.ok(html.includes("Windows 11"));
-  assert.ok(html.includes("M-series chips use the Apple silicon build"));
   assert.ok(html.includes("Windows is unsigned"));
   assert.ok(html.includes("not notarized"));
   assert.ok(html.includes("System Settings &rarr; Privacy &amp; Security"));

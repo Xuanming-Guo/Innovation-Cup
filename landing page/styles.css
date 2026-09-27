@@ -416,20 +416,6 @@ h1 em {
   line-height: 1.55;
 }
 
-.mac-help {
-  max-width: 720px;
-  margin: 23px 0 0 auto;
-  color: var(--muted);
-  font-size: 12px;
-  line-height: 1.6;
-  text-align: right;
-}
-
-.mac-help strong {
-  color: var(--ink);
-  font-weight: 650;
-}
-
 .site-footer {
   display: flex;
   align-items: flex-start;
@@ -539,11 +525,6 @@ h1 em {
 
   .platform {
     margin-top: 28px;
-  }
-
-  .mac-help {
-    margin-left: 0;
-    text-align: left;
   }
 
   .security-notice {
