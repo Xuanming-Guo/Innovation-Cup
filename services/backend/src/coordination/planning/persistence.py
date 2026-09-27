@@ -25,15 +25,11 @@ class PlanningStateConflictError(ValueError):
     """Raised when an artifact conflicts with current authoritative state."""
 
 
-EMPLOYEE_BRIEF_VERSION_CONSTRAINT = (
-    "employee_brief_versions_company_id_plan_id_version_key"
-)
+EMPLOYEE_BRIEF_VERSION_CONSTRAINT = "employee_brief_versions_company_id_plan_id_version_key"
 
 
 class PlanningLedger(Protocol):
-    def load_snapshot(
-        self, *, context: CompanyContext, snapshot_id: UUID
-    ) -> PlanningSnapshot: ...
+    def load_snapshot(self, *, context: CompanyContext, snapshot_id: UUID) -> PlanningSnapshot: ...
 
     def save_snapshot(self, *, context: CompanyContext, snapshot: PlanningSnapshot) -> None: ...
 
@@ -51,9 +47,7 @@ class PostgresPlanningLedger:
         self._dsn = dsn
         self._connect_timeout_seconds = connect_timeout_seconds
 
-    def load_snapshot(
-        self, *, context: CompanyContext, snapshot_id: UUID
-    ) -> PlanningSnapshot:
+    def load_snapshot(self, *, context: CompanyContext, snapshot_id: UUID) -> PlanningSnapshot:
         try:
             with company_transaction(
                 self._dsn,
@@ -61,6 +55,8 @@ class PostgresPlanningLedger:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="planning:load-snapshot",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 row = connection.execute(
@@ -97,12 +93,15 @@ class PostgresPlanningLedger:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="planning:snapshot",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 current = connection.execute(
                     """
                     select candidate.id, candidate.request_id, candidate.interpretation_run_id,
-                           company.planning_revision, retrieval.projection_digest
+                           app.scope_planning_revision(company.id,false) as planning_revision,
+                             retrieval.projection_digest
                     from app.candidate_contracts as candidate
                     join app.interpretation_runs as interpretation
                       on interpretation.company_id = candidate.company_id
@@ -335,6 +334,8 @@ class PostgresPlanningLedger:
                 actor_id=context.actor.user_id,
                 company_id=context.company_id,
                 purpose="planning:decision",
+                demo_run_id=context.demo_run_id,
+                demo_actor_session_id=context.demo_actor_session_id,
                 connect_timeout_seconds=self._connect_timeout_seconds,
             ) as connection:
                 stored_snapshot = connection.execute(
@@ -629,11 +630,7 @@ class PostgresPlanningLedger:
                                     plan_id,
                                     "The proposed finish differs from the agreed deadline.",
                                     Jsonb({"agreed_finish_slot": payload.agreed_finish_slot}),
-                                    Jsonb(
-                                        {
-                                            "proposed_finish_slot": deadline_placement.end_slot
-                                        }
-                                    ),
+                                    Jsonb({"proposed_finish_slot": deadline_placement.end_slot}),
                                     Jsonb([constraint.constraint_id]),
                                 ),
                             )
@@ -669,15 +666,13 @@ class PostgresPlanningLedger:
                                 {
                                     slot
                                     for block in selected.blocks
-                                    if block.task_id == payload.task_id
-                                    and block.role == "owner"
+                                    if block.task_id == payload.task_id and block.role == "owner"
                                     for slot in range(block.start_slot, block.end_slot)
                                 }
                             )
                         )
                         if movement_placement is not None and (
-                            movement_placement.owner_resource_id
-                            != payload.existing_resource_id
+                            movement_placement.owner_resource_id != payload.existing_resource_id
                             or proposed_slots != payload.existing_slots
                         ):
                             connection.execute(
@@ -695,9 +690,7 @@ class PostgresPlanningLedger:
                                     "Authorized existing work is displaced by this proposal.",
                                     Jsonb(
                                         {
-                                            "owner_resource_id": str(
-                                                payload.existing_resource_id
-                                            ),
+                                            "owner_resource_id": str(payload.existing_resource_id),
                                             "slots": list(payload.existing_slots),
                                         }
                                     ),
@@ -738,9 +731,7 @@ class PostgresPlanningLedger:
                                     snapshot.policy.policy_version,
                                 ),
                             )
-                contract = CandidateTaskContract.model_validate(
-                    stored_snapshot["contract_json"]
-                )
+                contract = CandidateTaskContract.model_validate(stored_snapshot["contract_json"])
                 owner_ids = tuple(
                     sorted(
                         {
@@ -762,9 +753,7 @@ class PostgresPlanningLedger:
                 ).fetchall()
                 audience_ids = tuple(row["employee_id"] for row in employee_rows)
                 if len(audience_ids) != len(owner_ids):
-                    raise PlanningStateConflictError(
-                        "plan owner cannot receive an employee brief"
-                    )
+                    raise PlanningStateConflictError("plan owner cannot receive an employee brief")
                 brief_payload = {
                     "schema_version": "employee-brief.v1",
                     "summary": "Complete the approved tasks within the committed schedule.",

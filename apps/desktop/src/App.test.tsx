@@ -1,17 +1,28 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { App } from "./App";
 import { savePublicRuntimeConfig } from "./runtime-config";
 
+vi.mock("./authorised-session", () => ({
+  startAuthorisedSession: (config: { supabaseConfigured: boolean }, onState: (state: unknown) => void) => {
+    onState({ status: config.supabaseConfigured ? "signed_out" : "unconfigured" });
+    return { signIn: vi.fn(), signUp: vi.fn(), onboard: vi.fn(), signOut: vi.fn(), stop: vi.fn() };
+  },
+}));
+
 describe("App", () => {
   beforeEach(() => {
+    // Installation-specific ignored .env values must not decide test behavior.
+    for (const name of ["VITE_API_MODE", "VITE_API_ORIGIN", "VITE_SUPABASE_URL", "VITE_SUPABASE_PUBLISHABLE_KEY", "VITE_DEFAULT_COMPANY_ID", "VITE_HACKATHON_DEMO"]) vi.stubEnv(name, "");
     window.localStorage.clear();
+    window.location.hash = "/home";
   });
 
   afterEach(() => {
     cleanup();
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
   });
 
   it("fails closed to the connection boundary instead of presenting fixture records", async () => {
@@ -32,33 +43,28 @@ describe("App", () => {
 
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "Plan review" })).toBeVisible();
-    expect(
-      screen.getByRole("heading", { name: "Sign in to create and review a real plan." }),
-    ).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Welcome to ALTO" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Sign in" })).toBeVisible();
     expect(screen.queryByText(/Sample data/i)).not.toBeInTheDocument();
-    expect(await screen.findByText("API reachable")).toBeVisible();
+    expect(screen.queryByText("Northstar analytics product launch")).not.toBeInTheDocument();
   });
 
-  it("keeps the employee surface behind the authorised task projection", () => {
+  it("keeps routed work surfaces behind authentication", async () => {
     configureDeployment();
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     render(<App />);
 
-    fireEvent.click(screen.getByRole("button", { name: "My work" }));
-
-    expect(screen.getByRole("heading", { name: "My work" })).toBeVisible();
-    expect(
-      screen.getByRole("heading", { name: "Sign in to load only your authorised work." }),
-    ).toBeVisible();
-    expect(screen.getByText(/task-scoped access are rechecked/i)).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "My calendar" }));
+    await waitFor(() => expect(screen.getByRole("heading", { name: "Welcome to ALTO" })).toBeVisible());
+    expect(screen.queryByRole("heading", { name: "My calendar" })).not.toBeInTheDocument();
   });
 
-  it("starts at deployment setup and validates public connection settings", () => {
+  it("offers setup and validates public connection settings", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
     render(<App />);
 
-    expect(screen.getByRole("heading", { name: "Deployment setup" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Set up this installation" }));
+    expect(await screen.findByRole("heading", { name: "Deployment" })).toBeVisible();
     fireEvent.change(screen.getByLabelText("API origin"), { target: { value: "http://api.example.com" } });
     fireEvent.change(screen.getByLabelText("Supabase project URL"), { target: { value: "https://project.supabase.co" } });
     fireEvent.change(screen.getByLabelText("Supabase publishable key"), { target: { value: "sb_publishable_public" } });
@@ -66,7 +72,7 @@ describe("App", () => {
     fireEvent.click(screen.getByRole("button", { name: "Save and connect" }));
 
     expect(screen.getByRole("alert")).toHaveTextContent("must use HTTPS");
-    expect(screen.getByRole("heading", { name: "Deployment setup" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Deployment" })).toBeVisible();
   });
 });
 

@@ -82,7 +82,7 @@ create temporary table first_lease (
   requested_by_membership_id uuid, requested_by_user_id uuid,
   administrative_role text, employee_id uuid, correlation_id uuid,
   attempt_count integer, max_attempts integer, lease_token uuid,
-  leased_until timestamptz
+  leased_until timestamptz,demo_run_id uuid,demo_actor_session_id uuid,simulated_employee_id uuid
 ) on commit drop;
 create temporary table second_lease (like first_lease) on commit drop;
 create temporary table outbox_lease (like first_lease) on commit drop;

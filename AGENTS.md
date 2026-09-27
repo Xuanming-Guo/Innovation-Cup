@@ -2,6 +2,15 @@
 
 ## Mission and current reality
 
+The active product is now ALTO. Read `docs/alto_product_master_prompt.md` for the current
+storyboard/product contract and `docs/development/alto-runbook.md` for its operating
+boundary. The implementation extends this repository's existing architecture and schema:
+isolated Northstar runs, complete model-authored fixed candidates, Z3 verification without
+replacement scheduling, exact approval/acceptance, private consent, scanned-file/voice
+handlers and the ALTO desktop. `docs/development/alto-implementation-journal.md` records
+local verification and external deployment gates. Earlier release artifacts, hosted probes
+and the baseline description below predate ALTO; do not present them as ALTO evidence.
+
 Build Coordination Engine: a human-led coordination system that turns an authorised organisational change into a source-grounded, capacity-feasible, permission-aware and low-disruption update to existing work.
 
 The repository contains a buildable Tauri/React desktop with connected manager, employee and company-connections surfaces; a FastAPI service; a leased Python worker; ordered Supabase migrations; a single-laptop hosted-demo bundle with authenticated endpoint discovery; private Storage ticketing; natural-language planning intake; a typed Google Gen AI SDK adapter; company-scoped Gemini API-key or Vertex service-account BYOK backed by Supabase Vault; deterministic candidate admission and materialisation; immutable, version-bound manager clarification answers with derived-request resume; an allowlisted finite Z3 compiler; bounded authorised repair; independent concrete-schedule validation; immutable ledgers; atomic revision-checked commitment; guarded recovery of side-effect-free terminal planning stages; assignment/approved-brief notifications; and private Realtime invalidation/refetch. Native CI has compiled checksummed Windows x64, macOS arm64 and macOS Intel artifacts, but no installed-app or complete hosted connected smoke test has been recorded. Hosted migration 16 is present and the compact provider-generation contract has completed live synthetic Vertex service-account calls; repository migration 17 is not hosted evidence until it is applied. Migration 17 backfills visible manager actions for deterministic admission clarifications and prevents future clarification-required candidates from committing without a blocking question. A unified cross-request manager action inbox (the remaining part of issue #51), a real file scanner, signed/notarised public release, live connectors, benchmarks and validated customer outcomes remain incomplete. Use `docs/implementation-status.md` as the capability ledger and do not infer implementation from document detail or design imagery.

@@ -3,6 +3,10 @@ FROM ghcr.io/astral-sh/uv:0.11.18 AS uv
 
 FROM python:3.13-slim-bookworm AS runtime
 
+# ffprobe validates bounded uploaded media without executing file-provided tools.
+RUN apt-get update && apt-get install --no-install-recommends -y ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \

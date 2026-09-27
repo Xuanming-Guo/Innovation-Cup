@@ -23,4 +23,6 @@ def get_interpretation_store(
         settings.database_url.get_secret_value(),
         connect_timeout_seconds=settings.database_connect_timeout_seconds,
     )
+
+
 InterpretationStoreDependency = Annotated[InterpretationStore, Depends(get_interpretation_store)]

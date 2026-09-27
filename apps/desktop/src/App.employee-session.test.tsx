@@ -32,6 +32,7 @@ import { savePublicRuntimeConfig } from "./runtime-config";
 describe("employee session routing", () => {
   beforeEach(() => {
     window.localStorage.clear();
+    window.location.hash = "/home";
     savePublicRuntimeConfig({
       apiOrigin: "https://api.example.invalid",
       supabaseUrl: "https://project.supabase.co",
@@ -46,12 +47,13 @@ describe("employee session routing", () => {
     vi.unstubAllGlobals();
   });
 
-  it("lands a connected employee on My work without manager-only navigation", async () => {
+  it("lands a connected employee on Home without manager-only navigation, even when API reads fail", async () => {
     render(<App />);
 
-    expect(await screen.findByText("Connected as member")).toBeVisible();
-    expect(screen.getByRole("heading", { name: "My work" })).toBeVisible();
-    expect(screen.queryByRole("button", { name: "Manager review" })).not.toBeInTheDocument();
+    expect(await screen.findByText("Connected user")).toBeVisible();
+    expect(screen.getByRole("button", { name: "Home" })).toHaveAttribute("aria-current", "page");
+    expect(screen.getByRole("button", { name: "My projects" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "Plan review" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Connections" })).not.toBeInTheDocument();
   });
 });

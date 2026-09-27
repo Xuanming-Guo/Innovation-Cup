@@ -4,6 +4,8 @@ import argparse
 import json
 import re
 import signal
+import socket
+import ssl
 import time
 import urllib.error
 import urllib.request
@@ -71,7 +73,8 @@ def read_latest_quick_tunnel_origin(path: Path) -> str | None:
     return extract_latest_quick_tunnel_origin(contents)
 
 
-def public_api_is_ready(api_origin: str, *, timeout_seconds: float) -> bool:
+def public_api_readiness(api_origin: str, *, timeout_seconds: float) -> str:
+    """Finite diagnostic codes only: never log response bodies or exception strings."""
     request = urllib.request.Request(
         f"{api_origin}/health/ready",
         headers={"Accept": "application/json"},
@@ -79,15 +82,31 @@ def public_api_is_ready(api_origin: str, *, timeout_seconds: float) -> bool:
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
             if response.status != 200 or response.geturl() != request.full_url:
-                return False
-            payload = json.loads(response.read().decode("utf-8"))
-    except (OSError, ValueError, urllib.error.URLError):
-        return False
-    return (
+                return "public_response_invalid"
+            payload = json.loads(response.read(4097).decode("utf-8"))
+    except urllib.error.HTTPError:
+        return "public_http_error"
+    except (OSError, ValueError, urllib.error.URLError) as error:
+        reason = error.reason if isinstance(error, urllib.error.URLError) else error
+        if isinstance(reason, socket.gaierror):
+            return "public_dns_unresolved"
+        if isinstance(reason, ssl.SSLError):
+            return "public_tls_error"
+        if isinstance(reason, TimeoutError):
+            return "public_timeout"
+        if isinstance(reason, ValueError):
+            return "public_response_invalid"
+        return "public_network_error"
+    valid = (
         isinstance(payload, dict)
         and payload.get("service") == "coordination-api"
         and payload.get("status") == "ready"
     )
+    return "ready" if valid else "public_response_invalid"
+
+
+def public_api_is_ready(api_origin: str, *, timeout_seconds: float) -> bool:
+    return public_api_readiness(api_origin, timeout_seconds=timeout_seconds) == "ready"
 
 
 class PostgresHostRegistry:
@@ -137,9 +156,7 @@ class PostgresHostRegistry:
                     ),
                 ).fetchone()
         except psycopg.errors.ObjectInUse as error:
-            raise HostLeaseConflictError(
-                "another host holds the active company lease"
-            ) from error
+            raise HostLeaseConflictError("another host holds the active company lease") from error
 
     def release(self) -> bool:
         with (
@@ -172,7 +189,7 @@ class HostRegistrar:
         ready_path: Path,
         heartbeat_seconds: float,
         health_timeout_seconds: float,
-        health_check: Callable[..., bool] = public_api_is_ready,
+        health_check: Callable[..., bool | str] = public_api_readiness,
     ) -> None:
         self._registry = registry
         self._log_path = log_path
@@ -183,20 +200,37 @@ class HostRegistrar:
         self._active_origin: str | None = None
         self._next_heartbeat_at = 0.0
         self._registered = False
+        self.status = "awaiting_tunnel_url"
         self._ready_path.unlink(missing_ok=True)
 
     def tick(self, *, now: float) -> str | None:
         origin = read_latest_quick_tunnel_origin(self._log_path)
         if origin is None:
+            self.status = "awaiting_tunnel_url"
+            self._ready_path.unlink(missing_ok=True)
             return None
-        if origin == self._active_origin and now < self._next_heartbeat_at:
+        if (
+            origin == self._active_origin
+            and now < self._next_heartbeat_at
+            and self.status == "ready"
+        ):
             return self._active_origin
-        if not self._health_check(origin, timeout_seconds=self._health_timeout_seconds):
+        result = self._health_check(origin, timeout_seconds=self._health_timeout_seconds)
+        if result is not True and result != "ready":
+            self.status = result if isinstance(result, str) else "public_unreachable"
+            self._ready_path.unlink(missing_ok=True)
             return None
-        self._registry.heartbeat(origin)
+        self.status = "registration_pending"
+        try:
+            self._registry.heartbeat(origin)
+        except (OSError, psycopg.Error, HostLeaseConflictError):
+            # Do not report a previous local success after registration fails.
+            self._ready_path.unlink(missing_ok=True)
+            raise
         self._active_origin = origin
         self._next_heartbeat_at = now + self._heartbeat_seconds
         self._registered = True
+        self.status = "ready"
         self._ready_path.write_text(origin, encoding="utf-8")
         return origin
 
@@ -208,16 +242,28 @@ class HostRegistrar:
             self._ready_path.unlink(missing_ok=True)
 
 
-def ready_probe(path: Path, *, ttl_seconds: int) -> bool:
+def ready_origin(path: Path, *, ttl_seconds: int) -> str | None:
     try:
         age_seconds = time.time() - path.stat().st_mtime
-    except OSError:
-        return False
-    return age_seconds <= ttl_seconds
+        if not 0 <= age_seconds <= ttl_seconds:
+            return None
+        with path.open(encoding="utf-8") as marker:
+            return normalise_quick_tunnel_origin(marker.read(4097))
+    except (OSError, ValueError):
+        return None
+
+
+def ready_probe(path: Path, *, ttl_seconds: int) -> bool:
+    return ready_origin(path, ttl_seconds=ttl_seconds) is not None
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Coordination Engine laptop-host registrar")
+    parser.add_argument(
+        "--status",
+        action="store_true",
+        help="Print current non-secret readiness and registered origin as JSON",
+    )
     parser.add_argument(
         "--probe",
         action="store_true",
@@ -233,11 +279,18 @@ def emit(event: str, **fields: object) -> None:
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     settings = get_settings()
-    if args.probe:
-        is_ready = ready_probe(
+    if args.probe or args.status:
+        origin = ready_origin(
             settings.host_ready_path,
             ttl_seconds=settings.host_ttl_seconds,
         )
+        # A new tunnel URL must pass its own public/lease check before publication.
+        if origin != read_latest_quick_tunnel_origin(settings.host_tunnel_log_path):
+            origin = None
+        is_ready = origin is not None
+        if args.status:
+            print(json.dumps({"ready": is_ready, "api_origin": origin}), flush=True)
+            return 0
         return 0 if is_ready else 1
     if (
         not settings.host_registrar_configuration_valid
@@ -276,10 +329,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             signal.signal(candidate, request_stop)
 
     announced_origin: str | None = None
+    last_status: str | None = None
     try:
         while not stop.is_set():
             try:
                 origin = registrar.tick(now=time.monotonic())
+                if registrar.status != last_status:
+                    if registrar.status != "ready":
+                        emit("host.waiting", reason=registrar.status)
+                        announced_origin = None
+                    last_status = registrar.status
                 if origin is not None and origin != announced_origin:
                     emit("host.online", api_origin=origin)
                     announced_origin = origin

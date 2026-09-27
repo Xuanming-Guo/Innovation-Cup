@@ -84,7 +84,7 @@ class FixtureInterpretationGateway:
             return self._response(contract)
 
         deadline = projection.requested_deadline or projection.retrieved_at + timedelta(days=4)
-        task_minutes = 10_000 if "[fixture:solver-infeasible]" in request else 90
+        task_minutes = 10_020 if "[fixture:solver-infeasible]" in request else 90
         specialist_requirement = CandidateRequirement(
             requirement_key="technical_coordination",
             kind="skill",

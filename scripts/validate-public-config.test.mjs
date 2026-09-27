@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { validatePublicReleaseConfig } from "./validate-public-config.mjs";
+import { validateJudgeReleaseConfig, validatePublicReleaseConfig } from "./validate-public-config.mjs";
 
 const validEnvironment = {
   VITE_API_MODE: "static",
@@ -101,4 +101,27 @@ test("rejects a malformed company identifier", () => {
     }),
     /must be a UUID/,
   );
+});
+
+const judgeEnvironment = {
+  ...validEnvironment,
+  VITE_API_MODE: "supabase-discovery",
+  VITE_API_ORIGIN: "",
+  VITE_HACKATHON_DEMO: "true",
+  VITE_PRODUCT_NAME: "ALTO",
+};
+
+test("locks judge releases to ALTO, Northstar and authenticated discovery", () => {
+  assert.equal(validateJudgeReleaseConfig(judgeEnvironment).apiMode, "supabase-discovery");
+  for (const changes of [
+    { VITE_API_MODE: "static", VITE_API_ORIGIN: "https://fixed.example" },
+    { VITE_API_ORIGIN: "https://fixed.example" },
+    { VITE_HACKATHON_DEMO: "false" },
+    { VITE_PRODUCT_NAME: "Coordination Engine" },
+    { VITE_DEFAULT_COMPANY_ID: "22222222-2222-4222-8222-222222222222" },
+    { VITE_GEMINI_API_KEY: "must-not-be-embedded" },
+    { VITE_SUPABASE_SERVICE_ROLE_KEY: "must-not-be-embedded" },
+  ]) {
+    assert.throws(() => validateJudgeReleaseConfig({ ...judgeEnvironment, ...changes }));
+  }
 });

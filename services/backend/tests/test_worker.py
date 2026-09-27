@@ -9,6 +9,7 @@ from pydantic import SecretStr
 
 from coordination.config import Settings
 from coordination.durable.contracts import JobLease, JobResult, WorkerIdentity
+from coordination.durable.persistence import DurableStoreError
 from coordination.durable.runner import DurableWorker
 from coordination.worker import main as worker_main
 
@@ -194,3 +195,40 @@ def test_worker_status_contains_no_secret_configuration() -> None:
     )
     assert "secret" not in str(status)
     assert status["queue_consumer_enabled"] is True
+
+
+def test_worker_once_reports_transient_store_outage_without_traceback(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    class ReadyStore:
+        def __init__(self, *_args: object, **_kwargs: object) -> None:
+            pass
+
+        def ready(self) -> bool:
+            return True
+
+    class UnavailableWorker:
+        def __init__(self, **_kwargs: object) -> None:
+            pass
+
+        def run_once(self) -> None:
+            raise DurableStoreError("database-secret-must-not-leak")
+
+    monkeypatch.setattr(
+        worker_main,
+        "get_settings",
+        lambda: Settings.model_validate(
+            {"database_url": SecretStr("postgresql://user:secret@localhost/db")}
+        ),
+    )
+    monkeypatch.setattr(worker_main, "PostgresDurableStore", ReadyStore)
+    monkeypatch.setattr(worker_main, "DurableWorker", UnavailableWorker)
+    monkeypatch.setattr(worker_main, "build_handlers", lambda *_args: {})
+
+    assert worker_main.main(["--once"]) == 3
+    captured = capsys.readouterr()
+    assert '"event":"worker.store_unavailable"' in captured.out
+    assert '"retry_seconds":1.0' in captured.out
+    assert "database-secret-must-not-leak" not in captured.out
+    assert captured.err == ""

@@ -38,7 +38,9 @@ const fetch = pipeline(
         ? safeFileExtension(input.displayFilename, input.contentType)
         : null;
       const objectPath = input.action === "create-upload"
-        ? `${input.companyId}/${fileId}/payload${extension}`
+        ? `${input.companyId}/${
+          input.demoRunId ? `runs/${input.demoRunId}/` : ""
+        }${fileId}/payload${extension}`
         : null;
 
       const rows = await context.postgres.query<TicketRow>`
@@ -52,7 +54,11 @@ const fetch = pipeline(
           ${input.action === "create-upload" ? input.sourceId : null}::uuid,
           ${input.action === "create-upload" ? input.displayFilename : null},
           ${input.action === "create-upload" ? input.contentType : null},
-          ${input.action === "create-upload" ? input.sizeBytes : null}::bigint
+          ${input.action === "create-upload" ? input.sizeBytes : null}::bigint,
+          ${input.demoRunId}::uuid,
+          ${input.demoActorSessionId}::uuid,
+          ${input.action === "create-upload" ? input.taskId : null}::uuid,
+          ${input.action === "create-upload" ? input.threadId : null}::uuid
         )
       `;
       const ticket = rows[0];

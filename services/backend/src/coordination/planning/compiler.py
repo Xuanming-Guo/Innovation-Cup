@@ -74,6 +74,11 @@ def compile_snapshot(
     *,
     scope: PlanningScope,
 ) -> CompiledZ3Problem:
+    if normalized.execution_gates or any(
+        task.participant_resource_ids or task.review_policy is not None
+        for task in normalized.tasks.values()
+    ):
+        raise ValueError("ALTO active-participant snapshots require fixed-candidate verification")
     snapshot = normalized.snapshot
     optimizer = z3.Optimize()
     optimizer.set(

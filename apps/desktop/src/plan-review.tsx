@@ -1,400 +1,48 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-
-import {
-  answerPlanningClarifications,
-  approveRequirement,
-  commitPlan,
-  createPlanningRequest,
-  getPlan,
-  getPlanEvidence,
-  getPendingReviews,
-  getPlanningContext,
-  getPlanningRequest,
-  reviewSubmission,
-  type AuthorisedApiContext,
-  type PlanEvidence,
-  type PlanningContext,
-  type PlanningRequestDetail,
-  type PlanReview,
-  type PendingReview,
-} from "./api-client";
+import { useEffect } from "react";
+import type { AuthorisedApiContext, PendingReview, PlanningContext } from "./api-client";
+import { dateTime, humanize, navigate, useResource } from "./alto-state";
+import { EmptyState, ErrorNotice, Icon, Loading } from "./alto-ui";
+import "./planning-conversation.css";
 
 interface PlanReviewWorkspaceProps {
   api?: AuthorisedApiContext;
+  initialRequestId?: string | null;
+  initialPlanId?: string | null;
 }
 
-const DEFAULT_REQUEST =
-  "Coordinate the approved software release and internal onboarding work. Use the shared " +
-  "technical specialist without exposing either team's private context, and preserve a " +
-  "reviewable handoff.";
-
-function defaultDeadline(): string {
-  const value = new Date();
-  value.setDate(value.getDate() + 7);
-  value.setHours(17, 0, 0, 0);
-  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
-  return local.toISOString().slice(0, 16);
+function requestStatus(status: string): string {
+  if (["review_required", "failed", "dead_letter"].includes(status)) return "Processing needs attention";
+  if (status === "clarification_required") return "Answer a question to continue";
+  if (["pending_interpretation", "interpreting", "materialized"].includes(status)) return "Open for current progress and next steps";
+  return humanize(status);
 }
 
-function displayTime(value: string): string {
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
-}
+export function PlanReviewWorkspace({ api, initialRequestId, initialPlanId }: PlanReviewWorkspaceProps) {
+  const context = useResource<PlanningContext>(api, "/planning-context");
+  const reviews = useResource<{ reviews: PendingReview[] }>(api, "/reviews/pending");
+  const refreshContext = context.refresh;
+  const refreshReviews = reviews.refresh;
 
-function pipelineStages(request: PlanningRequestDetail | null) {
-  return [
-    ["Interpretation", request?.interpretation_job_state ?? "waiting"],
-    ["Trusted constraints", request?.materialization_job_state ?? "waiting"],
-    ["Z3 + validation", request?.planning_job_state ?? "waiting"],
-    ["Human approval", request?.plan_id ? "ready" : "waiting"],
-  ] as const;
-}
-
-export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
-  const [planningContext, setPlanningContext] = useState<PlanningContext | null>(null);
-  const [request, setRequest] = useState<PlanningRequestDetail | null>(null);
-  const [plan, setPlan] = useState<PlanReview | null>(null);
-  const [evidence, setEvidence] = useState<PlanEvidence | null>(null);
-  const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
-  const [prompt, setPrompt] = useState(DEFAULT_REQUEST);
-  const [deadline, setDeadline] = useState(defaultDeadline);
-  const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  const loadPlan = useCallback(async (context: AuthorisedApiContext, planId: string) => {
-    const [nextPlan, nextEvidence] = await Promise.all([
-      getPlan(context, planId),
-      getPlanEvidence(context, planId),
-    ]);
-    setPlan(nextPlan);
-    setEvidence(nextEvidence);
-  }, []);
-
-  const loadRequest = useCallback(
-    async (context: AuthorisedApiContext, requestId: string) => {
-      const value = await getPlanningRequest(context, requestId);
-      setRequest(value);
-      if (value.plan_id) await loadPlan(context, value.plan_id);
-      return value;
-    },
-    [loadPlan],
-  );
+  // Old notifications and bookmarks enter the same durable Home conversation.
+  useEffect(() => {
+    if (initialRequestId) navigate(`/home?request=${encodeURIComponent(initialRequestId)}`);
+    else if (initialPlanId) navigate(`/home?plan=${encodeURIComponent(initialPlanId)}`);
+  }, [initialRequestId, initialPlanId]);
 
   useEffect(() => {
     if (!api) return;
-    let active = true;
-    void getPlanningContext(api)
-      .then(async (value) => {
-        if (!active) return;
-        setPlanningContext(value);
-        setSelectedSources(value.sources.map((source) => source.source_id));
-        const latest = value.requests[0];
-        if (latest) await loadRequest(api, latest.request_id);
-      })
-      .catch((value: unknown) => {
-        if (active) setError(value instanceof Error ? value.message : "Planning state failed");
-      });
-    return () => { active = false; };
-  }, [api, loadRequest]);
+    const refresh = () => { refreshContext(); refreshReviews(); };
+    window.addEventListener("focus", refresh);
+    return () => window.removeEventListener("focus", refresh);
+  }, [api, refreshContext, refreshReviews]);
 
-  useEffect(() => {
-    if (!api) return;
-    let active = true;
-    const refresh = () => {
-      void getPendingReviews(api)
-        .then((value) => { if (active) setPendingReviews(value); })
-        .catch(() => undefined);
-    };
-    refresh();
-    const timer = window.setInterval(refresh, 5_000);
-    return () => {
-      active = false;
-      window.clearInterval(timer);
-    };
-  }, [api]);
-
-  useEffect(() => {
-    if (!api || !request || request.plan_id || request.status === "clarification_required") return;
-    const states = [
-      request.interpretation_job_state,
-      request.materialization_job_state,
-      request.planning_job_state,
-    ];
-    if (states.some((state) => ["dead_letter", "review_required", "cancelled"].includes(state ?? ""))) return;
-    const timer = window.setInterval(() => {
-      void loadRequest(api, request.request_id).catch((value: unknown) => {
-        setError(value instanceof Error ? value.message : "Pipeline refresh failed");
-      });
-    }, 1_500);
-    return () => window.clearInterval(timer);
-  }, [api, loadRequest, request]);
-
-  const allSourcesSelected = useMemo(
-    () => planningContext?.sources.length === selectedSources.length,
-    [planningContext, selectedSources],
-  );
-  const openBlockingClarifications = useMemo(
-    () => request?.clarifications.filter(
-      (item) => item.status === "open" && item.blocks_planning,
-    ) ?? [],
-    [request],
-  );
-  const allClarificationsAnswered = openBlockingClarifications.length > 0
-    && openBlockingClarifications.every(
-      (item) => clarificationAnswers[item.question_key]?.trim(),
-    );
-
-  async function submitRequest() {
-    if (!api || !prompt.trim() || selectedSources.length === 0) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const created = await createPlanningRequest(api, {
-        originalRequest: prompt.trim(),
-        sourceIds: selectedSources,
-        requestedDeadline: deadline,
-        requestedPriorityKey: "",
-      });
-      setPlan(null);
-      setEvidence(null);
-      await loadRequest(api, created.request_id);
-    } catch (value) {
-      setError(value instanceof Error ? value.message : "Planning request failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function approveAll() {
-    if (!api || !plan) return;
-    setBusy(true);
-    setError(null);
-    try {
-      for (const requirement of plan.requirements.filter((item) => item.status === "pending")) {
-        await approveRequirement(api, plan, requirement);
-      }
-      await loadPlan(api, plan.plan_id);
-    } catch (value) {
-      setError(value instanceof Error ? value.message : "Approval failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function submitClarificationAnswers() {
-    if (!api || !request || !allClarificationsAnswered) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const resumed = await answerPlanningClarifications(
-        api,
-        request,
-        Object.fromEntries(
-          openBlockingClarifications.map((item) => [
-            item.question_key,
-            (clarificationAnswers[item.question_key] ?? "").trim(),
-          ]),
-        ),
-      );
-      setPlan(null);
-      setEvidence(null);
-      setClarificationAnswers({});
-      await loadRequest(api, resumed.request_id);
-    } catch (value) {
-      setError(value instanceof Error ? value.message : "Clarification answers failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function applyPlan() {
-    if (!api || !plan) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await commitPlan(api, plan);
-      await loadPlan(api, plan.plan_id);
-    } catch (value) {
-      setError(value instanceof Error ? value.message : "Commit failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function decideSubmission(
-    item: PendingReview,
-    decision: "accepted" | "revision_requested",
-  ) {
-    if (!api) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await reviewSubmission(api, item, decision);
-      setPendingReviews(await getPendingReviews(api));
-    } catch (value) {
-      setError(value instanceof Error ? value.message : "Submission review failed");
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!api) {
-    return (
-      <section className="empty-workspace">
-        <span className="eyebrow">Authorised connection required</span>
-        <h2>Sign in to create and review a real plan.</h2>
-        <p>The manager surface loads no fixture records into the UI. Configure Supabase, select the demo company and authenticate to use the connected workflow.</p>
-      </section>
-    );
-  }
-
-  return (
-    <>
-      <section className="intake-panel" aria-labelledby="planning-intake-title">
-        <div>
-          <span className="eyebrow">Authorised change intake</span>
-          <h2 id="planning-intake-title">Turn a decision into a checked plan.</h2>
-          <p>Selected sources are pinned by exact version. Fixture mode replaces only Gemini; every later boundary remains production code.</p>
-        </div>
-        <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={4} aria-label="Planning request" />
-        <div className="planning-controls">
-          <label htmlFor="planning-deadline">
-            <span>Target deadline</span>
-            <input
-              id="planning-deadline"
-              type="datetime-local"
-              value={deadline}
-              onChange={(event) => setDeadline(event.target.value)}
-              required
-            />
-          </label>
-          <p>
-            Submitted in {Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}. No priority
-            label is invented until company priority policy is configured.
-          </p>
-        </div>
-        <fieldset className="source-selector">
-          <legend>Authoritative source versions</legend>
-          {planningContext?.sources.map((source) => (
-            <label key={source.source_id}>
-              <input
-                type="checkbox"
-                checked={selectedSources.includes(source.source_id)}
-                onChange={(event) => setSelectedSources((current) =>
-                  event.target.checked
-                    ? [...current, source.source_id]
-                    : current.filter((id) => id !== source.source_id))}
-              />
-              <span><strong>{source.title}</strong><small>{source.classification} · {source.source_kind}</small></span>
-            </label>
-          ))}
-        </fieldset>
-        <button className="primary-action" disabled={busy || !allSourcesSelected || !prompt.trim() || !deadline} onClick={() => void submitRequest()}>
-          {busy ? "Working…" : "Create checked plan"}
-        </button>
-        {error && <p className="inline-error" role="alert">{error}</p>}
-      </section>
-
-      {request && (
-        <section className="pipeline-panel" aria-label="Planning pipeline">
-          {pipelineStages(request).map(([label, state], index) => (
-            <div key={label} className={`pipeline-stage ${state}`}>
-              <span>{String(index + 1).padStart(2, "0")}</span>
-              <strong>{label}</strong>
-              <small>{state}</small>
-            </div>
-          ))}
-          {openBlockingClarifications.length > 0 && (
-            <div className="clarification-form">
-              <header>
-                <span className="eyebrow">Manager decision required</span>
-                <strong>Answer the blocking questions to continue this request.</strong>
-              </header>
-              {openBlockingClarifications.map((item) => (
-                <label key={item.question_key}>
-                  <span>{item.question}</span>
-                  <textarea
-                    rows={2}
-                    value={clarificationAnswers[item.question_key] ?? ""}
-                    onChange={(event) => setClarificationAnswers((current) => ({
-                      ...current,
-                      [item.question_key]: event.target.value,
-                    }))}
-                    maxLength={4000}
-                  />
-                </label>
-              ))}
-              <button
-                className="primary-action"
-                disabled={busy || !allClarificationsAnswered}
-                onClick={() => void submitClarificationAnswers()}
-              >
-                {busy ? "Resuming…" : "Submit answers and resume"}
-              </button>
-            </div>
-          )}
-        </section>
-      )}
-
-      {plan && (
-        <section className="live-plan" aria-labelledby="live-plan-title">
-          <header className="plan-heading">
-            <div>
-              <span className="eyebrow">Exact proposal · {plan.classification}</span>
-              <h2 id="live-plan-title">{plan.request_summary}</h2>
-            </div>
-            <span className={`plan-status ${plan.status}`}>{plan.status}</span>
-          </header>
-          <div className="schedule-table" role="table" aria-label="Proposed schedule">
-            {plan.tasks.map((task) => (
-              <div className="schedule-row" role="row" key={task.task_id}>
-                <span role="cell"><strong>{task.title}</strong><small>{task.task_key}</small></span>
-                <span role="cell">{displayTime(task.start_at)}</span>
-                <span role="cell">{displayTime(task.finish_at)}</span>
-                <span role="cell">{task.owner_resource_id?.slice(0, 8) ?? "Unassigned"}</span>
-              </div>
-            ))}
-          </div>
-          <div className="evidence-grid">
-            <article><span className="eyebrow">Independent solver evidence</span><strong>{evidence?.solver.classification}</strong><p>{evidence?.solver.raw_status} · {evidence?.solver.termination} · {evidence?.solver.runtime_ms} ms</p></article>
-            <article><span className="eyebrow">Validated constraints</span><strong>{evidence?.constraints.length ?? 0} admitted</strong><p>Unknown families and unconfirmed evidence fail before compilation.</p></article>
-            <article><span className="eyebrow">Exact approval binding</span><strong>{plan.requirements.filter((item) => item.status === "approved").length}/{plan.requirements.length} approved</strong><p>Planning and employee disclosure are separate requirements.</p></article>
-          </div>
-          <div className="requirement-list">
-            {plan.requirements.map((requirement) => (
-              <div key={requirement.requirement_id}>
-                <span className={`requirement-state ${requirement.status}`}>{requirement.status}</span>
-                <strong>{requirement.kind.replaceAll("_", " ")}</strong>
-                <p>{requirement.reason}</p>
-              </div>
-            ))}
-          </div>
-          <footer className="plan-actions">
-            <button className="secondary-action" disabled={busy || plan.status === "committed" || plan.requirements.every((item) => item.status === "approved")} onClick={() => void approveAll()}>Approve exact plan & disclosure</button>
-            <button className="primary-action" disabled={busy || !plan.can_commit || plan.status === "committed"} onClick={() => void applyPlan()}>{plan.status === "committed" ? "Committed" : "Commit approved plan"}</button>
-          </footer>
-        </section>
-      )}
-
-      {pendingReviews.length > 0 && (
-        <section className="review-queue" aria-labelledby="review-queue-title">
-          <header><span className="eyebrow">Accountable work acceptance</span><h2 id="review-queue-title">Pending exact-version reviews</h2></header>
-          {pendingReviews.map((item) => (
-            <article key={item.submission_id}>
-              <div><strong>{item.task_title}</strong><small>{item.submitting_employee_name} · version {item.version}</small></div>
-              <p>{item.narrative}</p>
-              <div className="review-actions">
-                <button className="secondary-action" disabled={busy} onClick={() => void decideSubmission(item, "revision_requested")}>Request revision</button>
-                <button className="primary-action" disabled={busy} onClick={() => void decideSubmission(item, "accepted")}>Accept exact version</button>
-              </div>
-            </article>
-          ))}
-        </section>
-      )}
-    </>
-  );
+  if (!api) return <EmptyState title="Sign in to review work">Your authorised requests and decisions will appear here.</EmptyState>;
+  if (initialRequestId || initialPlanId) return <Loading label="Opening your saved conversation…" />;
+  return <div className="alto-planning-inbox">
+    <header><p>Continue a request or review submitted work. All planning happens in the same Home conversation.</p><button className="alto-secondary" onClick={() => { context.refresh(); reviews.refresh(); }}>Refresh</button></header>
+    <ErrorNotice error={context.error} retry={context.refresh} />
+    {context.loading && !context.data && <Loading label="Loading your requests…" />}
+    <section aria-label="Planning requests"><h2>Your requests</h2>{context.data?.requests.map((request) => <button className="alto-project-row" key={request.request_id} onClick={() => navigate(`/home?request=${encodeURIComponent(request.request_id)}`)}><Icon name="document" /><div><strong>{request.original_request}</strong><p>{requestStatus(request.status)} · {dateTime(request.created_at)}</p><small>Open conversation and next action</small></div><Icon name="right" /></button>)}{!context.loading && !context.error && !context.data?.requests.length && <EmptyState title="No planning requests yet">Describe the work you want to coordinate from Home.<button className="alto-text-button" onClick={() => navigate("/home?compose=plan")}>Plan work from Home</button></EmptyState>}</section>
+    <section aria-label="Submitted work awaiting review"><h2>Work awaiting your acceptance</h2><ErrorNotice error={reviews.error} retry={reviews.refresh} />{reviews.loading && !reviews.data && <Loading label="Loading work awaiting review…" />}{reviews.data?.reviews.map((review) => <button className="alto-project-row" key={review.submission_id} onClick={() => navigate(`/reviews/${encodeURIComponent(review.submission_id)}`)}><Icon name="check" /><div><strong>{review.task_title}</strong><p>{review.submitting_employee_name} · Submitted version {review.version}</p><small>Inspect the submitted work and evidence before accepting</small></div><Icon name="right" /></button>)}{!reviews.loading && !reviews.error && !reviews.data?.reviews.length && <p className="alto-muted">No submitted work needs your review.</p>}</section>
+  </div>;
 }

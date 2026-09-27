@@ -1,11 +1,18 @@
 name: coordination-engine-host
 
+x-external-dns: &external-dns
+  # Docker's embedded resolver still handles Compose service names. These are
+  # its explicit upstream fallbacks for Supabase, Google and Cloudflare.
+  - ${COORDINATION_HOST_DNS_PRIMARY:-1.1.1.1}
+  - ${COORDINATION_HOST_DNS_SECONDARY:-8.8.8.8}
+
 x-backend-common: &backend-common
   platform: linux/amd64
   build:
     context: ../../services/backend
     dockerfile: Dockerfile
   restart: unless-stopped
+  dns: *external-dns
   environment: &backend-environment
     COORDINATION_ENVIRONMENT: production
     COORDINATION_API_VERSION: 1.0.0
@@ -14,9 +21,16 @@ x-backend-common: &backend-common
     COORDINATION_SUPABASE_JWT_ISSUER: ${COORDINATION_SUPABASE_URL:?set in deploy/local-host/.env}/auth/v1
     COORDINATION_INTERPRETATION_MODE: gemini
     COORDINATION_GEMINI_MODEL: ${COORDINATION_GEMINI_MODEL:-gemini-3.8-flash}
+    COORDINATION_HACKATHON_DEMO: ${COORDINATION_HACKATHON_DEMO:-false}
+    COORDINATION_DEMO_AI_COMMANDS_PER_MINUTE: ${COORDINATION_DEMO_AI_COMMANDS_PER_MINUTE:-12}
+    COORDINATION_DEMO_AI_MODEL_CALLS_PER_MINUTE: ${COORDINATION_DEMO_AI_MODEL_CALLS_PER_MINUTE:-120}
     COORDINATION_GEMINI_TIMEOUT_SECONDS: ${COORDINATION_GEMINI_TIMEOUT_SECONDS:-60}
+    COORDINATION_GEMINI_MAX_OUTPUT_TOKENS: ${COORDINATION_GEMINI_MAX_OUTPUT_TOKENS:-16384}
+    COORDINATION_GEMINI_PLAN_MAX_OUTPUT_TOKENS: ${COORDINATION_GEMINI_PLAN_MAX_OUTPUT_TOKENS:-32768}
     COORDINATION_VERTEX_LOCATION: ${COORDINATION_VERTEX_LOCATION:-global}
     COORDINATION_VERTEX_ALLOWED_PROJECT_IDS: ${COORDINATION_VERTEX_ALLOWED_PROJECT_IDS:-}
+    COORDINATION_FILE_SCANNER_HOST: scanner
+    COORDINATION_FILE_SCANNER_PORT: 3310
 
 services:
   api:
@@ -44,6 +58,9 @@ services:
       <<: *backend-environment
       COORDINATION_DATABASE_URL: ${COORDINATION_WORKER_DATABASE_URL:?set the worker-role DSN}
       COORDINATION_WORKER_INSTANCE_NAME: laptop-host-worker
+    depends_on:
+      scanner:
+        condition: service_started
     healthcheck:
       test: ["CMD", "python", "-m", "coordination.worker.main", "--status"]
       interval: 30s
@@ -51,11 +68,24 @@ services:
       retries: 5
       start_period: 20s
 
+  scanner:
+    # Official maintained LTS feature line; record resolved image digest at release.
+    image: clamav/clamav:1.4
+    platform: linux/amd64
+    restart: unless-stopped
+    dns: *external-dns
+    volumes:
+      - scanner-signatures:/var/lib/clamav
+    # No published port: the clamd protocol is internal and unauthenticated.
+
   tunnel:
-    image: cloudflare/cloudflared:2026.9.3
+    build:
+      context: ../..
+      dockerfile: deploy/local-host/tunnel/Dockerfile
     platform: linux/amd64
     user: "0:0"
     restart: unless-stopped
+    dns: *external-dns
     command:
       - tunnel
       - --no-autoupdate
@@ -63,6 +93,8 @@ services:
       - info
       - --logfile
       - /state/cloudflared.log
+      - --metrics
+      - 127.0.0.1:20241
       - --url
       - http://api:8080
     volumes:
@@ -70,6 +102,12 @@ services:
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD", "cloudflared", "tunnel", "--metrics", "127.0.0.1:20241", "ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
 
   registrar:
     <<: *backend-common
@@ -90,7 +128,7 @@ services:
       api:
         condition: service_healthy
       tunnel:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "python", "-m", "coordination.hosting.registrar", "--probe"]
       interval: 15s
@@ -100,3 +138,4 @@ services:
 
 volumes:
   tunnel-state:
+  scanner-signatures:

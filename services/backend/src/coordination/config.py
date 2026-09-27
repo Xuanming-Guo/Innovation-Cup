@@ -26,8 +26,7 @@ class Settings(BaseSettings):
     build_commit: str = "development"
     log_level: str = "INFO"
     cors_allowed_origins: str = (
-        "tauri://localhost,http://tauri.localhost,"
-        "http://127.0.0.1:1420,http://localhost:1420"
+        "tauri://localhost,http://tauri.localhost,http://127.0.0.1:1420,http://localhost:1420"
     )
 
     supabase_url: str | None = None
@@ -37,6 +36,9 @@ class Settings(BaseSettings):
     supabase_jwt_leeway_seconds: int = Field(default=30, ge=0, le=120)
     database_url: SecretStr | None = None
     database_connect_timeout_seconds: int = Field(default=5, ge=1, le=30)
+    hackathon_demo: bool = False
+    demo_ai_commands_per_minute: int = Field(default=12, ge=1, le=10_000)
+    demo_ai_model_calls_per_minute: int = Field(default=120, ge=1, le=10_000)
 
     # Local/test fallback only. Production Gemini credentials are supplied per company and
     # resolved from Supabase Vault by the worker; they are never process-wide configuration.
@@ -45,6 +47,9 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3.8-flash"
     gemini_timeout_seconds: int = Field(default=60, ge=1, le=120)
     gemini_max_output_tokens: int = Field(default=8192, ge=512, le=32768)
+    # Full schedules repeat exact task/gate bindings. An explicit plan-only cap
+    # avoids increasing interpretation, chat, transcription or preference budgets.
+    gemini_plan_max_output_tokens: int | None = Field(default=None, ge=512, le=32768)
     gemini_max_projection_characters: int = Field(default=150000, ge=10000, le=500000)
     vertex_location: str = Field(
         default="global",
@@ -58,6 +63,11 @@ class Settings(BaseSettings):
     worker_lease_seconds: int = Field(default=120, ge=15, le=900)
     worker_renewal_seconds: float = Field(default=30.0, ge=5.0, le=300.0)
     worker_instance_name: str | None = Field(default=None, max_length=200)
+    # Internal ClamAV daemon; never expose its unauthenticated TCP socket publicly.
+    file_scanner_host: str | None = None
+    file_scanner_port: int = Field(default=3310, ge=1, le=65535)
+    file_scanner_timeout_seconds: int = Field(default=30, ge=5, le=60)
+    ffprobe_binary: str = "ffprobe"
 
     # Single-laptop hosted-demo registrar. These values are supplied only to the
     # host registrar container and are never exposed to desktop clients.

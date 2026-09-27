@@ -24,6 +24,7 @@ describe("getPublicRuntimeConfig", () => {
       supabaseUrl: "https://example.supabase.co",
       supabasePublishableKey: "public-key",
       defaultCompanyId: "11111111-1111-4111-8111-111111111111",
+      hackathonDemo: false,
     });
   });
 
@@ -65,10 +66,11 @@ describe("getPublicRuntimeConfig", () => {
     expect(loadPublicRuntimeConfig({} as ImportMetaEnv, storage)).toMatchObject({
       apiMode: "static",
       apiOrigin: "https://api.example.com",
-      productName: "Coordination Engine",
+      productName: "ALTO",
       supabaseUrl: "https://project.supabase.co",
       supabasePublishableKey: "sb_publishable_public",
       defaultCompanyId: "11111111-1111-4111-8111-111111111111",
+      hackathonDemo: false,
     });
   });
 
@@ -92,5 +94,29 @@ describe("getPublicRuntimeConfig", () => {
 
     expect(config.apiMode).toBe("supabase-discovery");
     expect(config.supabaseConfigured).toBe(true);
+  });
+
+  it("ignores local deployment overrides in a locked hackathon build", () => {
+    const storage = {
+      getItem: () => JSON.stringify({
+        apiOrigin: "https://override.invalid",
+        supabaseUrl: "https://override.supabase.co",
+        supabasePublishableKey: "override-public-key",
+        defaultCompanyId: "22222222-2222-4222-8222-222222222222",
+      }),
+      removeItem: () => undefined,
+    };
+
+    const config = loadPublicRuntimeConfig({
+      VITE_HACKATHON_DEMO: "true",
+      VITE_API_ORIGIN: "https://build.example.com",
+      VITE_SUPABASE_URL: "https://build.supabase.co",
+      VITE_SUPABASE_PUBLISHABLE_KEY: "build-public-key",
+      VITE_DEFAULT_COMPANY_ID: "11111111-1111-4111-8111-111111111111",
+    } as ImportMetaEnv, storage);
+
+    expect(config.hackathonDemo).toBe(true);
+    expect(config.apiOrigin).toBe("https://build.example.com");
+    expect(config.defaultCompanyId).toBe("11111111-1111-4111-8111-111111111111");
   });
 });

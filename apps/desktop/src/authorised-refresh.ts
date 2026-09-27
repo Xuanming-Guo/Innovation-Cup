@@ -23,7 +23,7 @@ interface AuthorisedRefreshOptions {
   userId: string;
   refetch: () => Promise<void>;
   intervalMs?: number;
-  onError?: () => void;
+  onError?: (error: unknown) => void;
 }
 
 export function startAuthorisedRefresh({
@@ -50,8 +50,8 @@ export function startAuthorisedRefresh({
         pending = false;
         try {
           await refetch();
-        } catch {
-          onError();
+        } catch (error) {
+          if (!stopped) onError(error);
         }
       } while (pending && !stopped);
       running = false;
@@ -87,6 +87,6 @@ export function startAuthorisedRefresh({
     window.clearInterval(interval);
     window.removeEventListener("focus", onFocus);
     window.removeEventListener("online", onOnline);
-    if (channel !== null) void client.removeChannel(channel);
+    if (channel !== null) void client.removeChannel(channel).catch(() => undefined);
   };
 }

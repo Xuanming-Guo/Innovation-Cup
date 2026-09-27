@@ -1,0 +1,66 @@
+.alto-planning-conversation { max-width: 1080px; margin: 18px auto; }
+.alto-planning-header, .alto-planning-header > div, .alto-plan-review-card > header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
+.alto-planning-header h2 { margin: 0; font-size: 21px; }
+.alto-planning-header svg { max-width: 70px; }
+.alto-plan-intake, .alto-plan-questions, .alto-plan-review-card { margin-top: 24px; padding: 24px; border: 1px solid #d5dfed; border-radius: 18px; background: #fff; }
+.alto-plan-intake > p:first-child { margin-top: 0; }
+.alto-plan-intake .alto-demo-intake { display: block; }
+.alto-demo-intake p { margin: 10px 0; }
+.alto-demo-intake p:last-child { margin-bottom: 0; }
+.alto-plan-intake .alto-field { margin: 18px 0; }
+.alto-plan-intake input[type="datetime-local"] { max-width: 350px; }
+.alto-plan-sources, .alto-plan-evidence { margin: 20px 0; }
+.alto-planning-conversation details { margin: 16px 0; }
+.alto-planning-conversation summary { cursor: pointer; color: #3f6195; padding: 8px 0; }
+.alto-planning-conversation .alto-checkbox { display: flex; align-items: flex-start; gap: 10px; margin: 12px 0; }
+.alto-planning-conversation .alto-checkbox input { width: auto; margin-top: 4px; flex: 0 0 auto; }
+.alto-planning-conversation small { display: block; color: #536b90; margin-top: 5px; }
+.alto-planning-message { padding: 22px 25px; margin: 26px 0; border-radius: 20px; max-width: 90%; }
+.alto-planning-message > span { font-size: 12px; color: #536b90; }
+.alto-planning-message .alto-planning-running { display: inline-flex; vertical-align: middle; margin-left: 12px; }
+.alto-planning-spinner { width: 19px; height: 19px; border: 2px solid #ced9e8; border-top-color: #3f6195; border-radius: 50%; animation: alto-planning-spin .9s linear infinite; }
+.alto-planning-sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+.alto-planning-connection { color: #536b90; font-size: 13px; display: flex; align-items: center; flex-wrap: wrap; gap: 12px; }
+@keyframes alto-planning-spin { to { transform: rotate(360deg); } }
+.reduce-motion .alto-planning-spinner { animation: none; }
+@media (prefers-reduced-motion: reduce) { .alto-planning-spinner { animation: none; } }
+.alto-planning-message p { margin: 9px 0 0; white-space: pre-wrap; }
+.alto-planning-message.request { margin-left: auto; background: #edf3fb; }
+.alto-planning-message.response { background: #f4f5f6; }
+.alto-planning-summary { margin-top: 18px; padding: 16px 18px; border: 1px solid #d9e1eb; border-radius: 12px; background: #fff; }
+.alto-planning-summary > strong { display: block; margin-bottom: 10px; font-size: 14px; }
+.alto-planning-summary p { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 10px; margin: 8px 0; color: #293a55; font-size: 14px; line-height: 1.45; }
+.alto-planning-summary p span { color: #536b90; font-size: 12px; font-weight: 700; letter-spacing: .02em; text-transform: uppercase; }
+.alto-planning-stages { margin: 20px 0 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+.alto-planning-stages li { border-left: 3px solid #cdd8e7; padding-left: 12px; display: flex; justify-content: space-between; gap: 15px; }
+.alto-planning-stages li span { font-size: 13px; color: #536b90; }
+.alto-planning-stages li.complete { border-color: #79cdb5; }
+.alto-planning-stages li.stopped { border-color: #ba573e; }
+.alto-planning-stopped { padding: 22px; border: 1px solid #edbcac; background: #fff7f2; border-radius: 16px; margin: 22px 0; }
+.alto-planning-stopped h3 { margin-top: 0; }
+.alto-planning-stopped > button + button { margin-left: 12px; }
+.alto-plan-retry { margin: 18px 0; }
+.alto-plan-questions h3 { margin-top: 0; }
+.alto-plan-questions .alto-field { margin: 18px 0; }
+.alto-plan-schedule { overflow-x: auto; margin: 20px 0; }
+.alto-plan-schedule table { border-collapse: collapse; width: 100%; text-align: left; font-size: 13px; }
+.alto-plan-schedule caption { text-align: left; padding-bottom: 12px; color: #536b90; }
+.alto-plan-schedule th, .alto-plan-schedule td { border-bottom: 1px solid #e0e5ed; padding: 13px 10px; vertical-align: top; }
+.alto-plan-schedule td:last-child { overflow-wrap: anywhere; max-width: 170px; }
+.alto-plan-requirement { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 18px 0; border-bottom: 1px solid #e0e5ed; }
+.alto-plan-requirement p { margin: 6px 0; }
+.alto-plan-requirement button { flex-shrink: 0; }
+.alto-plan-review-card footer { margin-top: 22px; }
+.alto-planning-conversation code { overflow-wrap: anywhere; font-size: 12px; }
+.alto-request-reference { margin-top: 28px; }
+.alto-planning-inbox .alto-project-row { width: 100%; text-align: left; }
+.alto-planning-inbox .alto-project-row strong { line-height: 1.45; }
+.alto-planning-inbox header { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 20px; }
+.alto-planning-inbox section { margin-top: 28px; }
+@media (max-width: 760px) {
+  .alto-planning-header, .alto-plan-review-card > header, .alto-plan-requirement { align-items: flex-start; flex-direction: column; }
+  .alto-planning-message { max-width: 100%; }
+  .alto-plan-intake, .alto-plan-questions, .alto-plan-review-card { padding: 17px; }
+  .alto-planning-summary p { grid-template-columns: 1fr; gap: 3px; }
+  .alto-planning-stages li { flex-direction: column; gap: 4px; }
+}

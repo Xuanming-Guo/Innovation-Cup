@@ -86,8 +86,9 @@ class SupabaseJwtVerifier:
             )
             if claims.get("role") != "authenticated":
                 raise AuthenticationError("token does not represent an authenticated user")
-            if claims.get("is_anonymous") is not False:
-                raise AuthenticationError("anonymous sessions are not accepted")
+            is_anonymous = claims.get("is_anonymous")
+            if not isinstance(is_anonymous, bool):
+                raise AuthenticationError("token anonymity claim is invalid")
             assurance_level = claims.get("aal")
             if assurance_level not in ("aal1", "aal2"):
                 raise AuthenticationError("token assurance level is invalid")
@@ -107,4 +108,5 @@ class SupabaseJwtVerifier:
             role="authenticated",
             session_id=session_id,
             assurance_level=cast(Literal["aal1", "aal2"], assurance_level),
+            is_anonymous=is_anonymous,
         )

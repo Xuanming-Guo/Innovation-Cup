@@ -1,8 +1,8 @@
 [package]
 name = "coordination-desktop"
 version = "0.1.0"
-description = "Coordination Engine native desktop shell"
-authors = ["Coordination Engine contributors"]
+description = "ALTO native coordination workspace"
+authors = ["ALTO contributors"]
 edition = "2021"
 rust-version = "1.77.2"
 
@@ -16,6 +16,7 @@ tauri-build = { version = "=2.6.3", features = [] }
 [dependencies]
 serde = { version = "=1.0.229", features = ["derive"] }
 tauri = { version = "=2.11.6", features = [] }
+tauri-plugin-global-shortcut = "=2.3.2"
 
 [profile.release]
 codegen-units = 1

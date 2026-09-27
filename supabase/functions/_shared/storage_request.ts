@@ -1,9 +1,16 @@
 export const MAX_FILE_BYTES = 25 * 1024 * 1024;
+export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
+export const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 export const ALLOWED_CONTENT_TYPES = new Set([
   "application/pdf",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
   "text/csv",
   "text/plain",
+  "image/png",
+  "image/jpeg",
+  "audio/webm",
+  "audio/mp4",
+  "audio/wav",
 ]);
 
 const UUID_PATTERN =
@@ -16,15 +23,21 @@ export type CreateUploadRequest = {
   companyId: string;
   contentType: string;
   displayFilename: string;
-  purpose: "source" | "submission" | "evidence";
+  purpose: "source" | "submission" | "evidence" | "voice_audio";
   sizeBytes: number;
   sourceId: string | null;
+  demoRunId: string | null;
+  demoActorSessionId: string | null;
+  taskId: string | null;
+  threadId: string | null;
 };
 
 export type CreateDownloadRequest = {
   action: "create-download";
   companyId: string;
   fileId: string;
+  demoRunId: string | null;
+  demoActorSessionId: string | null;
 };
 
 export type StorageTicketRequest = CreateUploadRequest | CreateDownloadRequest;
@@ -62,6 +75,11 @@ export function safeFileExtension(
       ".docx",
     "text/csv": ".csv",
     "text/plain": ".txt",
+    "image/png": ".png",
+    "image/jpeg": filename.toLowerCase().endsWith(".jpeg") ? ".jpeg" : ".jpg",
+    "audio/webm": ".webm",
+    "audio/mp4": ".mp4",
+    "audio/wav": ".wav",
   };
   const extension = expected[contentType];
   if (!extension || !filename.toLowerCase().endsWith(extension)) {
@@ -81,9 +99,24 @@ export function parseStorageTicketRequest(
   const record = value as Record<string, unknown>;
   const action = requiredString(record, "action");
   const companyId = uuid(record, "companyId");
+  const demoRunId = record.demoRunId == null ? null : uuid(record, "demoRunId");
+  const demoActorSessionId = record.demoActorSessionId == null
+    ? null
+    : uuid(record, "demoActorSessionId");
+  if (demoActorSessionId !== null && demoRunId === null) {
+    throw new RequestValidationError(
+      "demoRunId is required for an actor session",
+    );
+  }
 
   if (action === "create-download") {
-    return { action, companyId, fileId: uuid(record, "fileId") };
+    return {
+      action,
+      companyId,
+      fileId: uuid(record, "fileId"),
+      demoRunId,
+      demoActorSessionId,
+    };
   }
   if (action !== "create-upload") {
     throw new RequestValidationError("action is not supported");
@@ -108,11 +141,26 @@ export function parseStorageTicketRequest(
   }
   const purpose = requiredString(record, "purpose");
   if (
-    purpose !== "source" && purpose !== "submission" && purpose !== "evidence"
+    purpose !== "source" && purpose !== "submission" &&
+    purpose !== "evidence" && purpose !== "voice_audio"
   ) {
     throw new RequestValidationError("purpose is not supported");
   }
   const sourceId = record.sourceId == null ? null : uuid(record, "sourceId");
+  const taskId = record.taskId == null ? null : uuid(record, "taskId");
+  const threadId = record.threadId == null ? null : uuid(record, "threadId");
+  const isAudio = contentType.startsWith("audio/");
+  if (
+    isAudio !== (purpose === "voice_audio") ||
+    (isAudio &&
+      (threadId === null || sourceId !== null || taskId !== null ||
+        Number(sizeBytes) > MAX_AUDIO_BYTES)) ||
+    (contentType.startsWith("image/") && Number(sizeBytes) > MAX_IMAGE_BYTES)
+  ) {
+    throw new RequestValidationError(
+      "purpose, context, or size is invalid for this content type",
+    );
+  }
   if (purpose === "source" && sourceId === null) {
     throw new RequestValidationError(
       "sourceId is required for a source upload",
@@ -127,5 +175,9 @@ export function parseStorageTicketRequest(
     purpose,
     sizeBytes: Number(sizeBytes),
     sourceId,
+    demoRunId,
+    demoActorSessionId,
+    taskId,
+    threadId,
   };
 }

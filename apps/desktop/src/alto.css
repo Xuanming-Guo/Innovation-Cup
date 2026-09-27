@@ -1,0 +1,582 @@
+/* ALTO storyboard system. Source: docs/manager (M01–M15), docs/employee (E01–E05).
+   OS chrome and the external Teams window are deliberately not reproduced. */
+:root { --canvas: #fffdf9; --surface: #fffefa; --paper: #fffefa; --ink: #0c1320; --muted: #48618a; --line: #dde3ea; --teal: #177665; --teal-soft: #e1f3ec; font-family: Arial, "Segoe UI", sans-serif; background: var(--canvas); color: var(--ink); }
+body { min-width: 360px; background: var(--canvas); }
+button, input, textarea, select { font: inherit; }
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; opacity: .5; }
+button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visible, select:focus-visible, summary:focus-visible, [role="button"]:focus-visible { outline: 3px solid #5d81bc; outline-offset: 3px; }
+button { -webkit-tap-highlight-color: transparent; }
+.alto-shell { display: grid; grid-template-columns: 246px minmax(0, 1fr); min-height: 100vh; background: var(--canvas); color: var(--ink); font-size: 16px; }
+.alto-shell.rail-collapsed { grid-template-columns: 74px minmax(0, 1fr); }
+.alto-rail { position: sticky; top: 0; height: 100vh; display: flex; flex-direction: column; border-right: 1px solid var(--line); padding: 24px 13px 13px; overflow-y: auto; }
+.alto-brand-row { min-height: 98px; display: flex; align-items: flex-start; justify-content: space-between; padding: 8px 9px 26px; }
+.alto-logo { display: inline-flex; align-items: center; flex-shrink: 0; color: #080b0e; font-size: 41px; line-height: 1; width: 3.65em; height: 1em; }
+.alto-logo > svg { width: 100%; height: 100%; overflow: visible; }
+.alto-logo > span { font-style: normal; font-size: 37px; margin-left: -8px; margin-top: 5px; letter-spacing: -7px; }
+.alto-logo.compact { font-size: 26px; letter-spacing: -3px; }
+.alto-logo.compact > span { font-size: 26px; margin-left: -5px; letter-spacing: -4px; }
+.alto-brand-row .alto-icon-button { width: 28px; height: 28px; margin-top: -3px; }
+.alto-rail nav { display: grid; gap: 7px; }
+.alto-nav-item { position: relative; display: flex; align-items: center; gap: 20px; width: 100%; min-height: 49px; padding: 10px 17px; border: 0; border-radius: 10px; color: var(--muted); background: transparent; text-align: left; white-space: nowrap; font-size: 17px; }
+.alto-nav-item svg { flex: 0 0 auto; color: #0b121a; }
+.alto-nav-item.active { color: #080d15; background: #f2f1ef; font-weight: 650; }
+.alto-nav-item.active::before { content: ""; width: 7px; height: 7px; border-radius: 50%; position: absolute; left: 0; background: #0a0c0d; }
+.alto-nav-item:hover { background: #f4f3f0; }
+.alto-rail-footer { margin-top: auto; padding-top: 20px; border-top: 1px solid var(--line); }
+.alto-identity { display: flex; align-items: center; gap: 12px; padding: 22px 13px 8px; }
+.alto-identity > div { min-width: 0; }
+.alto-identity strong, .alto-identity small { display: block; overflow: hidden; text-overflow: ellipsis; }
+.alto-identity strong { font-size: 14px; }
+.alto-identity small { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.alto-avatar { width: 42px; height: 42px; border-radius: 50%; display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; background: linear-gradient(130deg, #e4e7e8, #d6dbdc); color: #151b22; font-weight: 600; font-size: 16px; }
+.alto-avatar.large { width: 72px; height: 72px; font-size: 27px; margin-right: 22px; vertical-align: middle; background: #f0d7dd; }
+.alto-actor-badge { border: 1px solid #d2ac64; border-radius: 6px; padding: 6px; margin: 6px 4px; font-size: 11px; line-height: 1.4; background: #fff3d9; }
+.alto-signout { min-height: 32px; font-size: 12px; padding-top: 6px; padding-bottom: 6px; }
+.rail-collapsed .alto-rail { padding: 22px 9px 10px; }
+.rail-collapsed .alto-brand-row { justify-content: center; min-height: 70px; padding: 6px 0 22px; }
+.rail-collapsed .alto-nav-item { padding: 12px; justify-content: center; }
+.rail-collapsed .alto-nav-item span, .rail-collapsed .alto-identity > div { display: none; }
+.rail-collapsed .alto-identity { padding: 18px 0 8px; justify-content: center; }
+.rail-collapsed .alto-actor-badge { font-size: 9px; padding: 4px 2px; overflow-wrap: anywhere; }
+.alto-main { min-width: 0; position: relative; padding: 0 43px 26px; }
+.alto-topline { min-height: 62px; display: flex; align-items: center; justify-content: flex-end; gap: 18px; color: var(--muted); font-size: 12px; }
+.alto-notification-trigger { background: none; border: 0; position: relative; color: var(--ink); padding: 5px; margin-left: 9px; }
+.alto-notification-trigger > span { position: absolute; top: 4px; right: 5px; width: 8px; height: 8px; border-radius: 50%; background: #ca664f; }
+.alto-page { min-height: calc(100vh - 90px); }
+.alto-page-heading { display: flex; align-items: center; justify-content: space-between; gap: 18px; margin-bottom: 30px; }
+.alto-page-heading h1 { margin: 4px 0 8px; font-size: clamp(32px, 3.05vw, 48px); line-height: 1.1; font-weight: 700; letter-spacing: -1.8px; }
+.alto-page-heading p { color: var(--muted); margin: 0; font-size: 21px; line-height: 1.4; letter-spacing: -.4px; }
+.alto-eyebrow { color: var(--muted); margin-bottom: 13px; font-size: 17px; }
+.alto-heading-actions { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.alto-shell h2 { font-size: 21px; font-weight: 600; letter-spacing: -.6px; }
+.alto-shell h3 { font-size: 17px; }
+.alto-shell p { line-height: 1.5; }
+.alto-primary, .alto-secondary { border-radius: 10px; padding: 11px 20px; min-height: 42px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; font-size: 14px; line-height: 1.3; white-space: nowrap; }
+.alto-primary { background: #080c11; color: #fff; border: 1px solid #080c11; }
+.alto-primary:hover:not(:disabled) { background: #263243; }
+.alto-secondary { background: #fffefa; color: var(--muted); border: 1px solid var(--line); }
+.alto-secondary:hover:not(:disabled) { background: #f3f5f6; }
+.alto-text-button, .alto-breadcrumb button { background: none; border: 0; padding: 3px 0; color: #37649b; text-align: left; }
+.alto-text-button:hover { text-decoration: underline; }
+.alto-icon-button { width: 37px; height: 37px; border: 0; background: transparent; color: var(--ink); display: inline-flex; align-items: center; justify-content: center; border-radius: 7px; flex-shrink: 0; }
+.alto-icon-button:hover { background: #eff1f3; }
+.alto-badge { display: inline-flex; align-items: center; padding: 5px 12px; border-radius: 20px; font-size: 12px; color: var(--muted); background: #f0f1f2; border: 1px solid transparent; line-height: 1.4; }
+.alto-badge.mint { background: #dff4ea; color: #076750; }
+.alto-badge.pending { background: #fff0ce; color: #6e4b0d; }
+.alto-muted { color: var(--muted); }
+.alto-caption { color: var(--muted); font-size: 12px; line-height: 1.5; }
+.alto-candidate-select { display: grid; gap: 4px; font-size: 11px; color: var(--muted); }
+.alto-candidate-select select { max-width: 330px; border: 1px solid var(--line); border-radius: 7px; padding: 8px; color: var(--ink); background: white; }
+.alto-button-row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.alto-button-stack { display: grid; gap: 12px; margin-top: 28px; }
+.alto-error, .alto-offline { display: flex; align-items: flex-start; gap: 10px; padding: 12px 15px; border: 1px solid #e7c4b9; border-radius: 9px; color: #833521; background: #fff4ef; font-size: 13px; line-height: 1.5; margin: 10px 0; }
+.alto-error svg { flex-shrink: 0; margin-top: 1px; }
+.alto-error button { margin-left: auto; border: 0; color: inherit; background: transparent; text-decoration: underline; white-space: nowrap; }
+.alto-info-banner { display: flex; align-items: center; gap: 14px; background: #edf4f9; border: 1px solid #dbe8f3; border-radius: 8px; padding: 14px 17px; color: #3f587c; line-height: 1.4; margin: 18px 0; }
+.alto-info-banner svg { flex-shrink: 0; }
+.alto-loading { color: var(--muted); display: flex; align-items: center; justify-content: center; padding: 24px; gap: 10px; font-size: 14px; }
+.alto-background-status { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: 12px; margin: 4px 0 12px; }
+.alto-loading > span { width: 15px; height: 15px; border: 2px solid #d5e2e9; border-top-color: #527795; border-radius: 50%; animation: alto-spin 1s linear infinite; }
+@keyframes alto-spin { to { transform: rotate(360deg); } }
+.alto-empty { text-align: center; padding: 65px 24px; color: var(--muted); }
+.alto-empty h3 { color: var(--ink); margin: 17px 0 8px; }
+.alto-empty p { max-width: 580px; margin: 0 auto 20px; font-size: 14px; }
+.alto-field { display: grid; gap: 8px; font-size: 14px; color: var(--ink); margin: 16px 0; }
+.alto-field input, .alto-field textarea, .alto-field select, .alto-calendar-page select { border: 1px solid #cfd9e4; color: var(--ink); border-radius: 8px; padding: 11px 12px; background: #fff; min-width: 0; }
+.alto-field textarea { resize: vertical; line-height: 1.6; }
+.alto-field input, .alto-field select { min-height: 43px; }
+.alto-field small { color: var(--muted); }
+.alto-composer-page { min-height: calc(100vh - 104px); display: flex; flex-direction: column; }
+.alto-home { padding: 10px 0 0; }
+.alto-home .alto-page-heading { margin-bottom: 38px; }
+.alto-home .alto-page-heading h1 { font-size: clamp(40px, 3.7vw, 58px); letter-spacing: -2.4px; }
+.alto-home .alto-page-heading p { font-size: 24px; }
+.alto-home-columns { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 16px; margin-bottom: 44px; min-height: 170px; }
+.alto-home-columns > section { padding: 0 29px 18px 0; }
+.alto-home-columns > section + section { border-left: 1px solid var(--line); padding-left: 33px; }
+.alto-home-columns h2 { margin: 0 0 25px; display: flex; align-items: center; gap: 14px; font-size: 20px; font-weight: 500; letter-spacing: -.7px; }
+.alto-home-item { display: flex; gap: 18px; align-items: flex-start; border: 0; background: none; text-align: left; color: #152340; padding: 8px 0; font-size: 17px; line-height: 1.45; }
+.alto-home-item small { display: block; font-size: 14px; color: var(--muted); margin-top: 3px; }
+.alto-status-dot { display: inline-block; width: 23px; height: 23px; border-radius: 50%; background: #dce3e8; border: 1px solid #b6c5d2; flex: 0 0 auto; margin-top: 1px; }
+.alto-status-dot.active, .alto-status-dot.accepted { background: linear-gradient(140deg, #cae7da, #96cdb8); border-color: #80bda8; }
+.alto-status-dot.pending { background: linear-gradient(140deg, #fae5ac, #e8be65); border-color: #d3a343; }
+.alto-home-composer { margin-top: auto; padding-bottom: 7px; }
+.alto-home-composer .alto-assistant { margin-top: 0; }
+.alto-manager-home .alto-home-composer { margin-top: 0; }
+.alto-manager-home .alto-home-composer .alto-assistant { padding-top: 0; }
+.alto-employee-home .alto-home-columns { margin-top: 140px; min-height: 240px; }
+.alto-manager-home .alto-home-columns { margin-bottom: 36px; }
+.alto-employee-home .alto-notice-card { width: 480px; padding: 23px; }
+.alto-employee-home .alto-notice-card p { font-size: 17px; }
+.alto-employee-home .alto-notice-card .alto-primary, .alto-employee-home .alto-notice-card .alto-secondary { font-size: 14px; }
+.alto-suggestions { display: flex; gap: 12px; margin-top: 17px; }
+.alto-suggestions button { border: 1px solid var(--line); border-radius: 26px; padding: 10px 23px; background: #f6f5f2; color: var(--muted); font-size: 16px; }
+.alto-inline-hint { padding: 20px; color: var(--muted); border: 1px solid var(--line); border-radius: 10px; margin-bottom: 22px; }
+.alto-explore { align-self: flex-start; margin-bottom: 20px; }
+.alto-assistant { margin-top: auto; padding-top: 24px; width: 100%; }
+.alto-composer { display: flex; align-items: center; gap: 14px; min-height: 74px; border: 1px solid #cbd5e2; border-radius: 15px; padding: 10px 14px 10px 20px; background: #fff; box-shadow: 0 3px 12px #20304b05; }
+.alto-composer > .alto-logo { padding-right: 24px; border-right: 1px solid #dae0e9; height: 28px; }
+.alto-composer input { min-width: 50px; flex: 1; height: 38px; border: 0; outline: 0; background: transparent; color: #16233f; font-size: 17px; }
+.alto-composer input::placeholder { color: #7587a6; opacity: 1; }
+.alto-send { display: inline-flex; align-items: center; justify-content: center; background: #05090c; color: #fff; border: 0; border-radius: 50%; width: 47px; height: 47px; flex: 0 0 47px; }
+.alto-send:disabled { opacity: .3; }
+.alto-context-chip { display: inline-flex; align-items: center; gap: 6px; max-width: 235px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 6px 9px; border: 0; border-radius: 18px; background: #e7f6f1; color: #1f6859; font-size: 12px; }
+.alto-conversation { background: #fff; border: 1px solid var(--line); border-radius: 13px 13px 0 0; margin-bottom: -12px; padding: 0 18px 20px; box-shadow: 0 3px 13px #17294007; }
+.alto-conversation > header { min-height: 44px; display: flex; align-items: center; justify-content: space-between; font-size: 13px; border-bottom: 1px solid var(--line); }
+.alto-message-list { max-height: 330px; overflow: auto; padding: 15px 0; }
+.alto-message { display: grid; grid-template-columns: 45px minmax(0, 1fr); gap: 13px; margin: 0 0 18px; color: #203858; }
+.alto-message-author { font-size: 12px; font-weight: 600; padding-top: 10px; }
+.alto-message-author .alto-logo { font-size: 18px; letter-spacing: -2px; }
+.alto-message-author .alto-logo > span { font-size: 18px; }
+.alto-message-bubble { border-radius: 14px; background: #f4f5f7; padding: 12px 16px; line-height: 1.6; font-size: 14px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.alto-message.user .alto-message-bubble { background: #edf2fa; }
+.alto-message small { display: block; color: #7c8da5; font-size: 10px; margin-top: 5px; }
+.alto-citations { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 7px; }
+.alto-citations button { background: #fff; color: #3368a6; display: inline-flex; align-items: center; gap: 5px; border: 1px solid #d5e1ec; border-radius: 5px; padding: 6px 9px; font-size: 11px; }
+.alto-assistant-action { margin: 12px 0 18px 56px; padding: 16px; border: 1px solid #cfdbe7; border-radius: 11px; background: #fffefa; color: var(--ink); font-size: 13px; }
+.alto-assistant-action > header { display: grid; gap: 7px; }
+.alto-assistant-action > header > div { display: flex; align-items: center; gap: 9px; color: var(--muted); font-size: 11px; }
+.alto-assistant-action > header > strong { font-size: 17px; }
+.alto-assistant-action > p { margin: 8px 0 14px; color: #314a70; }
+.alto-assistant-action.completed { border-color: #9fd1be; background: #f5fbf8; }
+.alto-assistant-action.failed, .alto-assistant-action.expired { border-color: #e7c4b9; background: #fff8f4; }
+.alto-action-scope { padding: 11px 12px; border-radius: 7px; background: #f3f5f7; }
+.alto-action-scope > strong, .alto-action-changes > strong, .alto-action-warnings > strong, .alto-action-violations > strong { font-size: 12px; }
+.alto-action-scope dl { display: flex; flex-wrap: wrap; gap: 9px 24px; margin: 8px 0 0; }
+.alto-action-scope dl > div { display: grid; gap: 2px; min-width: 120px; }
+.alto-action-scope dt { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: .04em; }
+.alto-action-scope dd { margin: 0; overflow-wrap: anywhere; }
+.alto-action-changes { margin-top: 14px; }
+.alto-action-changes ul { list-style: none; margin: 8px 0 0; padding: 0; border-top: 1px solid var(--line); }
+.alto-action-changes li { display: grid; grid-template-columns: minmax(110px, .75fr) minmax(80px, .45fr) minmax(220px, 1.8fr); align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.alto-action-changes li > span { font-weight: 600; }
+.alto-action-changes li > small { color: var(--muted); }
+.alto-action-changes li > div { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.alto-action-changes del, .alto-action-changes ins { padding: 4px 6px; border-radius: 4px; overflow-wrap: anywhere; text-decoration: none; }
+.alto-action-changes del { color: #704237; background: #fff0ea; }
+.alto-action-changes ins { color: #11634f; background: #e3f4ed; }
+.alto-action-violations { margin-top: 13px; padding: 11px 12px; border: 1px solid #edb5a6; border-radius: 7px; background: #fff5f1; color: #753523; }
+.alto-action-violations.revision-requirements { border-color: #cbd9e8; background: #f1f6fa; color: #314a70; }
+.alto-action-violations p { margin: 4px 0 7px; }
+.alto-action-violations ul, .alto-action-warnings ul { margin: 6px 0 0; padding-left: 18px; }
+.alto-action-violations li { margin: 5px 0; }
+.alto-action-violations li span, .alto-action-violations li small { display: block; }
+.alto-action-warnings { margin-top: 13px; padding: 11px 12px; border-radius: 7px; background: #fff6de; color: #66480e; }
+.alto-action-confirmation { padding: 12px; border: 1px solid #dbe2e8; border-radius: 7px; background: #fff; color: #314a70; }
+.alto-action-running { display: flex; align-items: center; gap: 9px; margin-top: 14px; color: var(--muted); }
+.alto-action-running > span { width: 14px; height: 14px; border: 2px solid #d5e2e9; border-top-color: #527795; border-radius: 50%; animation: alto-spin 1s linear infinite; }
+@media (max-width: 760px) {
+  .alto-assistant-action { margin-left: 0; }
+  .alto-action-changes li { grid-template-columns: 1fr; gap: 5px; }
+}
+.alto-stage { display: flex; align-items: center; gap: 8px; color: var(--muted); margin: 15px 0 2px 56px; font-size: 13px; }
+.alto-stage > span { width: 9px; height: 9px; border-radius: 50%; background: #92cfbe; }
+.alto-stage button { border: 0; color: var(--muted); background: none; text-decoration: underline; margin-left: auto; }
+.alto-open-conversation { margin-top: 5px; font-size: 12px; }
+.alto-waveform { display: flex; align-items: center; gap: 3px; height: 40px; width: 105px; flex-shrink: 0; }
+.alto-waveform span { width: 2px; background: #496ea9; }
+.alto-listening-label { color: #3166c3; font-size: 12px; }
+.alto-stop { border: 0; width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; background: #101820; }
+.alto-stop span { width: 13px; height: 13px; background: white; }
+.alto-native-overlay { padding: 8px; background: transparent; min-height: 0; }
+.alto-native-overlay .alto-assistant { padding-top: 0; }
+.alto-native-overlay .alto-composer { min-height: 64px; box-shadow: 0 2px 10px #00000010; }
+.alto-overlay-scope { font-size: 10px; display: block; padding: 3px 12px; color: #8b6016; background: #fff4d8; }
+.alto-list-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--line); margin-bottom: 23px; }
+.alto-tabs { display: flex; gap: 36px; min-width: 0; }
+.alto-tabs button { border: 0; border-bottom: 3px solid transparent; padding: 16px 2px; background: none; color: var(--muted); font-size: 20px; }
+.alto-tabs button.active { color: #101724; border-bottom-color: #111820; font-weight: 600; }
+.alto-search { display: flex; align-items: center; gap: 10px; border: 1px solid #d0dae6; border-radius: 9px; padding: 10px 14px; color: var(--muted); margin-bottom: 12px; }
+.alto-search input { min-width: 0; width: 225px; border: 0; outline: none; background: transparent; font-size: 14px; color: var(--ink); }
+.alto-search input::placeholder { color: #7a8daa; }
+.alto-project-list { display: grid; gap: 15px; }
+.alto-project-row { display: flex; align-items: center; gap: 26px; border: 1px solid var(--line); border-radius: 11px; background: transparent; text-align: left; width: 100%; min-height: 102px; padding: 22px 27px; color: var(--ink); margin-bottom: 12px; }
+.alto-project-row > div { flex: 1; min-width: 0; }
+.alto-project-row > .alto-status-dot { width: 18px; height: 18px; }
+.alto-project-row strong { font-size: 20px; font-weight: 600; letter-spacing: -.5px; }
+.alto-project-row p { margin: 6px 0 0; color: var(--muted); font-size: 16px; }
+.alto-project-row:hover { border-color: #aabed6; background: #fff; }
+.alto-category-icon { width: 47px; height: 47px; border-radius: 50%; display: inline-flex; flex: 0 0 47px; align-items: center; justify-content: center; color: #0e2428; }
+.alto-category-icon.mint { background: linear-gradient(140deg, #e0f3ed, #a4d8c5); }
+.alto-category-icon.peach { background: linear-gradient(140deg, #ffe1d5, #f3b394); }
+.alto-category-icon.rose { background: linear-gradient(140deg, #ffe2e7, #edb5c0); }
+.alto-category-icon.amber { background: linear-gradient(140deg, #fff0ce, #f9d992); }
+.alto-notice-card, .alto-notification-popover { position: absolute; top: 60px; right: 25px; z-index: 20; width: 420px; background: #fff; border: 1px solid #d6dee8; box-shadow: 0 7px 24px #1f314019; border-radius: 11px; padding: 19px; }
+.alto-notice-card > header { display: flex; gap: 12px; align-items: center; }
+.alto-notice-card h3 { margin: 0 0 5px; font-size: 18px; }
+.alto-notice-card header > div { flex: 1; }
+.alto-notice-card header span, .alto-notice-card p { color: var(--muted); font-size: 14px; }
+.alto-notice-card small { color: #57749b; display: block; font-size: 11px; margin-top: 13px; }
+.alto-notice-card .alto-button-row { gap: 7px; }
+.alto-notice-card .alto-primary, .alto-notice-card .alto-secondary { padding: 9px 12px; font-size: 12px; }
+.alto-notification-heading { display: flex; align-items: center; justify-content: space-between; }
+.alto-notification-popover { max-height: calc(100vh - 85px); overflow-y: auto; }
+.alto-notification-row { display: flex; gap: 14px; border-bottom: 1px solid var(--line); padding: 19px 0; }
+.alto-notification-row > svg { flex-shrink: 0; color: #4e6f95; }
+.alto-notification-row > div { flex: 1; }
+.alto-notification-row p { color: var(--muted); font-size: 14px; margin: 7px 0; }
+.alto-notification-row small { display: block; margin-top: 7px; color: #6a7e98; font-size: 11px; }
+.alto-notification-row .alto-button-row { margin-top: 10px; font-size: 13px; }
+.alto-notification-row.seen { opacity: .75; }
+.alto-graph-page { --graph-drawer-width: 370px; --graph-drawer-gap: 22px; position: relative; display: flex; flex-direction: column; min-height: calc(100vh - 110px); }
+.alto-graph-page.with-inspector > .alto-page-heading, .alto-graph-page.with-inspector > .alto-violation-summary, .alto-graph-page.with-inspector > .alto-graph-toolbar { margin-right: calc(var(--graph-drawer-width) + var(--graph-drawer-gap)); }
+.alto-graph-page.with-inspector .alto-graph-drawer { position: absolute; top: 0; right: 0; bottom: 0; width: var(--graph-drawer-width); overflow-y: auto; }
+.alto-graph-page .alto-page-heading { margin-bottom: 14px; }
+.alto-graph-page .alto-page-heading h1 { font-size: 33px; letter-spacing: -1.1px; }
+.alto-graph-page .alto-page-heading p { font-size: 16px; }
+.alto-graph-page .alto-eyebrow { font-size: 12px; margin-bottom: 12px; }
+.alto-graph-toolbar { display: flex; gap: 14px; align-items: center; margin: 4px 0 8px; }
+.alto-graph-toolbar .alto-search { padding: 7px 10px; margin: 0 0 0 auto; }
+.alto-graph-toolbar .alto-search input { width: 150px; font-size: 12px; }
+.alto-segmented { display: inline-flex; border: 1px solid #bccbdd; border-radius: 10px; overflow: hidden; }
+.alto-segmented button { padding: 10px 28px; border: 0; background: transparent; color: var(--muted); }
+.alto-segmented .selected { background: #0b1017; color: #fff; }
+.alto-graph-toolbar .alto-segmented button { padding: 7px 13px; font-size: 12px; }
+.alto-graph-toolbar > .alto-text-button { font-size: 12px; }
+.alto-violation-summary { border: 1px solid #efb5a5; background: #fff7f3; border-radius: 12px; padding: 14px 16px; margin: 0 0 14px; color: var(--ink); }
+.alto-violation-summary > div { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+.alto-violation-summary p { margin: 3px 0 8px; color: var(--muted); font-size: 12px; }
+.alto-violation-summary ul { margin: 8px 0 12px; padding-left: 20px; }
+.alto-violation-summary li { margin: 6px 0; }
+.alto-violation-summary li strong { display: block; font-size: 13px; }
+.alto-violation-summary li span { color: var(--muted); font-size: 12px; }
+.alto-graph-layout { display: grid; grid-template-columns: minmax(0, 1fr); flex: 1; min-height: 0; }
+.alto-graph-layout.with-drawer { grid-template-columns: minmax(0, 1fr) var(--graph-drawer-width); gap: var(--graph-drawer-gap); }
+.alto-graph-main { min-width: 0; display: flex; flex-direction: column; }
+.alto-graph-svg { width: 100%; flex: 1; height: clamp(380px, calc(100vh - 360px), 570px); min-height: 380px; max-height: 570px; touch-action: none; user-select: none; cursor: grab; overflow: hidden; }
+.alto-graph-svg:active { cursor: grabbing; }
+.alto-structure-edge { fill: none; stroke: #aac0dc; stroke-width: 1.35; }
+.alto-dependency-edge { fill: none; stroke: #729acc; stroke-width: 1.4; stroke-dasharray: 6 5; opacity: .8; }
+.alto-dependency-edge.review { stroke: #b884a6; stroke-dasharray: 3 5; }
+.alto-dependency-edge.acceptance { stroke: #b19355; }
+.alto-goal circle { fill: #fffefa; stroke: #c2cedd; stroke-width: 1.5; }
+.alto-goal circle + circle { fill: #fbfcfc; stroke: #e0e6eb; stroke-width: 1; }
+.alto-goal text { fill: #111923; font-size: 20px; font-weight: 650; letter-spacing: -.5px; }
+.alto-goal text:last-child { font-size: 18px; }
+.alto-hub { cursor: pointer; }
+.alto-hub circle { fill: #fafcfb; stroke: #b9c8db; stroke-width: 1.6; filter: drop-shadow(0 0 5px #d2ece440); }
+.alto-hub text { fill: #25415c; font-size: 19px; }
+.alto-hub .alto-hub-label { fill: #141c27; font-size: 15px; font-weight: 600; }
+.alto-hub .alto-aggregate-label { fill: #416b9e; font-size: 11px; }
+.alto-graph-node { cursor: pointer; }
+.alto-graph-node text { fill: #143155; font-size: 17px; }
+.alto-graph-node .alto-node-owner { font-size: 15px; fill: #5e799e; }
+.alto-node-fill { fill: var(--team-soft); stroke: var(--team-color); stroke-width: 1.4; }
+.alto-node-progress { fill: none; stroke: var(--team-color); stroke-width: 2; }
+.alto-graph-node.selected .alto-node-fill { stroke: #233652; stroke-width: 3; filter: drop-shadow(0 0 7px #7b9ed6aa); }
+.alto-graph-node.selected text:first-of-type { font-weight: 700; }
+.team-0 { --team-color: #50ad93; --team-soft: #cef0e2; }
+.team-1 { --team-color: #b485bd; --team-soft: #edd9ed; }
+.team-2 { --team-color: #739ac9; --team-soft: #dbe9f8; }
+.team-3 { --team-color: #dd9c55; --team-soft: #ffe5c6; }
+.team-4 { --team-color: #d87c99; --team-soft: #f4d7e1; }
+.team-5 { --team-color: #ba974d; --team-soft: #f8eccb; }
+.alto-status-dot[class*="team-"] { background: var(--team-soft); border-color: var(--team-color); }
+.alto-graph-bottom { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 5px 0; }
+.alto-zoom { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; background: #fff; padding: 2px; gap: 7px; font-size: 12px; }
+.alto-zoom .alto-icon-button { width: 28px; height: 28px; }
+.alto-zoom .alto-text-button { font-size: 10px; margin: 0 5px; }
+.alto-legend { display: flex; gap: 13px; flex-wrap: wrap; font-size: 10px; color: var(--muted); }
+.alto-legend span { display: inline-flex; gap: 5px; align-items: center; }
+.alto-legend i { display: inline-block; width: 13px; height: 13px; border-radius: 50%; background: var(--team-soft); border: 1px solid var(--team-color); }
+.alto-graph-main .alto-assistant { position: relative; padding-top: 12px; }
+.alto-graph-main .alto-conversation { position: absolute; bottom: 67px; left: 0; right: 0; z-index: 5; margin: 0; border-radius: 13px; }
+.alto-graph-main .alto-message-list { max-height: 250px; }
+.alto-graph-main .alto-composer { min-height: 59px; border-radius: 10px; padding: 7px 10px 7px 15px; }
+.alto-graph-main .alto-send { width: 36px; height: 36px; flex-basis: 36px; }
+.alto-graph-main .alto-composer input { font-size: 13px; }
+.alto-graph-main .alto-composer > .alto-logo { font-size: 22px; padding-right: 15px; }
+.alto-graph-drawer { border-left: 1px solid var(--line); padding: 13px 0 0 20px; min-width: 0; }
+.alto-graph-drawer > header { display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.alto-graph-drawer h2 { margin: 3px 0 15px; font-size: 22px; }
+.alto-graph-drawer p { color: var(--muted); font-size: 13px; }
+.alto-rule-list { margin-top: 20px; }
+.alto-rule-list details { border-top: 1px solid var(--line); }
+.alto-rule-list summary { list-style: none; display: flex; gap: 9px; align-items: center; padding: 13px 0; cursor: pointer; font-size: 12px; color: #243b5d; }
+.alto-rule-list summary > span:nth-of-type(2) { flex: 1; }
+.alto-rule-list summary > svg { margin-left: auto; flex-shrink: 0; }
+.alto-rule-list details > div { font-size: 11px; padding: 0 0 14px 27px; }
+.alto-rule-list pre { font-size: 10px; white-space: pre-wrap; overflow-wrap: anywhere; background: #f3f5f6; padding: 9px; border-radius: 5px; }
+.alto-rule-result { width: 19px; height: 19px; border-radius: 50%; display: inline-flex; flex-shrink: 0; align-items: center; justify-content: center; color: #8b671e; background: #fff0c5; }
+.alto-rule-result.pass, .alto-rule-result.passed { color: #208568; background: #cbf0e2; border: 1px solid #83cbb2; }
+.alto-rule-result.violation { color: #9f3f36; background: #f8d8d3; border: 1px solid #e2a39b; }
+.alto-rule-result.unable { color: #8b671e; background: #fff0c5; border: 1px solid #e7c96e; }
+.alto-rule-result.unavailable { color: #748092; background: #eef1f4; border: 1px solid #d5dce3; }
+.alto-verification-card { margin: 1px 0 13px; border: 1px solid #cfd9e2; border-radius: 11px; padding: 13px; background: linear-gradient(145deg, #fbfdfc, #f6faf8); box-shadow: 0 7px 20px #1633260a; }
+.alto-verification-card.checked { border-color: #9ecfbe; background: linear-gradient(145deg, #fbfefc, #f1faf6); }
+.alto-verification-card.attention { border-color: #e5c886; background: linear-gradient(145deg, #fffdf8, #fff8e8); }
+.alto-verification-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.alto-verification-title > div { display: grid; gap: 3px; }
+.alto-verification-title small { color: #617286; font-size: 9px; letter-spacing: .08em; text-transform: uppercase; }
+.alto-verification-title strong { color: #173c31; font-size: 16px; letter-spacing: -.25px; }
+.alto-verification-card.attention .alto-verification-title strong { color: #735b20; }
+.alto-verification-signal { width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; color: #19775e; background: #d6f2e7; border: 1px solid #9cd2be; }
+.alto-verification-signal.attention { color: #86651b; background: #fff0c8; border-color: #e8cc79; }
+.alto-verification-metrics { display: grid; grid-template-columns: 1.1fr .65fr .85fr 1.15fr; gap: 5px; margin-top: 11px; }
+.alto-verification-metrics > div { min-width: 0; padding: 7px 8px; border-radius: 7px; background: #fff; border: 1px solid #e2e8e5; }
+.alto-verification-metrics strong, .alto-verification-metrics span { display: block; }
+.alto-verification-metrics strong { color: #203a51; font-size: 12px; }
+.alto-verification-metrics span { margin-top: 2px; color: #6c7c8d; font-size: 8px; line-height: 1.2; }
+.alto-verification-versions { display: flex; flex-wrap: wrap; gap: 4px 10px; padding: 9px 1px 7px; color: #617286; font-size: 8px; }
+.alto-verification-digests { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin: 0; }
+.alto-verification-digests > div { min-width: 0; display: flex; align-items: center; gap: 6px; }
+.alto-verification-digests dt { color: #788695; font-size: 8px; }
+.alto-verification-digests dd { min-width: 0; margin: 0; }
+.alto-verification-digests code { display: block; max-width: 100%; overflow: hidden; color: #35526b; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.alto-verification-provenance { display: flex; gap: 6px; margin-top: 10px; }
+.alto-verification-limitation { margin: 9px 0 0; padding-top: 8px; border-top: 1px solid #dde7e2; font-size: 9px !important; line-height: 1.35; }
+.alto-rule-categories { margin-top: 8px; }
+.alto-rule-category-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.alto-rule-category { min-width: 0; display: flex; align-items: center; gap: 7px; padding: 6px 7px; border: 1px solid #dce3e8; border-radius: 7px; background: #fff; color: #263e57; text-align: left; }
+.alto-rule-category:hover, .alto-rule-category.selected { border-color: #8cb9aa; background: #f5fbf8; }
+.alto-rule-category > span:last-child { min-width: 0; display: grid; gap: 1px; }
+.alto-rule-category strong { overflow: hidden; font-size: 10px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
+.alto-rule-category small { overflow: hidden; color: #7c8997; font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.alto-rule-category .alto-rule-result { width: 17px; height: 17px; }
+.alto-rule-category-detail { margin-top: 8px; padding: 10px 11px 11px; border: 1px solid #d6e1e8; border-radius: 9px; background: #fff; }
+.alto-rule-category-detail > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.alto-rule-category-detail > header small { color: #778797; font-size: 8px; letter-spacing: .07em; text-transform: uppercase; }
+.alto-rule-category-detail h3 { margin: 2px 0 0; color: #243d58; font-size: 14px; }
+.alto-rule-instance-tabs { display: flex; gap: 5px; margin-top: 8px; overflow-x: auto; }
+.alto-rule-instance-tabs button { border: 1px solid #dce3e8; border-radius: 999px; padding: 4px 7px; background: #fff; color: #5e7187; font-size: 8px; white-space: nowrap; }
+.alto-rule-instance-tabs button.selected { border-color: #71ad98; color: #1e6956; background: #eef9f5; }
+.alto-rule-evidence { font-size: 10px; padding-top: 8px; }
+.alto-rule-list .alto-rule-evidence { padding: 0 0 14px 27px; }
+.alto-rule-evidence-heading { display: flex; align-items: center; gap: 7px; }
+.alto-rule-evidence-heading > small { color: #788897; font-size: 8px; }
+.alto-rule-evidence p { margin: 6px 0; font-size: 9px; line-height: 1.35; }
+.alto-human-formula { display: grid; gap: 4px; margin-top: 8px; }
+.alto-human-formula strong, .alto-rule-bindings > strong { color: #617286; font-size: 8px; letter-spacing: .04em; text-transform: uppercase; }
+.alto-human-formula code { padding: 6px 7px; border-radius: 5px; color: #314e69; background: #f3f6f8; font-size: 9px; overflow-wrap: anywhere; }
+.alto-rule-bindings { margin-top: 8px; }
+.alto-rule-bindings dl { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 8px; margin: 5px 0 0; }
+.alto-rule-bindings dl > div { min-width: 0; }
+.alto-rule-bindings dt { color: #778695; font-size: 8px; }
+.alto-rule-bindings dd { margin: 1px 0 0; color: #263e57; font-size: 9px; overflow-wrap: anywhere; }
+.alto-raw-assertion { margin-top: 8px; border-top: 1px solid #e1e7eb; }
+.alto-raw-assertion > summary { list-style: none; padding: 7px 0 0; color: #41658b; cursor: pointer; font-size: 9px; font-weight: 600; }
+.alto-raw-assertion > summary::after { content: " +"; }
+.alto-raw-assertion[open] > summary::after { content: " −"; }
+.alto-raw-assertion > div { padding: 5px 0 0 !important; }
+.alto-raw-assertion pre { max-height: 95px; margin: 4px 0 0; padding: 7px; border-radius: 5px; overflow: auto; color: #d9f4ea; background: #162b27; font-size: 8px; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; }
+.alto-raw-assertion small { color: #718293; font-size: 8px; }
+.alto-task-inspector dl { margin: 25px 0; }
+.alto-task-inspector dt { color: #577197; font-size: 13px; margin-top: 24px; }
+.alto-task-inspector dd { margin: 9px 0 0; color: #243858; font-size: 15px; line-height: 1.6; }
+.alto-task-inspector dd svg { vertical-align: middle; margin-right: 9px; }
+.alto-task-inspector dd small { display: block; margin-left: 33px; font-size: 11px; }
+.alto-task-inspector > p > .alto-status-dot { vertical-align: middle; margin-right: 9px; }
+.alto-dependency-link { display: block; width: 100%; text-align: left; border: 1px solid var(--line); border-radius: 8px; padding: 9px; background: #fff; color: var(--muted); font-size: 12px; margin-top: 8px; }
+.alto-dependency-link small { display: block; margin-top: 4px; }
+.alto-task-table { overflow: auto; flex: 1; padding: 20px 0; }
+.alto-task-table table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.alto-task-table th, .alto-task-table td { padding: 12px; border-bottom: 1px solid var(--line); text-align: left; }
+.alto-task-table th { color: var(--muted); font-weight: 500; }
+.alto-graph-page:fullscreen { background: var(--canvas); padding: 30px; overflow: auto; }
+.breathing .alto-goal > circle:first-child { animation: alto-breathe 5s ease-in-out infinite; }
+@keyframes alto-breathe { 50% { filter: drop-shadow(0 0 9px #a5d8c95c); } }
+.alto-modal-backdrop { position: fixed; inset: 0; z-index: 60; background: #15202436; backdrop-filter: blur(1px); display: flex; align-items: center; justify-content: center; padding: 25px; }
+.alto-modal { width: min(600px, 100%); max-height: calc(100vh - 50px); overflow-y: auto; background: #fffefa; border-radius: 14px; padding: 23px 26px; box-shadow: 0 20px 50px #101c2833; outline: none; }
+.alto-modal.wide { width: min(900px, 100%); }
+.alto-modal > header { display: flex; align-items: flex-start; justify-content: space-between; gap: 15px; border-bottom: 1px solid var(--line); padding-bottom: 14px; margin-bottom: 19px; }
+.alto-modal > header h2 { margin: 7px 0 0; font-size: 25px; letter-spacing: -.8px; }
+.alto-modal > p { font-size: 14px; color: var(--muted); }
+.alto-modal-actions { display: flex; align-items: center; justify-content: flex-end; gap: 11px; padding-top: 20px; margin-top: 15px; border-top: 1px solid var(--line); }
+.alto-modal-actions > span { font-size: 12px; margin-right: auto; max-width: 280px; }
+.alto-work-modal-layout { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 26px; }
+.alto-work-summary { border: 1px solid var(--line); border-radius: 9px; padding: 14px; font-size: 13px; color: var(--muted); }
+.alto-file-input { font-size: 12px; display: grid; gap: 9px; color: var(--muted); }
+.alto-file-input input { max-width: 100%; }
+.alto-unsaved-warning { border: 1px solid #d7b97f; border-radius: 9px; background: #fff6e6; padding: 15px; margin-top: 17px; }
+.alto-unsaved-warning button { margin-right: 9px; }
+.alto-private-feedback { border: 1px solid var(--line); border-radius: 10px; padding: 20px; margin-top: 20px; }
+.alto-private-details { margin: 20px 0 0; color: var(--muted); font-size: 13px; }
+.alto-private-details > summary { cursor: pointer; }
+.alto-gate-decision { margin: 24px 0; border: 1px solid #dac8a4; border-radius: 10px; background: #fffaf0; padding: 22px; }
+.alto-gate-decision > p { color: var(--muted); font-size: 14px; }
+.alto-private-feedback > header { display: flex; gap: 10px; align-items: center; }
+.alto-private-feedback h2 { font-size: 17px; margin: 0; }
+.alto-private-feedback > p { color: var(--muted); font-size: 13px; }
+.alto-preference-row { border: 0; border-top: 1px solid var(--line); margin-top: 13px; padding: 13px 0 0; display: flex; align-items: center; gap: 18px; background: transparent; color: var(--muted); text-align: left; width: 100%; font-size: 13px; }
+.alto-preference-row > span:first-child { flex: 1; }
+.alto-modal .alto-notice-card { position: static; width: auto; border: 0; box-shadow: none; padding: 0; }
+.alto-review-narrative, .alto-source-excerpt p { white-space: pre-wrap; line-height: 1.7; color: #344f73; }
+.alto-source-excerpt { border: 1px solid var(--line); border-radius: 10px; margin-top: 22px; padding: 22px; }
+.alto-source-excerpt h2 { font-size: 16px; }
+.alto-approval-binding { display: grid; gap: 7px; padding: 12px; background: #f4f5f5; font-size: 12px; border-radius: 8px; }
+.alto-approval-binding code { overflow-wrap: anywhere; font-size: 10px; }
+.alto-compact-table { font-size: 12px; margin: 20px 0; max-height: 230px; overflow: auto; }
+.alto-compact-table > div { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 10px 0; }
+.alto-approval-requirement { display: flex; justify-content: space-between; align-items: center; gap: 15px; padding: 15px 0; border-top: 1px solid var(--line); font-size: 12px; }
+.alto-approval-requirement p { margin: 7px 0; }
+.alto-checkbox { display: flex; gap: 9px; font-size: 13px; margin: 18px 0; align-items: center; }
+.alto-breadcrumb { color: var(--muted); font-size: 14px; margin: 4px 0 29px; }
+.alto-brief-layout { display: grid; grid-template-columns: minmax(0, 1fr) 325px; gap: 44px; }
+.alto-brief-summary { color: var(--muted); font-size: 21px; margin: 22px 0 27px; }
+.alto-brief-layout h2 small { font-size: 15px; color: var(--muted); font-weight: 400; }
+.alto-deliverables { color: var(--muted); font-size: 15px; margin-bottom: 30px; line-height: 1.8; }
+.alto-timeline { list-style: none; padding-left: 20px; margin: 28px 0; }
+.alto-timeline li { position: relative; border-left: 2px solid #dae1e8; padding: 0 0 27px 33px; }
+.alto-timeline li:last-child { border-color: transparent; padding-bottom: 0; }
+.alto-timeline li strong { font-size: 17px; font-weight: 500; }
+.alto-timeline li p { margin: 5px 0 2px; color: var(--muted); font-size: 16px; }
+.alto-timeline li small { font-size: 11px; color: #7689a1; }
+.alto-timeline-dot { width: 20px; height: 20px; position: absolute; left: -11px; top: 0; border-radius: 50%; border: 1px solid #51a28b; background: #c5e8dc; }
+.alto-timeline li.deadline .alto-timeline-dot { border-color: #bf799c; background: #e5bacb; }
+.alto-protected-banner { display: flex; align-items: center; gap: 17px; color: #096b50; background: #e4f3eb; padding: 17px 22px; border-radius: 8px; margin: 26px 0 20px; }
+.alto-task-facts { border-left: 1px solid var(--line); padding-left: 27px; }
+.alto-task-facts dl { margin: 0; }
+.alto-task-facts dt { color: var(--muted); font-size: 14px; margin-top: 23px; }
+.alto-task-facts dt:first-child { margin-top: 8px; }
+.alto-task-facts dd { margin: 9px 0 24px; font-size: 17px; }
+.alto-task-facts section { border-top: 1px solid var(--line); padding: 8px 0 13px; margin-top: 18px; }
+.alto-task-facts h3 { color: var(--muted); font-weight: 400; }
+.alto-task-facts small { color: var(--muted); font-size: 12px; }
+.alto-attachment { display: flex; align-items: center; gap: 10px; border: 1px solid var(--line); border-radius: 7px; padding: 10px; text-align: left; background: #fff; color: #3d5880; width: 100%; font-size: 12px; margin-bottom: 8px; }
+.alto-attachment svg { flex-shrink: 0; }
+.alto-attachment small { display: block; margin-top: 4px; font-size: 10px; }
+.alto-calendar-page .alto-page-heading { align-items: flex-start; }
+.alto-calendar-nav { display: flex; align-items: center; border: 1px solid var(--line); border-radius: 8px; }
+.alto-calendar-nav > button:not(.alto-icon-button) { border: 0; background: transparent; color: var(--muted); padding: 8px 14px; font-size: 13px; }
+.alto-calendar-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 26px; }
+.alto-calendar-grid { display: grid; grid-template-columns: 48px repeat(5, minmax(0, 1fr)); grid-template-rows: 48px 570px; padding-bottom: 15px; }
+.alto-calendar-corner { grid-column: 1; }
+.alto-calendar-day-heading { border: 0; border-bottom: 1px solid var(--line); border-right: 1px solid var(--line); background: transparent; color: var(--muted); font-size: 14px; padding: 6px; line-height: 1.5; }
+.alto-calendar-day-heading.selected { background: #f1f1ef; font-weight: 600; color: #101621; border-radius: 9px 9px 0 0; }
+.alto-calendar-day-heading:disabled { opacity: 1; }
+.alto-calendar-hours { position: relative; margin-right: 6px; }
+.alto-calendar-hours > span { position: absolute; right: 2px; color: #798ba5; font-size: 11px; transform: translateY(-50%); }
+.alto-calendar-day { position: relative; border-left: 1px solid #e5e8ec; border-bottom: 1px solid var(--line); background: repeating-linear-gradient(to bottom, transparent 0, transparent calc(10% - 1px), #e4e8ee calc(10% - 1px), #e4e8ee 10%); }
+.alto-calendar-day:last-child { border-right: 1px solid var(--line); }
+.alto-calendar-event { position: absolute; border: 1px solid #c8d7e8; border-radius: 6px; background: #e8eef6; color: #1a3557; padding: 5px 7px; display: flex; flex-direction: column; align-items: flex-start; overflow: hidden; font-size: 11px; line-height: 1.35; text-align: left; }
+.alto-calendar-event strong { font-size: 12px; font-weight: 500; }
+.alto-calendar-event span, .alto-calendar-event small { color: #496282; font-size: 10px; }
+.alto-calendar-event.work, .alto-calendar-event.protected { background: #e1f0e5; border-color: #bbd9c4; }
+.alto-calendar-event.protected { border-left: 3px solid #6da88a; }
+.alto-calendar-event.busy { background: #e7e9ed; border-color: #e3e6ea; }
+.alto-calendar-event.deadline { border: 0; border-top: 2px solid #c5759a; border-radius: 0; background: #fff6ec; color: #a15773; overflow: visible; padding-top: 3px; z-index: 2; }
+.alto-calendar-event.deadline strong { font-size: 10px; }
+.alto-calendar-event.deadline > svg { display: none; }
+.alto-calendar-event.selected { border: 2px solid #5477a0; box-shadow: 0 0 0 2px #dbe8f699; z-index: 3; }
+.alto-calendar-event:disabled { opacity: 1; }
+.alto-calendar-legend { display: flex; align-items: center; gap: 22px; flex-wrap: wrap; margin: 19px 0; color: var(--muted); font-size: 11px; }
+.alto-calendar-legend span { display: flex; align-items: center; gap: 8px; }
+.alto-calendar-legend i { width: 13px; height: 13px; border-radius: 4px; background: #d3e2f5; }
+.alto-calendar-legend i.work { background: #b9ddcb; border-radius: 50%; }
+.alto-calendar-legend i.protected { background: #e1e8df; border: 1px solid #779b82; }
+.alto-calendar-inspector { border-left: 1px solid var(--line); padding: 8px 0 0 22px; }
+.alto-calendar-inspector > header { display: flex; justify-content: space-between; align-items: center; }
+.alto-calendar-inspector h2 { font-size: 22px; margin: 18px 0; }
+.alto-calendar-inspector p { font-size: 14px; color: var(--muted); }
+.alto-calendar-inspector > .alto-text-button { display: block; margin: 17px 0; font-size: 14px; }
+.alto-agenda-item { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 16px; width: 100%; border: 1px solid var(--line); border-radius: 10px; background: transparent; color: var(--ink); text-align: left; margin: 14px 0; }
+.alto-agenda-item strong { font-weight: 500; font-size: 14px; }
+.alto-agenda-item span, .alto-agenda-item small { color: var(--muted); font-size: 12px; }
+.alto-agenda-item > svg { position: absolute; right: 9px; top: 20px; }
+.alto-profile-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; }
+.alto-profile-card { border: 1px solid #d5dfea; border-radius: 10px; padding: 18px 19px; min-height: 200px; }
+.alto-profile-card > header { display: flex; align-items: center; gap: 13px; margin-bottom: 19px; }
+.alto-profile-card h2 { font-size: 23px; margin: 0; flex: 1; }
+.alto-profile-card > header .alto-text-button { margin-left: auto; font-size: 14px; }
+.alto-skill-tags { display: flex; flex-wrap: wrap; gap: 9px; }
+.alto-skill-tags > span { border-radius: 24px; padding: 10px 14px; background: #dff2eb; color: #1c5662; font-size: 13px; }
+.alto-skill-tags small { display: block; font-size: 9px; color: #54796e; margin-top: 3px; }
+.alto-profile-project { display: flex; width: 100%; justify-content: space-between; align-items: center; gap: 12px; border: 0; background: transparent; text-align: left; border-bottom: 1px solid #e2e8ee; padding: 17px 6px; color: #2c5885; font-size: 16px; }
+.alto-profile-project:last-child { border-bottom: 0; }
+.alto-profile-project small { display: block; color: var(--muted); font-size: 12px; margin-top: 5px; }
+.alto-profile-card .alto-calendar-grid { grid-template-columns: 37px repeat(5, minmax(0, 1fr)); grid-template-rows: 33px 175px; }
+.alto-profile-card .alto-calendar-day-heading { font-size: 9px; }
+.alto-profile-card .alto-calendar-hours > span { font-size: 8px; }
+.alto-profile-card .alto-calendar-event { padding: 2px; min-height: 12px; justify-content: center; }
+.alto-profile-card .alto-calendar-event strong { font-size: 9px; font-weight: 400; }
+.alto-profile-card .alto-caption { margin: -7px 0 10px; font-size: 10px; }
+.alto-shared-preferences { border-top: 1px solid var(--line); padding-top: 10px; margin-top: 14px; }
+.alto-shared-preferences p { font-size: 13px; color: var(--muted); }
+.alto-shared-preferences small { display: block; margin-top: 5px; }
+.alto-people-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 15px; }
+.alto-person-card { display: flex; align-items: flex-start; gap: 14px; border: 1px solid var(--line); background: transparent; border-radius: 11px; padding: 21px 17px; text-align: left; }
+.alto-person-card > div { flex: 1; min-width: 0; }
+.alto-person-card strong, .alto-person-card span:not(.alto-avatar), .alto-person-card small { display: block; }
+.alto-person-card strong { font-size: 16px; color: var(--ink); }
+.alto-person-card > div > span { font-size: 12px; color: var(--muted); margin-top: 6px; }
+.alto-person-card small { font-size: 10px; color: #6c7f98; margin-top: 4px; }
+.alto-person-card .alto-badge { font-size: 9px !important; padding: 4px 7px; margin-top: 9px !important; display: inline-block !important; }
+.alto-person-card > svg { width: 17px; flex-shrink: 0; margin-top: 7px; }
+.alto-settings-tabs { display: flex; gap: 23px; border-bottom: 1px solid var(--line); margin-bottom: 8px; }
+.alto-settings-tabs button { border: 0; border-bottom: 2px solid transparent; color: var(--muted); background: transparent; padding: 9px 1px 14px; font-size: 13px; }
+.alto-settings-tabs button.active { color: var(--ink); border-bottom-color: var(--ink); }
+.alto-settings-section { padding: 22px 5px 28px; border-bottom: 1px solid var(--line); }
+.alto-settings-section h2 { margin: 4px 0 4px; font-size: 23px; }
+.alto-settings-section > p { margin: 5px 0 16px; color: var(--muted); font-size: 16px; }
+.alto-settings-section small { display: block; font-size: 12px; color: var(--muted); margin-top: 12px; }
+.alto-settings-section .alto-field { max-width: 680px; }
+.alto-toggle { display: flex; gap: 18px; align-items: center; width: fit-content; margin: 18px 0; cursor: pointer; font-size: 16px; }
+.alto-switch { position: relative; width: 45px; height: 25px; flex: 0 0 45px; }
+.alto-switch input { appearance: none; position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; border: 0; border-radius: 20px; background: #afb4b9; cursor: pointer; transition: background .15s; }
+.alto-switch input:checked { background: #4da685; }
+.alto-switch-thumb { position: absolute; top: 3px; left: 3px; width: 19px; height: 19px; background: #fff; border-radius: 50%; pointer-events: none; transition: transform .15s; }
+.alto-switch input:checked + .alto-switch-thumb { transform: translateX(20px); }
+.alto-switch input:disabled { opacity: .5; cursor: not-allowed; }
+.alto-switch input:disabled + .alto-switch-thumb { opacity: .75; }
+.alto-toggle-label { display: inline-flex; align-items: center; gap: 12px; min-width: 0; }
+.alto-toggle kbd { border: 1px solid var(--line); border-radius: 6px; padding: 7px 11px; font: inherit; font-size: 14px; }
+.alto-settings-save { display: flex; justify-content: flex-end; align-items: center; gap: 18px; padding-top: 22px; }
+.alto-settings-save > span { font-size: 13px; color: #1d795d; }
+.alto-settings-section dl { display: grid; grid-template-columns: 160px 1fr; gap: 16px; font-size: 14px; }
+.alto-settings-section dt { color: var(--muted); }
+.alto-settings-section dd { margin: 0; overflow-wrap: anywhere; }
+.alto-connections-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 30px; }
+.alto-connections-layout.with-inspector { grid-template-columns: minmax(0, 1fr) 310px; }
+.alto-connection-group { padding: 15px 0; }
+.alto-connection-group h2 { margin: 6px 0; font-size: 23px; }
+.alto-connection-group > p { color: var(--muted); margin: 5px 0 13px; font-size: 14px; }
+.alto-connection-row { display: flex; align-items: center; width: 100%; gap: 17px; border: 1px solid var(--line); border-radius: 9px; padding: 16px 18px; background: transparent; color: var(--ink); text-align: left; margin-bottom: 9px; }
+.alto-connection-row.selected { border-color: #567198; background: #f3f4f7; }
+.alto-connection-row > div { flex: 1; min-width: 0; }
+.alto-connection-row strong { font-size: 16px; }
+.alto-connection-row small { display: block; font-size: 12px; color: var(--muted); margin-top: 5px; }
+.alto-connection-scope { padding-left: 18px; border-left: 1px solid var(--line); color: var(--muted); font-size: 12px; max-width: 180px; }
+.alto-provider-icon { width: 38px; height: 38px; border-radius: 8px; flex: 0 0 38px; background: #2c85bc; color: #fff; display: grid; place-items: center; font-weight: 700; font-size: 22px; }
+.alto-provider-icon.teams, .alto-provider-icon.microsoftteams { background: #6963ab; }
+.alto-provider-icon.sharepoint { background: #198c96; }
+.alto-connection-inspector { border-left: 1px solid var(--line); padding: 22px 0 0 26px; }
+.alto-connection-inspector > header { display: flex; align-items: flex-start; justify-content: space-between; }
+.alto-connection-inspector h2 { font-size: 23px; margin: 3px 0 5px; }
+.alto-connection-inspector p, .alto-connection-inspector li { font-size: 14px; color: var(--muted); line-height: 1.6; }
+.alto-connection-inspector dl { display: grid; grid-template-columns: 92px 1fr; gap: 15px 10px; margin: 26px 0; font-size: 12px; }
+.alto-connection-inspector dt { color: var(--muted); }
+.alto-connection-inspector dd { margin: 0; line-height: 1.5; }
+.alto-connection-inspector section { border-top: 1px solid var(--line); padding: 10px 0; margin-top: 22px; }
+.alto-connection-inspector section .alto-primary { width: 100%; }
+.alto-permission-details { margin-top: 17px; }
+.alto-auth, .alto-welcome { max-width: 580px; margin: 8vh auto; }
+.alto-auth > .alto-logo, .alto-welcome > .alto-logo { font-size: 49px; }
+.alto-auth h1, .alto-welcome h1 { font-size: 39px; letter-spacing: -1.5px; line-height: 1.15; margin: 36px 0 14px; }
+.alto-auth > p, .alto-welcome > p { color: var(--muted); font-size: 16px; }
+.alto-auth form { max-width: 450px; margin: 28px 0 15px; }
+.alto-auth form > .alto-primary { width: 100%; margin-top: 6px; }
+.alto-auth > .alto-text-button { display: block; margin-top: 16px; font-size: 13px; }
+.alto-welcome > .alto-primary { margin: 20px 0; }
+.alto-welcome > .alto-caption { font-size: 12px; }
+.alto-legacy-workflow .intake-panel, .alto-legacy-workflow .live-plan, .alto-legacy-workflow .review-queue { margin-bottom: 22px; background: #fffefa; border-color: var(--line); }
+.alto-legacy-workflow .primary-action, .alto-main .credential-actions .primary-action, .alto-main .deployment-actions .primary-action { background: #0b1017; border-color: #0b1017; }
+.reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+.alto-onboarding-backdrop { position: fixed; inset: 0; z-index: 80; background: rgb(12 20 30 / 58%); backdrop-filter: blur(1px); }
+.alto-onboarding-spotlight { position: fixed; z-index: 81; border: 3px solid #f0bb55; border-radius: 14px; box-shadow: 0 0 0 5px rgb(255 244 213 / 40%), 0 12px 38px rgb(6 18 31 / 24%); pointer-events: none; transition: inset .18s ease, width .18s ease, height .18s ease; }
+.alto-onboarding-target-active { position: relative !important; z-index: 82 !important; }
+.alto-onboarding-coachmark { position: fixed; z-index: 84; width: min(380px, calc(100vw - 32px)); box-sizing: border-box; border: 1px solid #ced9e6; border-radius: 14px; background: #fffefa; color: var(--ink); box-shadow: 0 18px 60px rgb(5 17 29 / 32%); padding: 22px; }
+.alto-onboarding-coachmark.centered { left: 50%; top: 50%; transform: translate(-50%, -50%); }
+.alto-onboarding-coachmark h2 { margin: 8px 0 10px; font-size: 25px; line-height: 1.18; }
+.alto-onboarding-coachmark p { margin: 0 0 18px; color: var(--muted); font-size: 15px; }
+.alto-onboarding-coachmark small { color: #315e8f; font-size: 12px; font-weight: 650; letter-spacing: .03em; }
+.alto-onboarding-coachmark .alto-primary { width: 100%; }
+.alto-onboarding-progress { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-bottom: 17px; }
+.alto-onboarding-progress span { height: 4px; border-radius: 4px; background: #e0e5e9; }
+.alto-onboarding-progress span.active { background: #4e8d79; }
+@media (max-width: 760px) { .alto-graph-page.with-inspector > .alto-violation-summary { margin-right: 0; } }
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
+@media (min-width: 1600px) { .alto-main { padding-left: 49px; padding-right: 49px; } .alto-manager-home .alto-home-columns { margin-top: 16px; } .alto-manager-home .alto-page-heading { margin-top: 8px; margin-bottom: 31px; } .alto-graph-page { --graph-drawer-width: 500px; } .alto-calendar-grid { grid-template-rows: 52px min(570px, calc(100vh - 365px)); } }
+@media (max-width: 1350px) { .alto-shell { grid-template-columns: 220px minmax(0, 1fr); } .alto-main { padding-left: 30px; padding-right: 30px; } .alto-nav-item { gap: 15px; font-size: 15px; } .alto-brand-row .alto-logo { font-size: 36px; } .alto-home-item { font-size: 15px; gap: 12px; } .alto-home-columns > section + section { padding-left: 23px; } .alto-home-columns h2 { font-size: 18px; } .alto-calendar-layout { grid-template-columns: minmax(0, 1fr) 245px; gap: 19px; } .alto-calendar-grid { grid-template-rows: 45px 540px; } .alto-calendar-event strong { font-size: 10px; } .alto-graph-page { --graph-drawer-width: 270px; --graph-drawer-gap: 15px; } .alto-graph-page .alto-page-heading h1 { font-size: 29px; } .alto-graph-toolbar { flex-wrap: wrap; } .alto-connections-layout.with-inspector { grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; } .alto-connection-scope { display: none; } .alto-profile-card h2 { font-size: 20px; } .alto-people-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 1000px) { .alto-shell { grid-template-columns: 74px minmax(0, 1fr); } .alto-rail { padding: 20px 9px; } .alto-brand-row > .alto-logo, .alto-nav-item > span, .alto-identity > div { display: none; } .alto-brand-row { justify-content: center; min-height: 70px; padding: 6px 0; } .alto-nav-item { justify-content: center; padding: 12px; } .alto-identity { padding: 18px 0 8px; justify-content: center; } .alto-main { padding: 0 23px 23px; } .alto-brief-layout { grid-template-columns: minmax(0, 1fr) 250px; gap: 22px; } .alto-topline { font-size: 10px; } .alto-settings-tabs { gap: 17px; } .alto-page-heading h1 { font-size: 33px; } }
+@media (max-width: 760px) { .alto-graph-page.with-inspector > .alto-page-heading, .alto-graph-page.with-inspector > .alto-graph-toolbar { margin-right: 0; } .alto-graph-page.with-inspector .alto-graph-drawer { position: static; width: auto; } .alto-home-columns { grid-template-columns: 1fr; gap: 22px; } .alto-home-columns > section, .alto-home-columns > section + section { border: 0; padding: 0; } .alto-home-columns h2 { margin-bottom: 11px; } .alto-home .alto-page-heading h1 { font-size: 36px; } .alto-home .alto-page-heading p { font-size: 18px; } .alto-page-heading { flex-wrap: wrap; } .alto-profile-grid, .alto-people-grid { grid-template-columns: 1fr; } .alto-calendar-layout, .alto-brief-layout, .alto-work-modal-layout, .alto-connections-layout.with-inspector, .alto-graph-layout.with-drawer { grid-template-columns: 1fr; } .alto-calendar-inspector, .alto-task-facts, .alto-connection-inspector, .alto-graph-drawer { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); margin-top: 20px; } .alto-calendar-grid { grid-template-columns: 34px repeat(5, minmax(0, 1fr)); grid-template-rows: 44px 440px; } .alto-calendar-day-heading { font-size: 10px; } .alto-calendar-event { padding: 2px; } .alto-calendar-event small, .alto-calendar-event span { display: none; } .alto-composer { gap: 7px; padding: 9px; min-height: 62px; } .alto-composer > .alto-logo { font-size: 21px; padding-right: 13px; } .alto-composer input { font-size: 13px; } .alto-composer .alto-icon-button { width: 26px; } .alto-send { width: 36px; height: 36px; flex-basis: 36px; } .alto-suggestions { flex-wrap: wrap; } .alto-suggestions button { font-size: 12px; } .alto-list-toolbar { flex-wrap: wrap; } .alto-search input { width: 160px; } .alto-notice-card, .alto-notification-popover { right: 10px; width: min(420px, calc(100% - 20px)); } .alto-graph-svg { min-height: 360px; } .alto-heading-actions { justify-content: flex-start; } .alto-heading-actions .alto-primary, .alto-heading-actions .alto-secondary { font-size: 11px; padding: 8px 12px; } .alto-settings-tabs { overflow-x: auto; gap: 20px; white-space: nowrap; } .alto-project-row { padding: 17px; gap: 15px; } .alto-project-row strong { font-size: 17px; } .alto-project-row p { font-size: 13px; } .alto-settings-section .alto-segmented button { padding: 10px 13px; font-size: 12px; } .alto-modal-actions { flex-wrap: wrap; } .alto-modal-actions > span { max-width: 100%; flex-basis: 100%; } .alto-onboarding-coachmark.anchored { left: 16px !important; right: 16px; bottom: 16px; top: auto !important; width: auto; } }

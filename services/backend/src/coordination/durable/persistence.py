@@ -47,9 +47,7 @@ class DurableStore(Protocol):
         self, *, worker: WorkerIdentity, limit: int, lease_seconds: int
     ) -> tuple[JobLease, ...]: ...
 
-    def renew_lease(
-        self, *, lease: JobLease, worker_id: UUID, lease_seconds: int
-    ) -> bool: ...
+    def renew_lease(self, *, lease: JobLease, worker_id: UUID, lease_seconds: int) -> bool: ...
 
     def complete_job(
         self,
@@ -72,9 +70,7 @@ class DurableStore(Protocol):
         metrics: dict[str, object],
     ) -> str: ...
 
-    def heartbeat(
-        self, *, worker: WorkerIdentity, current_job_id: UUID | None
-    ) -> None: ...
+    def heartbeat(self, *, worker: WorkerIdentity, current_job_id: UUID | None) -> None: ...
 
     def deliver_outbox(self, *, lease: JobLease) -> JobResult: ...
 
@@ -100,6 +96,8 @@ class PostgresDurableStore:
             actor_id=context.actor.user_id,
             company_id=context.company_id,
             purpose=purpose,
+            demo_run_id=context.demo_run_id,
+            demo_actor_session_id=context.demo_actor_session_id,
             connect_timeout_seconds=self._connect_timeout_seconds,
         )
 
@@ -129,9 +127,7 @@ class PostgresDurableStore:
             raise DurableStoreError("durable jobs could not be leased") from error
         return tuple(JobLease.model_validate(dict(row)) for row in rows)
 
-    def renew_lease(
-        self, *, lease: JobLease, worker_id: UUID, lease_seconds: int
-    ) -> bool:
+    def renew_lease(self, *, lease: JobLease, worker_id: UUID, lease_seconds: int) -> bool:
         try:
             with self._worker_transaction("durable:renew") as connection:
                 row = connection.execute(
@@ -351,6 +347,15 @@ class PostgresDurableStore:
     ) -> JobView:
         try:
             with self._company_transaction(context, "durable:retry") as connection:
+                # Authorise the exact selected scope before calling the legacy
+                # SECURITY DEFINER command, including its idempotent replay path.
+                visible = connection.execute(
+                    "select id from app.durable_jobs where company_id=%s and id=%s "
+                    "and demo_run_id is not distinct from %s::uuid",
+                    (context.company_id, job_id, context.demo_run_id),
+                ).fetchone()
+                if visible is None:
+                    raise JobNotFoundError("job was not found")
                 row = connection.execute(
                     "select * from app.retry_durable_planning_job(%s, %s, %s, %s, %s)",
                     (
@@ -441,13 +446,8 @@ class PostgresDurableStore:
                             [row["notification_id"] for row in visible],
                         ),
                     ).fetchall()
-                    delivered_by_id = {
-                        row["notification_id"]: row for row in delivered
-                    }
-                    visible = [
-                        delivered_by_id.get(row["notification_id"], row)
-                        for row in visible
-                    ]
+                    delivered_by_id = {row["notification_id"]: row for row in delivered}
+                    visible = [delivered_by_id.get(row["notification_id"], row) for row in visible]
         except psycopg.Error as error:
             raise DurableStoreError("notifications could not be read") from error
         notifications = tuple(NotificationView.model_validate(dict(row)) for row in visible)

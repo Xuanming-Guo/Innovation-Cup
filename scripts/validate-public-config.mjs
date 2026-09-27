@@ -68,13 +68,37 @@ export function validatePublicReleaseConfig(environment) {
   return { apiMode, apiOrigin, supabaseUrl, supabasePublishableKey, defaultCompanyId };
 }
 
+export function validateJudgeReleaseConfig(environment) {
+  const config = validatePublicReleaseConfig(environment);
+  if (config.apiMode !== "supabase-discovery" || environment.VITE_API_ORIGIN?.trim()) {
+    throw new Error("Judge releases require supabase-discovery without a fixed VITE_API_ORIGIN");
+  }
+  if (environment.VITE_HACKATHON_DEMO !== "true") {
+    throw new Error("Judge releases require VITE_HACKATHON_DEMO=true");
+  }
+  if (environment.VITE_PRODUCT_NAME !== "ALTO") {
+    throw new Error("Judge releases require VITE_PRODUCT_NAME=ALTO");
+  }
+  if (config.defaultCompanyId !== "11111111-1111-4111-8111-111111111111") {
+    throw new Error("Judge releases require the seeded Northstar company UUID");
+  }
+  const allowed = new Set([...REQUIRED_VARIABLES, "VITE_API_ORIGIN", "VITE_HACKATHON_DEMO", "VITE_PRODUCT_NAME"]);
+  for (const name of Object.keys(environment)) {
+    if (name.startsWith("VITE_") && !allowed.has(name)) {
+      throw new Error(`Unexpected client-exposed release variable: ${name}`);
+    }
+  }
+  return config;
+}
+
 function isMainModule() {
   return process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href;
 }
 
 if (isMainModule()) {
   try {
-    validatePublicReleaseConfig(process.env);
+    if (process.argv.includes("--judge")) validateJudgeReleaseConfig(process.env);
+    else validatePublicReleaseConfig(process.env);
     console.log(`Validated ${REQUIRED_VARIABLES.length} baked public release variables.`);
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));

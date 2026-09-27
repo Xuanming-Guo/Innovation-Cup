@@ -17,6 +17,13 @@ JobKind = Literal[
     "planning.run",
     "private_file.scan",
     "outbox.deliver",
+    "plan.propose",
+    "plan.materialize",
+    "plan.verify",
+    "plan.revise",
+    "assistant.respond",
+    "preference.suggest",
+    "voice.transcribe",
 ]
 JobState = Literal[
     "queued",
@@ -48,6 +55,9 @@ class JobLease(StrictDurableModel):
     max_attempts: int
     lease_token: UUID
     leased_until: datetime
+    demo_run_id: UUID | None = None
+    demo_actor_session_id: UUID | None = None
+    simulated_employee_id: UUID | None = None
 
     def company_context(self) -> CompanyContext:
         if (
@@ -67,6 +77,9 @@ class JobLease(StrictDurableModel):
             membership_id=self.requested_by_membership_id,
             administrative_role=self.administrative_role,
             employee_id=self.employee_id,
+            demo_run_id=self.demo_run_id,
+            demo_actor_session_id=self.demo_actor_session_id,
+            simulated_employee_id=self.simulated_employee_id,
         )
 
 

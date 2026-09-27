@@ -9,9 +9,10 @@ interface DeploymentSettingsProps {
   config: PublicRuntimeConfig;
   onReset: () => void;
   onSave: (input: PublicRuntimeConfigInput) => void;
+  locked?: boolean;
 }
 
-export function DeploymentSettings({ config, onReset, onSave }: DeploymentSettingsProps) {
+export function DeploymentSettings({ config, onReset, onSave, locked = false }: DeploymentSettingsProps) {
   const [apiOrigin, setApiOrigin] = useState(config.apiOrigin);
   const [supabaseUrl, setSupabaseUrl] = useState(config.supabaseUrl ?? "");
   const [supabasePublishableKey, setSupabasePublishableKey] = useState(
@@ -28,6 +29,30 @@ export function DeploymentSettings({ config, onReset, onSave }: DeploymentSettin
       setError(value instanceof Error ? value.message : "Deployment configuration is invalid");
     }
   }
+
+  if (locked) return (
+    <section className="deployment-panel" aria-label="Deployment configuration" data-onboarding-target="deployment">
+      <header>
+        <div>
+          <span className="eyebrow">Public runtime configuration</span>
+          <h2>Deployment override</h2>
+          <p>This hackathon installation is already connected. Configuration is locked for the demo.</p>
+        </div>
+        <span className="connection-state configured">configured</span>
+      </header>
+      <div className="deployment-form">
+        {[
+          ["API origin", "api-origin-mask"],
+          ["Supabase project URL", "supabase-url-mask"],
+          ["Supabase publishable key", "supabase-key-mask"],
+          ["Company ID", "company-id-mask"],
+        ].map(([label, id]) => <div key={id}>
+          <strong id={id}>{label}</strong>
+          <p aria-labelledby={id} aria-label={`${label} configured`}>{"*".repeat(24)}</p>
+        </div>)}
+      </div>
+    </section>
+  );
 
   return (
     <section className="deployment-panel" aria-label="Deployment configuration">

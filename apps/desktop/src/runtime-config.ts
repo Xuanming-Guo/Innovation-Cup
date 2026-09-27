@@ -19,6 +19,7 @@ export interface PublicRuntimeConfig {
   supabaseUrl: string | null;
   supabasePublishableKey: string | null;
   defaultCompanyId: string | null;
+  hackathonDemo: boolean;
 }
 
 function normaliseOrigin(rawOrigin: string | undefined): string {
@@ -50,7 +51,7 @@ function parseApiMode(value: string | undefined): ApiMode {
 
 export function createPublicRuntimeConfig(
   input: PublicRuntimeConfigInput,
-  productName = "Coordination Engine",
+  productName = "ALTO",
 ): PublicRuntimeConfig {
   const supabasePublishableKey = input.supabasePublishableKey.trim();
   const defaultCompanyId = input.defaultCompanyId.trim();
@@ -66,6 +67,7 @@ export function createPublicRuntimeConfig(
     supabaseUrl: normaliseSupabaseUrl(input.supabaseUrl),
     supabasePublishableKey,
     defaultCompanyId,
+    hackathonDemo: false,
   };
 }
 
@@ -87,11 +89,12 @@ export function getPublicRuntimeConfig(env: ImportMetaEnv = import.meta.env): Pu
   return {
     apiMode,
     apiOrigin: apiMode === "static" ? normaliseOrigin(env.VITE_API_ORIGIN) : DEFAULT_API_ORIGIN,
-    productName: env.VITE_PRODUCT_NAME?.trim() || "Coordination Engine",
+    productName: env.VITE_PRODUCT_NAME?.trim() || "ALTO",
     supabaseConfigured: supabaseUrl !== null,
     supabaseUrl,
     supabasePublishableKey,
     defaultCompanyId,
+    hackathonDemo: env.VITE_HACKATHON_DEMO?.trim().toLowerCase() === "true",
   };
 }
 
@@ -100,6 +103,7 @@ export function loadPublicRuntimeConfig(
   storage: Pick<Storage, "getItem" | "removeItem"> = window.localStorage,
 ): PublicRuntimeConfig {
   const environmentConfig = getPublicRuntimeConfig(env);
+  if (environmentConfig.hackathonDemo) return environmentConfig;
   const storedValue = storage.getItem(PUBLIC_CONFIG_STORAGE_KEY);
   if (storedValue === null) return environmentConfig;
 

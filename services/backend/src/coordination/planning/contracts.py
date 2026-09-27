@@ -130,6 +130,23 @@ class FixedAttendancePayload(StrictPlanningModel):
         return self
 
 
+class ActiveParticipantsPayload(StrictPlanningModel):
+    """Every named human reserves the owner's full active interval (not divided effort)."""
+
+    family: Literal["active_participants"]
+    task_id: UUID
+    participant_resource_ids: tuple[UUID, ...] = Field(min_length=1, max_length=100)
+
+    @model_validator(mode="after")
+    def canonical_participants(self) -> Self:
+        if (
+            tuple(sorted(set(self.participant_resource_ids), key=str))
+            != self.participant_resource_ids
+        ):
+            raise ValueError("active participants must be unique and sorted")
+        return self
+
+
 class DependencyPayload(StrictPlanningModel):
     family: Literal["dependency_lag"]
     predecessor_task_id: UUID
@@ -141,6 +158,36 @@ class DependencyPayload(StrictPlanningModel):
     def no_self_edge(self) -> Self:
         if self.predecessor_task_id == self.successor_task_id:
             raise ValueError("dependency cannot refer to the same task twice")
+        return self
+
+
+class ExecutionGatePayload(StrictPlanningModel):
+    family: Literal["execution_gate"]
+    predecessor_task_id: UUID
+    successor_task_id: UUID
+    required_state: Literal["submitted", "accepted", "approved", "self_certified"]
+    minimum_lag_slots: int = Field(ge=0, le=20_000)
+    artifact_version_policy: Literal["exact_submitted_version"] = "exact_submitted_version"
+
+    @model_validator(mode="after")
+    def no_self_gate(self) -> Self:
+        if self.predecessor_task_id == self.successor_task_id:
+            raise ValueError("execution gate cannot depend on itself")
+        return self
+
+
+class TaskReviewPolicyPayload(StrictPlanningModel):
+    family: Literal["task_review_policy"]
+    task_id: UUID
+    policy: Literal["exact_review", "self_certifiable_internal_draft", "not_required"]
+    review_task_ids: tuple[UUID, ...] = Field(max_length=100)
+
+    @model_validator(mode="after")
+    def exact_policy_shape(self) -> Self:
+        if (self.policy == "exact_review") != bool(self.review_task_ids):
+            raise ValueError("only an exact review policy names review reservations")
+        if len(set(self.review_task_ids)) != len(self.review_task_ids):
+            raise ValueError("review reservations must be unique")
         return self
 
 
@@ -249,7 +296,10 @@ ConstraintPayload = Annotated[
     | EligibilityPayload
     | WorkingWindowPayload
     | FixedAttendancePayload
+    | ActiveParticipantsPayload
     | DependencyPayload
+    | ExecutionGatePayload
+    | TaskReviewPolicyPayload
     | ReviewPayload
     | DeadlinePayload
     | PriorityPayload

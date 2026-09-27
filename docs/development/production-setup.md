@@ -16,9 +16,9 @@ runtime-role DSN or Gemini key.
 
 | Scope | Exact location | Values |
 |---|---|---|
-| GitHub native release | Repository **Settings -> Secrets and variables -> Actions -> Variables** | `VITE_API_MODE=supabase-discovery`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_DEFAULT_COMPANY_ID`; optional `VITE_PRODUCT_NAME` |
-| Local desktop build | Ignored `apps/desktop/.env.production.local` for a production-mode build, or `apps/desktop/.env.local` for local Vite/Tauri development | The same five public `VITE_` values; use `apps/desktop/.env.example` as the template |
-| Laptop host secrets | Ignored `deploy/local-host/.env` copied from `deploy/local-host/.env.example` | Supabase URL, separate API/worker runtime DSNs, company UUID, company-admin Auth UUID and optional model ID |
+| GitHub native release | Repository **Settings -> Secrets and variables -> Actions -> Variables** | `VITE_HACKATHON_DEMO=true`, `VITE_API_MODE=supabase-discovery`, `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `VITE_DEFAULT_COMPANY_ID`, `VITE_PRODUCT_NAME=ALTO` |
+| Local desktop build | Ignored `apps/desktop/.env.production.local` for a production-mode build, or `apps/desktop/.env.local` for local Vite/Tauri development | The same six public `VITE_` values; use `apps/desktop/.env.example` as the template |
+| Laptop host secrets | Ignored `deploy/local-host/.env` copied from `deploy/local-host/.env.example` | Supabase URL, separate API/worker runtime DSNs, company UUID, company-admin Auth UUID, `COORDINATION_HACKATHON_DEMO=true`, demo rate limits and optional model ID |
 | Laptop host identity | Generated ignored `deploy/local-host/.env.runtime` | Full Git commit and persistent host instance UUID; the launcher owns this file |
 | API deployment | API service environment settings on the chosen container host | The API column in section 6; `COORDINATION_DATABASE_URL` uses the API login |
 | Worker deployment | Worker service environment settings on the chosen container host | The worker column in section 6; `COORDINATION_DATABASE_URL` uses the worker login |
@@ -42,8 +42,11 @@ Committed configuration and templates are `supabase/config.toml`, `supabase/migr
    `graphql_public`. Do not expose `app` or `app_private`.
 3. Copy the project URL and the `sb_publishable_...` key. The publishable key is the only
    Supabase key that may be entered into the desktop.
-4. In Auth, disable anonymous sign-ins. For a controlled demo, disable public sign-up after the
-   two synthetic accounts have been created. Email/password is the implemented login path.
+4. Choose the Auth policy for the build being operated. A normal company deployment keeps
+   anonymous sign-ins disabled and may disable public sign-up after its accounts are created. The
+   locked judge build requires anonymous sign-ins so each installation can create its own isolated
+   identity; enable them only for the judging window, retain signup rate limits and quota alerts,
+   and disable them again afterward.
 5. Never put the database password, secret key or service-role key into a `VITE_` variable.
 
 ### Optional GitHub integration shown in the Dashboard
@@ -84,10 +87,12 @@ the database password and writes only ignored link metadata. `migration list --l
 local/remote drift, `db push --dry-run` previews the target changes, and only the subsequent
 `db push` changes the hosted database.
 
-Stop if hosted history is not an exact prefix before the push, or if the final list does not match
-the seventeen files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
-copies into the Dashboard SQL editor: that applies untracked bytes and loses reliable migration
-history.
+Stop if hosted history is not an exact prefix before the push, or if the local list does not match
+the 50 immutable files under `supabase/migrations/`. At this documentation checkpoint, recorded
+hosted history contains 49 migrations through `20260927041000_alto_locked_demo_job_continuity.sql`;
+repository migration `42000` still requires reconciliation and review before application. Do not
+use `db reset --linked`. Do not paste edited copies into the Dashboard SQL
+editor: that applies untracked bytes and loses reliable migration history.
 
 Using the migration-owner connection in the SQL editor, bind the installed rows to the reviewed
 commit. Replace both placeholders before running it:
@@ -309,39 +314,47 @@ After the API exists and the company UUID has been provisioned, add these reposi
 
 | Variable | Exact value |
 |---|---|
+| `VITE_HACKATHON_DEMO` | `true` for the locked zero-login judge build |
 | `VITE_API_MODE` | `supabase-discovery` for the selected laptop-host mode |
 | `VITE_SUPABASE_URL` | Project URL, for example `https://abcdefgh.supabase.co` |
 | `VITE_SUPABASE_PUBLISHABLE_KEY` | The project's `sb_publishable_...` client key |
 | `VITE_DEFAULT_COMPANY_ID` | Provisioned company UUID; the demo value is `11111111-1111-4111-8111-111111111111` |
-| `VITE_PRODUCT_NAME` | Optional display name; defaults to `Coordination Engine` |
+| `VITE_PRODUCT_NAME` | `ALTO` |
 
 Open GitHub -> repository **Settings -> Secrets and variables -> Actions -> Variables -> New
 repository variable** and create each row. Do not create `VITE_API_ORIGIN` for discovery mode.
-The release workflow validates the four required values before compilation and refuses to produce
-a generic installer. It rejects malformed company IDs and keys that are not
+The release workflow fixes `VITE_HACKATHON_DEMO=true`, `VITE_API_MODE=supabase-discovery` and
+`VITE_PRODUCT_NAME=ALTO` in every build. It validates the public Supabase values and requires the
+Northstar company UUID before compilation. Manual runs produce temporary candidates; a stable
+SemVer tag publishes the stable ALTO filenames, manifests and checksums after all three builds
+pass asset verification. Its validator rejects malformed company IDs and keys that are not
 `sb_publishable_...`, which prevents accidentally embedding a privileged key. A conventional
 stable host may instead set `VITE_API_MODE=static` and must also set a canonical HTTPS
 `VITE_API_ORIGIN`.
 
 For a local production build, copy `apps/desktop/.env.example` to the ignored
 `apps/desktop/.env.production.local`, fill the same public values, and run the native build. The
-**Deployment** screen is retained only as an advanced local/operator override and reset path; a
-normally distributed production installer opens ready for sign-in without employee setup.
+ordinary **Deployment** screen retains an advanced local/operator override. Locked judge builds
+ignore saved deployment overrides, display masked settings and create an anonymous session without
+asking the judge for configuration or credentials.
 
-## 8. Final connected smoke check
+## 8. Final connected smoke procedure
 
-1. Install and launch the platform artifact; record the OS and CPU architecture.
-2. Confirm the baked discovery/Supabase/company values are active, then sign in as the synthetic
-   manager.
-3. Confirm the service chip becomes reachable through authenticated laptop-host discovery. In
-   **Connections**, install and validate either the company's Gemini Developer API key or its
-   downloaded Vertex service-account JSON object.
-4. Create a planning request, wait for interpretation/materialisation/Z3 jobs, review the exact
-   proposal and approve/commit it.
-5. Sign in as the employee on the other platform, receive the authorised task, submit it, then
-   review it as the manager.
-6. Sign out, restart the tunnel, confirm the installed app discovers the rotated endpoint, then
-   exercise laptop sleep/offline/reconnect behavior and confirm no privileged key appears in logs
-   or the frontend bundle.
-7. Record results in the release manifest/test ledger. A compiled artifact is not a passed
-   installed-app smoke test.
+This procedure is a release gate, not evidence already established by this document. Do not mark
+it complete without recording the actual installed package, OS and CPU architecture.
+
+1. Install and launch the platform artifact and confirm the baked judge/discovery/Supabase/company
+   values are active.
+2. Confirm the client creates a fresh anonymous identity, opens an isolated Northstar run as Maya
+   and reports the operator-managed AI binding as configured. The judge must not be asked to paste
+   a provider credential.
+3. Complete the required Maya tour: inspect the masked AI/deployment settings, receive the real
+   answer to the guided Question prompt, and start **Prepare the Northstar launch plan**.
+4. Wait for interpretation, materialisation and fixed-plan verification; inspect the exact
+   proposal. Approval and commitment remain separate explicit manager actions.
+5. Exercise the employee task path only after commitment, then return to the manager for the
+   exact-version review.
+6. Confirm endpoint rediscovery and fail-closed unavailable/reconnect behavior, and confirm no
+   privileged key appears in logs or the frontend bundle.
+7. Record the result in the release manifest/test ledger. A compiled artifact is not a passed
+   installed-app smoke test. macOS remains `not-run` until it is exercised on matching hardware.

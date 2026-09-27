@@ -1,0 +1,11 @@
+.alto-demo-setup { max-width: 980px; }
+.alto-role-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin: 24px 0; }
+.alto-role-option { display: flex; flex-direction: column; gap: 12px; padding: 24px; text-align: left; border: 1px solid #d5dfe9; border-radius: 16px; background: #fff; color: #111923; cursor: pointer; }
+.alto-role-option strong { font-size: 21px; }
+.alto-role-option span { line-height: 1.6; color: #52677e; }
+.alto-role-option.selected { border-color: #20344c; box-shadow: 0 0 0 1px #20344c; background: #f5f8fb; }
+.alto-demo-advanced { border-top: 1px solid #d5dfe9; margin: 24px 0; padding: 18px 0; }
+.alto-demo-advanced summary { cursor: pointer; font-weight: 600; margin-bottom: 14px; }
+.alto-background-status { font-size: 12px; color: #63748b; }
+.alto-role-switch { width: 100%; margin: 8px 0; }
+@media (max-width: 650px) { .alto-role-options { grid-template-columns: 1fr; } }
