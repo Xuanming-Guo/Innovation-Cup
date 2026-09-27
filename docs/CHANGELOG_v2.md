@@ -79,6 +79,12 @@ closed-object markers are omitted. Automatic function calling is explicitly disa
 new schema completed a live synthetic Vertex service-account call; full Pydantic validation,
 source/authority admission and downstream Z3 validation remain unchanged and authoritative.
 
+The first non-empty synthetic task-contract call then showed that the former 20-second provider
+deadline could expire even after Vertex accepted the schema. The identical bounded request
+completed in 27.8 seconds with a 60-second deadline and produced a strict-contract-valid,
+deterministically admitted two-task result. Backend and laptop-host defaults are therefore 60
+seconds, remain configurable, and retain the existing 120-second hard cap and bounded retries.
+
 The accompanying backend audit adds stage-level job diagnostics and a guarded manager recovery
 command for side-effect-free terminal planning jobs, repairs stranded interpretation state on a
 later fenced retry, and removes dead retry configuration plus duplicate idle worker output. It also

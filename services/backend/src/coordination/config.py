@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     gemini_api_key: SecretStr | None = None
     interpretation_mode: Literal["gemini", "fixture"] = "gemini"
     gemini_model: str = "gemini-3.8-flash"
-    gemini_timeout_seconds: int = Field(default=20, ge=1, le=120)
+    gemini_timeout_seconds: int = Field(default=60, ge=1, le=120)
     gemini_max_output_tokens: int = Field(default=8192, ge=512, le=32768)
     gemini_max_projection_characters: int = Field(default=150000, ge=10000, le=500000)
     vertex_location: str = Field(
