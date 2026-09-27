@@ -24,7 +24,16 @@ class AssumptionBasis(StrictContract):
     assumption_id: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,63}$")
 
 
-CandidateBasis = Annotated[EvidenceBasis | AssumptionBasis, Field(discriminator="kind")]
+class ClarificationBasis(StrictContract):
+    kind: Literal["clarification"]
+    response_id: UUID
+    claim: str = Field(min_length=1, max_length=1000)
+
+
+CandidateBasis = Annotated[
+    EvidenceBasis | AssumptionBasis | ClarificationBasis,
+    Field(discriminator="kind"),
+]
 
 
 class CandidateEstimate(StrictContract):

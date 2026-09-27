@@ -30,6 +30,12 @@ company content and never returns the plaintext value. The worker constructs the
 client for the stored mode. No model call occurs from the desktop and pasted Python is never
 executed.
 
+If admission returns blocking questions, an active manager submits every current blocking answer
+to `POST /v1/companies/{company_id}/planning-requests/{request_id}/clarifications`. The command is
+idempotent and bound to the exact request version and candidate. It stores immutable responses,
+creates a derived request version and leaves the earlier evidence unchanged; the client then starts
+the derived request through the same durable `/interpret` operation.
+
 The `coordination.planning` package implements the trusted post-interpretation boundary:
 `ValidatedConstraint` records are frozen into a canonical `PlanningSnapshot`, compiled through
 an allowlisted finite-domain registry, solved with the pinned native Z3 package and checked by

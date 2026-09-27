@@ -10,13 +10,16 @@ from uuid import UUID, uuid4
 
 import psycopg
 from psycopg.types.json import Jsonb
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from coordination.auth.models import CompanyContext
 from coordination.db.session import company_transaction
 from coordination.interpretation.gateway import GatewayConfiguration
 from coordination.interpretation.projection import (
+    CapacityFact,
+    ClarificationAnswer,
     EvidenceExcerpt,
+    ExistingCommitment,
     InterpretationProjection,
     MissingDataMarker,
     PermittedEmployee,
@@ -59,6 +62,10 @@ class InterpretationStateConflictError(ValueError):
     """Raised when the request is already running or has a current admitted candidate."""
 
 
+class ClarificationStateConflictError(ValueError):
+    """Raised when clarification answers target stale or incomplete state."""
+
+
 class CreatePlanningRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -84,6 +91,41 @@ class CreatePlanningRequest(BaseModel):
     def digest(self) -> bytes:
         payload = json.dumps(
             self.model_dump(mode="json", exclude={"idempotency_key"}),
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        return hashlib.sha256(payload.encode("utf-8")).digest()
+
+
+class SubmitClarificationAnswers(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    request_id: UUID
+    request_version: int = Field(gt=0)
+    candidate_contract_id: UUID
+    answers: dict[str, str] = Field(min_length=1, max_length=100)
+    idempotency_key: str = Field(min_length=16, max_length=128)
+    correlation_id: UUID
+
+    @field_validator("answers")
+    @classmethod
+    def validate_answers(cls, value: dict[str, str]) -> dict[str, str]:
+        for key, answer in value.items():
+            if not key or len(key) > 64 or not key[0].islower() or any(
+                character not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for character in key
+            ):
+                raise ValueError("clarification answer keys are invalid")
+            if not answer.strip() or len(answer.strip()) > 4000:
+                raise ValueError("clarification answers must contain 1-4000 characters")
+        return {key: answer.strip() for key, answer in value.items()}
+
+    @property
+    def digest(self) -> bytes:
+        payload = json.dumps(
+            self.model_dump(
+                mode="json", exclude={"idempotency_key", "correlation_id"}
+            ),
             ensure_ascii=False,
             separators=(",", ":"),
             sort_keys=True,
@@ -128,6 +170,18 @@ def _planning_stage_job(row: dict[str, Any], prefix: str) -> PlanningStageJob | 
         max_attempts=cast(int, row[f"{prefix}_max_attempts"]),
         last_error_code=cast(str | None, row[f"{prefix}_error_code"]),
     )
+
+
+def _projection_datetime(value: object) -> datetime:
+    if isinstance(value, datetime):
+        result = value
+    elif isinstance(value, str):
+        result = datetime.fromisoformat(value.replace("Z", "+00:00"))
+    else:
+        raise ValueError("projection timestamp is invalid")
+    if result.utcoffset() is None:
+        raise ValueError("projection timestamp must be timezone-aware")
+    return result
 
 
 @dataclass(frozen=True, slots=True)
@@ -180,6 +234,10 @@ class ProjectionBundle:
 class InterpretationStore(Protocol):
     def create_request(
         self, *, context: CompanyContext, command: CreatePlanningRequest
+    ) -> PlanningRequestRecord: ...
+
+    def submit_clarification_answers(
+        self, *, context: CompanyContext, command: SubmitClarificationAnswers
     ) -> PlanningRequestRecord: ...
 
     def load_projection(
@@ -365,6 +423,70 @@ class PostgresInterpretationStore:
             status=cast(str, row["status"]),
             request_version=cast(int, row["request_version"]),
             created=created,
+        )
+
+    def submit_clarification_answers(
+        self,
+        *,
+        context: CompanyContext,
+        command: SubmitClarificationAnswers,
+    ) -> PlanningRequestRecord:
+        try:
+            with company_transaction(
+                self._dsn,
+                role="coordination_api",
+                actor_id=context.actor.user_id,
+                company_id=context.company_id,
+                purpose="planning-request:answer-clarifications",
+                connect_timeout_seconds=self._connect_timeout_seconds,
+            ) as connection:
+                row = connection.execute(
+                    """
+                    select * from app.submit_planning_clarifications(
+                      %s, %s, %s, %s, %s, %s, %s, %s
+                    )
+                    """,
+                    (
+                        context.company_id,
+                        command.request_id,
+                        command.request_version,
+                        command.candidate_contract_id,
+                        Jsonb(command.answers),
+                        command.idempotency_key,
+                        command.digest,
+                        command.correlation_id,
+                    ),
+                ).fetchone()
+        except psycopg.errors.InsufficientPrivilege as error:
+            raise PermissionError("manager authority is required") from error
+        except psycopg.errors.UniqueViolation as error:
+            raise PlanningRequestIdempotencyConflictError(
+                "clarification idempotency key already identifies another command"
+            ) from error
+        except psycopg.errors.SerializationFailure as error:
+            raise ClarificationStateConflictError(
+                "clarification target changed before the answer was stored"
+            ) from error
+        except psycopg.errors.InvalidParameterValue as error:
+            message = str(error)
+            if "planning_request_not_found" in message:
+                raise PlanningRequestNotFoundError("planning request was not found") from error
+            raise ClarificationStateConflictError(
+                "clarification answers are incomplete or no longer current"
+            ) from error
+        except psycopg.Error as error:
+            raise InterpretationStoreUnavailableError(
+                "clarification answers could not be stored"
+            ) from error
+        if row is None:
+            raise InterpretationStoreUnavailableError(
+                "clarification answer command returned no state"
+            )
+        return PlanningRequestRecord(
+            request_id=cast(UUID, row["request_id"]),
+            status=cast(str, row["status"]),
+            request_version=cast(int, row["request_version"]),
+            created=cast(bool, row["created"]),
         )
 
     def list_planning_context(
@@ -681,15 +803,15 @@ class PostgresInterpretationStore:
 
                 employee_rows = connection.execute(
                     """
-                    select employee.id, employee.timezone,
-                           coalesce(profile.capability_keys, '[]'::jsonb) as capability_keys,
-                           coalesce(profile.permission_keys, '[]'::jsonb) as permission_keys
+                    select employee.id, profile.timezone,
+                           profile.capability_keys, profile.permission_keys,
+                           profile.availability_windows, profile.daily_active_minutes
                     from app.employee_profiles as employee
-                    left join app.execution_resources as resource
+                    join app.execution_resources as resource
                       on resource.company_id = employee.company_id
                      and resource.employee_id = employee.id
                      and resource.status = 'active'
-                    left join app.planning_resource_profiles as profile
+                    join app.planning_resource_profiles as profile
                       on profile.company_id = resource.company_id
                      and profile.resource_id = resource.id
                      and profile.active
@@ -698,6 +820,59 @@ class PostgresInterpretationStore:
                     """,
                     (context.company_id,),
                 ).fetchall()
+                commitment_rows = connection.execute(
+                    """
+                    select block.id, resource.employee_id, block.start_at, block.end_at,
+                           greatest(0, extract(epoch from (block.end_at - block.start_at))
+                             / 60)::integer as active_minutes,
+                           case when block.exclusive then 'fixed' else 'protected' end as movement
+                    from app.committed_schedule_blocks as block
+                    join app.execution_resources as resource
+                      on resource.company_id = block.company_id
+                     and resource.id = block.resource_id
+                    where block.company_id = %s and block.active
+                      and resource.employee_id is not null
+                      and block.end_at > %s
+                    order by block.start_at, block.id
+                    """,
+                    (context.company_id, retrieved_at),
+                ).fetchall()
+                answer_rows = connection.execute(
+                    """
+                    with recursive lineage as (
+                      select request.id, request.clarification_parent_request_id
+                      from app.planning_requests as request
+                      where request.company_id = %s and request.id = %s
+                      union all
+                      select parent.id, parent.clarification_parent_request_id
+                      from app.planning_requests as parent
+                      join lineage as child
+                        on child.clarification_parent_request_id = parent.id
+                      where parent.company_id = %s
+                    )
+                    select response.id as response_id, question.question_key,
+                           question.category, question.question, response.answer,
+                           response.created_at as answered_at,
+                           submission.authority_role
+                    from lineage
+                    join app.clarification_answer_submissions as submission
+                      on submission.company_id = %s
+                     and submission.derived_request_id = lineage.id
+                    join app.clarification_responses as response
+                      on response.company_id = submission.company_id
+                     and response.submission_id = submission.id
+                    join app.clarification_questions as question
+                      on question.company_id = response.company_id
+                     and question.id = response.clarification_question_id
+                    order by response.created_at, response.id
+                    """,
+                    (
+                        context.company_id,
+                        request_id,
+                        context.company_id,
+                        context.company_id,
+                    ),
+                ).fetchall()
         except (PlanningRequestNotFoundError, PlanningRequestSourceNotFoundError):
             raise
         except psycopg.Error as error:
@@ -705,23 +880,43 @@ class PostgresInterpretationStore:
                 "interpretation store is unavailable"
             ) from error
 
+        capacity: list[CapacityFact] = []
+        for row in employee_rows:
+            for window in cast(list[dict[str, object]], row["availability_windows"]):
+                start_at = _projection_datetime(window["start_at"])
+                end_at = _projection_datetime(window["end_at"])
+                available_minutes = max(
+                    0,
+                    min(
+                        int((end_at - start_at).total_seconds() // 60),
+                        cast(int, row["daily_active_minutes"]),
+                    ),
+                )
+                capacity.append(
+                    CapacityFact(
+                        employee_id=cast(UUID, row["id"]),
+                        horizon_start=start_at,
+                        horizon_end=end_at,
+                        available_active_minutes=available_minutes,
+                        source="availability_snapshot",
+                    )
+                )
+
         missing_data = [
-            MissingDataMarker(
-                kind="commitments",
-                reason="No task/commitment snapshot exists in this implementation slice.",
-                blocking=False,
-            ),
-            MissingDataMarker(
-                kind="capacity",
-                reason="Working-rule and availability snapshots are not yet recorded.",
-                blocking=False,
-            ),
             MissingDataMarker(
                 kind="priority_policy",
                 reason="Company priority vocabulary has not been configured.",
                 blocking=request["requested_priority_key"] is not None,
             ),
         ]
+        if not capacity:
+            missing_data.append(
+                MissingDataMarker(
+                    kind="capacity",
+                    reason="No current working-rule or availability snapshot is recorded.",
+                    blocking=True,
+                )
+            )
         if any(
             not excerpts_by_version.get(cast(UUID, row["source_version_id"])) for row in source_rows
         ):
@@ -774,9 +969,31 @@ class PostgresInterpretationStore:
                 )
                 for row in employee_rows
             ),
-            commitments=(),
-            capacity=(),
+            commitments=tuple(
+                ExistingCommitment(
+                    commitment_id=cast(UUID, row["id"]),
+                    employee_id=cast(UUID, row["employee_id"]),
+                    start_at=cast(datetime, row["start_at"]),
+                    end_at=cast(datetime, row["end_at"]),
+                    active_minutes=cast(int, row["active_minutes"]),
+                    movement=cast(Any, row["movement"]),
+                )
+                for row in commitment_rows
+            ),
+            capacity=tuple(capacity),
             dependencies=(),
+            clarification_answers=tuple(
+                ClarificationAnswer(
+                    response_id=cast(UUID, row["response_id"]),
+                    question_key=cast(str, row["question_key"]),
+                    category=cast(Any, row["category"]),
+                    question=cast(str, row["question"]),
+                    answer=cast(str, row["answer"]),
+                    answered_at=cast(datetime, row["answered_at"]),
+                    authority_role=cast(Any, row["authority_role"]),
+                )
+                for row in answer_rows
+            ),
             supported_constraint_types=SUPPORTED_CONSTRAINT_TYPES,
             missing_data=tuple(missing_data),
         )

@@ -75,6 +75,11 @@
       "file": "20260926024000_backend_workflow_recovery.sql",
       "sha256": "e52345886e8885627303e0fbc515207accddb7df3ca7d2a2520a0abd014b0dda",
       "version": "20260926024000"
+    },
+    {
+      "file": "20260926025000_clarification_resume.sql",
+      "sha256": "e26955c98e94f217158c609818a54b192616320d8df1e7162af08f75194841b0",
+      "version": "20260926025000"
     }
   ]
 }

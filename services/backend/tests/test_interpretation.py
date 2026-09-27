@@ -24,6 +24,7 @@ from coordination.interpretation.gateway import (
     ModelUsage,
 )
 from coordination.interpretation.projection import (
+    ClarificationAnswer,
     InterpretationProjection,
 )
 from coordination.interpretation.prompt import (
@@ -219,6 +220,42 @@ def test_unknown_deadline_flexibility_requires_authority_clarification() -> None
     assert "deadline_authority_unknown" in {issue.code for issue in result.issues}
 
 
+def test_admits_only_clarification_answers_in_the_permission_bounded_projection() -> None:
+    response_id = UUID("dddddddd-dddd-4ddd-8ddd-dddddddddddd")
+    value = projection().model_copy(
+        update={
+            "clarification_answers": (
+                ClarificationAnswer(
+                    response_id=response_id,
+                    question_key="approval_authority",
+                    category="authority",
+                    question="Who approves the assignment?",
+                    answer="The requesting manager approves the assignment.",
+                    answered_at=NOW,
+                    authority_role="manager",
+                ),
+            )
+        }
+    )
+    task_payload = contract().tasks[0].model_dump(mode="json")
+    task_payload["bases"] = [
+        {
+            "kind": "clarification",
+            "response_id": str(response_id),
+            "claim": "The requesting manager supplied the approval decision.",
+        }
+    ]
+
+    assert admit_candidate(contract(tasks=[task_payload]), value, now=NOW).status == "admitted"
+
+    task_payload["bases"][0]["response_id"] = str(uuid4())
+    rejected = admit_candidate(contract(tasks=[task_payload]), value, now=NOW)
+    assert rejected.status == "rejected"
+    assert "unknown_clarification_response" in {
+        issue.code for issue in rejected.issues
+    }
+
+
 def test_dependency_cycles_and_unknown_source_versions_are_rejected() -> None:
     task_payload = contract().tasks[0].model_dump(mode="json")
     second_task = {**task_payload, "task_key": "review_guide", "title": "Review guide"}
@@ -354,6 +391,7 @@ def test_prompt_treats_injected_source_text_as_data_and_schema_is_bounded() -> N
     assert [variant["properties"]["kind"]["enum"] for variant in basis_variants] == [
         ["evidence"],
         ["assumption"],
+        ["clarification"],
     ]
 
 

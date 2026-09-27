@@ -13,8 +13,8 @@ schedule, a validated constraint, an approval or a committed task.
 3. Interpretation rechecks the manager and every pinned source under the
    `coordination_worker` RLS role. It builds a bounded projection containing source metadata,
    permitted excerpts, permitted employee identities plus their active capability/permission
-   identifiers, known structured facts and explicit missing-data markers. It records a canonical
-   SHA-256 digest.
+   identifiers, recorded availability windows, current committed schedule blocks, prior authorised
+   clarification answers and explicit missing-data markers. It records a canonical SHA-256 digest.
 4. One adapter calls the official `google-genai` SDK. The worker resolves the current company's
    encrypted Gemini API key or Vertex service-account JSON from Supabase Vault under the same
    tenant context and constructs a short-lived client for the selected mode. Vertex clients bind
@@ -42,18 +42,23 @@ manager request
 ## Evidence and clarification rules
 
 Every task, estimate, deadline, requirement and dependency must contain at least one typed
-basis. An evidence basis must name a source-version ID and locator present in the projection. An
-assumption basis must name a declared assumption. Stale, expired, cross-company or unselected
-source versions reject the candidate. Material assumptions and non-authoritative evidence stop
-at `clarification_required`; they do not silently become hard constraints.
+basis. An evidence basis must name a source-version ID and locator present in the projection. A
+clarification basis must name an immutable response present in the permission-bounded projection.
+An assumption basis must name a declared assumption. Stale, expired, cross-company or unselected
+source versions and unknown response IDs reject the candidate. Material assumptions and
+non-authoritative evidence stop at `clarification_required`; they do not silently become hard
+constraints.
 
 Missing capacity, commitments or policy are represented explicitly instead of being treated as
-zero or guessed. The interpretation may still identify proposed work, but the planning compiler
-cannot run until its own required inputs and confirmations exist. The implemented trusted
-materialiser converts admitted candidate fields into allowlisted `ValidatedConstraint` records and
-an immutable snapshot; the Z3 compiler accepts only that snapshot, never model JSON. The API can
-read recorded clarification questions, but submitting answers and resuming interpretation remains
-an explicitly tracked incomplete workflow in #51.
+zero or guessed. Recorded planning-resource availability and committed blocks are projected rather
+than reported as missing. When a blocking question is legitimate, an active manager can answer all
+current blocking questions. The database binds the immutable answers to the exact request version,
+candidate, questions, actor, digest and idempotency command, marks the earlier request answered and
+creates a derived request version. The worker sees only that authorised lineage and resumes through
+the normal typed gateway and admission boundary. The trusted materialiser converts admitted
+candidate fields into allowlisted `ValidatedConstraint` records and an immutable snapshot; the Z3
+compiler accepts only that snapshot, never model JSON. A unified cross-request action inbox remains
+the incomplete part of #51.
 
 ## Failure behavior
 

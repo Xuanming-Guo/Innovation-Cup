@@ -18,12 +18,17 @@ INTERPRETATION_SYSTEM_INSTRUCTION = (
     "material proposal must cite "
     "a supplied source-version locator or an explicit assumption. Ask a concise clarification "
     "when required information, timezone, disclosure permission or decision authority is "
-    "missing. Report unsupported requests instead of translating them into executable code, "
+    "missing. Clarification answers in the projection are explicit manager decisions bound to "
+    "an earlier candidate. Use them when they resolve the named question and cite them with a "
+    "clarification basis; do not ask the same question again unless current authoritative evidence "
+    "conflicts with the answer. Report unsupported requests instead of translating them into "
+    "executable code, "
     "SQL, SMT-LIB or solver expressions. Copy company_id, request_id and request_version exactly. "
     "Include every declared field and all five top-level arrays, using null for an absent optional "
     "value and an empty array when appropriate. An evidence basis contains kind, "
-    "source_version_id, locator and claim; an assumption basis contains only kind and "
-    "assumption_id. Return only the configured structured response."
+    "source_version_id, locator and claim; a clarification basis contains kind, response_id and "
+    "claim; an assumption basis contains only kind and assumption_id. Return only the configured "
+    "structured response."
 )
 
 

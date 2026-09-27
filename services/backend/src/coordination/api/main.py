@@ -85,11 +85,13 @@ from coordination.employee.persistence import (
 )
 from coordination.interpretation.dependencies import InterpretationStoreDependency
 from coordination.interpretation.persistence import (
+    ClarificationStateConflictError,
     CreatePlanningRequest,
     InterpretationStoreUnavailableError,
     PlanningRequestIdempotencyConflictError,
     PlanningRequestNotFoundError,
     PlanningRequestSourceNotFoundError,
+    SubmitClarificationAnswers,
 )
 
 
@@ -186,6 +188,27 @@ class PlanningRequestResponse(StrictResponse):
     status: str
     request_version: int
     created: bool
+
+
+class ClarificationAnswersRequest(StrictResponse):
+    request_version: int = Field(gt=0)
+    candidate_contract_id: UUID
+    answers: dict[str, str] = Field(min_length=1, max_length=100)
+
+    @field_validator("answers")
+    @classmethod
+    def validate_answers(cls, value: dict[str, str]) -> dict[str, str]:
+        normalized: dict[str, str] = {}
+        for key, answer in value.items():
+            if not key or len(key) > 64 or not key[0].islower() or any(
+                character not in "abcdefghijklmnopqrstuvwxyz0123456789_-" for character in key
+            ):
+                raise ValueError("clarification answer keys are invalid")
+            stripped = answer.strip()
+            if not stripped or len(stripped) > 4000:
+                raise ValueError("clarification answers must contain 1-4000 characters")
+            normalized[key] = stripped
+        return normalized
 
 
 class ClarificationResponse(StrictResponse):
@@ -774,6 +797,77 @@ def create_app() -> FastAPI:
                 if view.planning_job is not None
                 else None
             ),
+        )
+
+    @application.post(
+        "/v1/companies/{company_id}/planning-requests/{request_id}/clarifications",
+        response_model=PlanningRequestResponse,
+        status_code=status.HTTP_201_CREATED,
+    )
+    def answer_planning_clarifications(
+        company_id: UUID,
+        request_id: UUID,
+        body: ClarificationAnswersRequest,
+        response: Response,
+        context: CompanyContextDependency,
+        store: InterpretationStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> PlanningRequestResponse:
+        if company_id != context.company_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="company was not found"
+            )
+        if context.administrative_role not in ("manager", "company_admin"):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="manager authority is required",
+            )
+        try:
+            record = store.submit_clarification_answers(
+                context=context,
+                command=SubmitClarificationAnswers(
+                    request_id=request_id,
+                    request_version=body.request_version,
+                    candidate_contract_id=body.candidate_contract_id,
+                    answers=body.answers,
+                    idempotency_key=idempotency_key,
+                    correlation_id=uuid5(request_id, f"clarifications:{idempotency_key}"),
+                ),
+            )
+        except PlanningRequestNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="planning request was not found",
+            ) from error
+        except PlanningRequestIdempotencyConflictError as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="idempotency key was reused",
+            ) from error
+        except ClarificationStateConflictError as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="clarification answers are incomplete or no longer current",
+            ) from error
+        except PermissionError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="manager authority is required",
+            ) from error
+        except InterpretationStoreUnavailableError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="clarification answers could not be stored",
+            ) from error
+        if not record.created:
+            response.status_code = status.HTTP_200_OK
+        return PlanningRequestResponse(
+            request_id=record.request_id,
+            status=record.status,
+            request_version=record.request_version,
+            created=record.created,
         )
 
     @application.post(

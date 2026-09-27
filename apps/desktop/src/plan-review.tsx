@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
+  answerPlanningClarifications,
   approveRequirement,
   commitPlan,
   createPlanningRequest,
@@ -60,6 +61,7 @@ export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
   const [prompt, setPrompt] = useState(DEFAULT_REQUEST);
   const [deadline, setDeadline] = useState(defaultDeadline);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
+  const [clarificationAnswers, setClarificationAnswers] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -116,7 +118,7 @@ export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
   }, [api]);
 
   useEffect(() => {
-    if (!api || !request || request.plan_id) return;
+    if (!api || !request || request.plan_id || request.status === "clarification_required") return;
     const states = [
       request.interpretation_job_state,
       request.materialization_job_state,
@@ -135,6 +137,16 @@ export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
     () => planningContext?.sources.length === selectedSources.length,
     [planningContext, selectedSources],
   );
+  const openBlockingClarifications = useMemo(
+    () => request?.clarifications.filter(
+      (item) => item.status === "open" && item.blocks_planning,
+    ) ?? [],
+    [request],
+  );
+  const allClarificationsAnswered = openBlockingClarifications.length > 0
+    && openBlockingClarifications.every(
+      (item) => clarificationAnswers[item.question_key]?.trim(),
+    );
 
   async function submitRequest() {
     if (!api || !prompt.trim() || selectedSources.length === 0) return;
@@ -168,6 +180,32 @@ export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
       await loadPlan(api, plan.plan_id);
     } catch (value) {
       setError(value instanceof Error ? value.message : "Approval failed");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitClarificationAnswers() {
+    if (!api || !request || !allClarificationsAnswered) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const resumed = await answerPlanningClarifications(
+        api,
+        request,
+        Object.fromEntries(
+          openBlockingClarifications.map((item) => [
+            item.question_key,
+            (clarificationAnswers[item.question_key] ?? "").trim(),
+          ]),
+        ),
+      );
+      setPlan(null);
+      setEvidence(null);
+      setClarificationAnswers({});
+      await loadRequest(api, resumed.request_id);
+    } catch (value) {
+      setError(value instanceof Error ? value.message : "Clarification answers failed");
     } finally {
       setBusy(false);
     }
@@ -270,9 +308,35 @@ export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
               <small>{state}</small>
             </div>
           ))}
-          {request.clarifications.map((item) => (
-            <p className="inline-error" key={item.question_key}>{item.question}</p>
-          ))}
+          {openBlockingClarifications.length > 0 && (
+            <div className="clarification-form">
+              <header>
+                <span className="eyebrow">Manager decision required</span>
+                <strong>Answer the blocking questions to continue this request.</strong>
+              </header>
+              {openBlockingClarifications.map((item) => (
+                <label key={item.question_key}>
+                  <span>{item.question}</span>
+                  <textarea
+                    rows={2}
+                    value={clarificationAnswers[item.question_key] ?? ""}
+                    onChange={(event) => setClarificationAnswers((current) => ({
+                      ...current,
+                      [item.question_key]: event.target.value,
+                    }))}
+                    maxLength={4000}
+                  />
+                </label>
+              ))}
+              <button
+                className="primary-action"
+                disabled={busy || !allClarificationsAnswered}
+                onClick={() => void submitClarificationAnswers()}
+              >
+                {busy ? "Resuming…" : "Submit answers and resume"}
+              </button>
+            </div>
+          )}
         </section>
       )}
 
