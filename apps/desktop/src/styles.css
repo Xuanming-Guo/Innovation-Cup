@@ -1061,6 +1061,10 @@ h3 {
 .intake-panel p { color: var(--muted); line-height: 1.55; }
 .intake-panel textarea { padding: 13px; resize: vertical; }
 .intake-panel > .primary-action { justify-self: end; min-width: 190px; }
+.planning-controls { display: grid; grid-column: 1 / -1; grid-template-columns: minmax(260px, .8fr) minmax(320px, 1.2fr); gap: 22px; align-items: end; }
+.planning-controls label { display: grid; gap: 7px; color: var(--muted); font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.planning-controls input { min-height: 42px; padding: 0 11px; border: 1px solid #b9b3a6; border-radius: 2px; background: #fffef9; color: var(--ink); font: inherit; }
+.planning-controls p { margin: 0; font-size: 11px; }
 .source-selector { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-column: 1 / -1; gap: 8px; margin: 0; padding: 0; border: 0; }
 .source-selector legend { margin-bottom: 8px; color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .12em; text-transform: uppercase; }
 .source-selector label { display: flex; gap: 9px; padding: 12px; border: 1px solid var(--line); background: #fbf8f1; cursor: pointer; }
@@ -1168,6 +1172,7 @@ h3 {
 
   .session-panel,
   .intake-panel,
+  .planning-controls,
   .source-selector,
   .pipeline-panel,
   .evidence-grid,
