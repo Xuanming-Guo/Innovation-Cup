@@ -240,6 +240,12 @@ export async function createPlanningRequest(
     requestedPriorityKey: string;
   },
 ): Promise<{ request_id: string }> {
+  const deadline = input.requestedDeadline
+    ? new Date(input.requestedDeadline)
+    : null;
+  if (deadline && Number.isNaN(deadline.getTime())) {
+    throw new Error("Target deadline is invalid");
+  }
   const created = await requestJson<{ request_id: string }>(
     companyUrl(context, "/planning-requests"),
     {
@@ -252,9 +258,9 @@ export async function createPlanningRequest(
         project_id: null,
         original_request: input.originalRequest,
         selected_source_ids: input.sourceIds,
-        requested_priority_key: input.requestedPriorityKey,
-        requested_deadline: input.requestedDeadline || null,
-        requested_deadline_timezone: input.requestedDeadline
+        requested_priority_key: input.requestedPriorityKey || null,
+        requested_deadline: deadline?.toISOString() ?? null,
+        requested_deadline_timezone: deadline
           ? Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
           : null,
       }),

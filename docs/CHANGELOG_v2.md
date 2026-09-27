@@ -85,6 +85,14 @@ completed in 27.8 seconds with a 60-second deadline and produced a strict-contra
 deterministically admitted two-task result. Backend and laptop-host defaults are therefore 60
 seconds, remain configurable, and retain the existing 120-second hard cap and bounded retries.
 
+The connected manager run then exposed two avoidable clarification triggers in the desktop rather
+than the model boundary: intake silently submitted the priority key `high` without any configured
+company priority vocabulary, and it supplied no structured deadline. Manager intake now requires
+an editable target deadline, sends an offset-aware instant with the laptop's IANA timezone, and
+leaves priority unset until policy defines a valid key. This enables a fresh request to proceed
+without inventing company policy; answering and resuming a genuinely necessary clarification
+remains the separate issue #51 workflow.
+
 The accompanying backend audit adds stage-level job diagnostics and a guarded manager recovery
 command for side-effect-free terminal planning jobs, repairs stranded interpretation state on a
 later fenced retry, and removes dead retry configuration plus duplicate idle worker output. It also

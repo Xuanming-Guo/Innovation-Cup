@@ -1,7 +1,7 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import type { AuthorisedApiContext } from "./api-client";
+import { createPlanningRequest, type AuthorisedApiContext } from "./api-client";
 import { CompanyConnections } from "./company-connections";
 import { EmployeeWorkspace } from "./employee-workspace";
 import { PlanReviewWorkspace } from "./plan-review";
@@ -53,8 +53,31 @@ describe("connected workspaces", () => {
     render(<PlanReviewWorkspace api={api} />);
 
     expect(await screen.findByText("Software release commitments")).toBeVisible();
+    const deadline = screen.getByLabelText("Target deadline") as HTMLInputElement;
+    expect(deadline.value).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/);
     expect(screen.getByRole("button", { name: "Create checked plan" })).toBeEnabled();
     expect(screen.queryByText(/Sample data/i)).not.toBeInTheDocument();
+  });
+
+  it("submits an aware deadline without inventing a company priority", async () => {
+    const fetchMock = vi.fn().mockImplementation(() =>
+      Promise.resolve(json({ request_id: "request-1" })),
+    );
+    vi.stubGlobal("fetch", fetchMock);
+
+    await createPlanningRequest(api, {
+      originalRequest: "Prepare the release handoff.",
+      sourceIds: ["source-1"],
+      requestedDeadline: "2026-10-01T17:00",
+      requestedPriorityKey: "",
+    });
+
+    const firstRequest = fetchMock.mock.calls[0] as [string, RequestInit];
+    const payload = JSON.parse(String(firstRequest[1].body)) as Record<string, unknown>;
+    expect(payload.requested_priority_key).toBeNull();
+    expect(payload.requested_deadline).toMatch(/^2026-10-0[12]T\d{2}:00:00\.000Z$/);
+    expect(payload.requested_deadline_timezone).toEqual(expect.any(String));
+    expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
   it("renders only tasks returned by the authorised employee endpoint", async () => {

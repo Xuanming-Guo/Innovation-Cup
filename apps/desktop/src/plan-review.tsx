@@ -27,6 +27,14 @@ const DEFAULT_REQUEST =
   "technical specialist without exposing either team's private context, and preserve a " +
   "reviewable handoff.";
 
+function defaultDeadline(): string {
+  const value = new Date();
+  value.setDate(value.getDate() + 7);
+  value.setHours(17, 0, 0, 0);
+  const local = new Date(value.getTime() - value.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
 function displayTime(value: string): string {
   return new Intl.DateTimeFormat(undefined, {
     dateStyle: "medium",
@@ -50,6 +58,7 @@ export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
   const [evidence, setEvidence] = useState<PlanEvidence | null>(null);
   const [pendingReviews, setPendingReviews] = useState<PendingReview[]>([]);
   const [prompt, setPrompt] = useState(DEFAULT_REQUEST);
+  const [deadline, setDeadline] = useState(defaultDeadline);
   const [selectedSources, setSelectedSources] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -135,8 +144,8 @@ export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
       const created = await createPlanningRequest(api, {
         originalRequest: prompt.trim(),
         sourceIds: selectedSources,
-        requestedDeadline: "",
-        requestedPriorityKey: "high",
+        requestedDeadline: deadline,
+        requestedPriorityKey: "",
       });
       setPlan(null);
       setEvidence(null);
@@ -214,6 +223,22 @@ export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
           <p>Selected sources are pinned by exact version. Fixture mode replaces only Gemini; every later boundary remains production code.</p>
         </div>
         <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} rows={4} aria-label="Planning request" />
+        <div className="planning-controls">
+          <label htmlFor="planning-deadline">
+            <span>Target deadline</span>
+            <input
+              id="planning-deadline"
+              type="datetime-local"
+              value={deadline}
+              onChange={(event) => setDeadline(event.target.value)}
+              required
+            />
+          </label>
+          <p>
+            Submitted in {Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"}. No priority
+            label is invented until company priority policy is configured.
+          </p>
+        </div>
         <fieldset className="source-selector">
           <legend>Authoritative source versions</legend>
           {planningContext?.sources.map((source) => (
@@ -230,7 +255,7 @@ export function PlanReviewWorkspace({ api }: PlanReviewWorkspaceProps) {
             </label>
           ))}
         </fieldset>
-        <button className="primary-action" disabled={busy || !allSourcesSelected || !prompt.trim()} onClick={() => void submitRequest()}>
+        <button className="primary-action" disabled={busy || !allSourcesSelected || !prompt.trim() || !deadline} onClick={() => void submitRequest()}>
           {busy ? "Working…" : "Create checked plan"}
         </button>
         {error && <p className="inline-error" role="alert">{error}</p>}
