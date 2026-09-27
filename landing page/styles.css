@@ -312,6 +312,14 @@ h1 em {
   font-size: 13px;
 }
 
+.card-warning {
+  margin-top: 12px;
+  color: var(--rust);
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.4;
+}
+
 .download-action {
   display: flex;
   align-items: center;
@@ -343,12 +351,69 @@ h1 em {
 
 .download-card:hover .card-number,
 .download-card:hover .platform,
-.download-card:hover .requirements {
+.download-card:hover .requirements,
+.download-card:hover .card-warning {
   color: #dce9e6;
 }
 
 .download-card:hover .download-action svg {
   transform: translateX(4px);
+}
+
+.security-notice {
+  display: grid;
+  grid-template-columns: minmax(240px, 0.78fr) minmax(0, 1.22fr);
+  gap: clamp(32px, 5vw, 72px);
+  margin-top: 28px;
+  padding: clamp(24px, 4vw, 42px);
+  border: 1px solid var(--rust);
+  background: #f8e8df;
+}
+
+.security-notice .eyebrow {
+  margin-bottom: 18px;
+  color: var(--rust);
+}
+
+.security-notice-copy > p:last-child {
+  max-width: 520px;
+  margin-bottom: 0;
+  font-size: clamp(17px, 1.7vw, 22px);
+  line-height: 1.5;
+}
+
+.security-notice-copy strong {
+  font-weight: 750;
+}
+
+.mac-open-steps {
+  padding-left: clamp(0px, 3vw, 40px);
+  border-left: 1px solid rgba(183, 94, 70, 0.45);
+}
+
+.mac-open-steps .platform {
+  margin: 0 0 14px;
+  color: var(--rust);
+}
+
+.mac-open-steps ol {
+  margin: 0;
+  padding-left: 20px;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.mac-open-steps li + li {
+  margin-top: 7px;
+}
+
+.security-caution {
+  margin: 17px 0 0;
+  padding-top: 15px;
+  border-top: 1px solid rgba(183, 94, 70, 0.3);
+  color: #734031;
+  font-size: 11px;
+  line-height: 1.55;
 }
 
 .mac-help {
@@ -479,6 +544,18 @@ h1 em {
   .mac-help {
     margin-left: 0;
     text-align: left;
+  }
+
+  .security-notice {
+    grid-template-columns: 1fr;
+    gap: 26px;
+  }
+
+  .mac-open-steps {
+    padding-top: 24px;
+    padding-left: 0;
+    border-top: 1px solid rgba(183, 94, 70, 0.45);
+    border-left: 0;
   }
 
   .site-footer {

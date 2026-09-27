@@ -29,6 +29,10 @@ test("keeps compatibility and release limitations visible", () => {
   assert.ok(html.includes("M-series chips use the Apple silicon build"));
   assert.ok(html.includes("Windows is unsigned"));
   assert.ok(html.includes("not notarized"));
+  assert.ok(html.includes("System Settings &rarr; Privacy &amp; Security"));
+  assert.ok(html.includes("Open Anyway"));
+  assert.ok(html.includes("do not\n                need to disable Gatekeeper"));
+  assert.equal((html.match(/Opening steps below/g) ?? []).length, 2);
 });
 
 test("includes the expected accessibility and responsive safeguards", () => {
