@@ -38,6 +38,10 @@ test("includes the expected accessibility and responsive safeguards", () => {
   assert.ok(html.includes('href="#downloads"'));
   assert.ok(html.includes('id="hero-title"'));
   assert.ok(html.includes('id="downloads-title"'));
+  assert.ok(html.includes("Every change,"));
+  assert.ok(html.includes("coordinated."));
+  assert.ok(!html.includes("Human-led coordination"));
+  assert.ok(!html.includes("Choose your build"));
   assert.match(css, /:focus-visible/);
   assert.match(css, /prefers-reduced-motion:\s*reduce/);
   assert.match(css, /@media \(max-width: 720px\)/);
