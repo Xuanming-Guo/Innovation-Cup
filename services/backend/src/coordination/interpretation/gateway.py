@@ -26,7 +26,7 @@ class GatewayConfiguration(BaseModel):
     prompt_version: str = "interpretation-v1"
     schema_version: Literal["candidate-task-contract.v1"] = "candidate-task-contract.v1"
     safety_profile: str = "provider-default-no-tools-v1"
-    timeout_seconds: int = Field(default=20, ge=1, le=120)
+    timeout_seconds: int = Field(default=60, ge=1, le=120)
     retry_attempts: int = Field(default=2, ge=1, le=3)
     max_output_tokens: int = Field(default=8192, ge=512, le=32_768)
     temperature: float = Field(default=0.0, ge=0.0, le=1.0)

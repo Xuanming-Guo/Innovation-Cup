@@ -274,7 +274,7 @@ or environment settings, not in Git or the desktop.
 | `COORDINATION_SUPABASE_JWT_ALGORITHMS` | `ES256,RS256` | Explicit asymmetric allowlist |
 | `COORDINATION_SUPABASE_JWT_LEEWAY_SECONDS` | `30` | Clock-skew allowance |
 | `COORDINATION_DATABASE_CONNECT_TIMEOUT_SECONDS` | `5` | Postgres connection timeout |
-| `COORDINATION_GEMINI_TIMEOUT_SECONDS` | `20` | Provider request timeout |
+| `COORDINATION_GEMINI_TIMEOUT_SECONDS` | `60` | Bounded provider request timeout; a live nested Vertex interpretation exceeded 20 seconds |
 | `COORDINATION_GEMINI_MAX_OUTPUT_TOKENS` | `8192` | Model output bound |
 | `COORDINATION_GEMINI_MAX_PROJECTION_CHARACTERS` | `150000` | Authorised prompt projection bound |
 | `COORDINATION_VERTEX_LOCATION` | `global` | Explicit Vertex AI request location |
