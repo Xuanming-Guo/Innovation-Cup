@@ -90,6 +90,7 @@
               <span class="platform">macOS</span>
               <strong>Apple silicon</strong>
               <span class="requirements">M-series Mac · macOS 13+</span>
+              <span class="card-warning">Not notarized · Opening steps below ↓</span>
               <span class="download-action">
                 Download .dmg
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -107,6 +108,7 @@
               <span class="platform">Windows</span>
               <strong>Windows x64</strong>
               <span class="requirements">64-bit PC · Windows 11</span>
+              <span class="card-warning">Unsigned demo build · Confirmation may appear</span>
               <span class="download-action">
                 Download .exe
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -124,6 +126,7 @@
               <span class="platform">macOS</span>
               <strong>Intel</strong>
               <span class="requirements">Intel-based Mac · macOS 13+</span>
+              <span class="card-warning">Not notarized · Opening steps below ↓</span>
               <span class="download-action">
                 Download .dmg
                 <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -133,6 +136,35 @@
             </a>
           </div>
 
+          <aside class="security-notice" aria-labelledby="security-notice-title">
+            <div class="security-notice-copy">
+              <p class="eyebrow"><span>!</span> Before opening</p>
+              <p id="security-notice-title">
+                <strong>Demo release.</strong> Windows is unsigned; macOS builds are
+                ad-hoc signed and not notarized. Your computer may ask you to
+                confirm before opening.
+              </p>
+            </div>
+
+            <div class="mac-open-steps">
+              <p class="platform">If macOS blocks ALTO</p>
+              <ol>
+                <li>Try to open ALTO once, then close the warning.</li>
+                <li>
+                  Open <strong>Apple menu &rarr; System Settings &rarr; Privacy &amp; Security</strong>.
+                </li>
+                <li>
+                  Scroll to <strong>Security</strong>, choose <strong>Open Anyway</strong>
+                  next to ALTO, then confirm with your password or Touch ID.
+                </li>
+              </ol>
+              <p class="security-caution">
+                Only continue if you downloaded ALTO from this page. You do not
+                need to disable Gatekeeper or change security settings globally.
+              </p>
+            </div>
+          </aside>
+
           <p class="mac-help">
             Not sure which Mac you have? Open <strong>Apple menu → About This Mac</strong>.
             M-series chips use the Apple silicon build.
@@ -141,10 +173,7 @@
       </main>
 
       <footer class="site-footer">
-        <p>
-          Demo release. Windows is unsigned; macOS builds are ad-hoc signed and
-          not notarized. Your computer may ask you to confirm before opening.
-        </p>
+        <p>ALTO is a demo release. Review the opening guidance above before installing.</p>
         <a href="https://github.com/Xuanming-Guo/Innovation-Cup/releases/latest">
           Release notes &amp; checksums
           <span aria-hidden="true">↗</span>
