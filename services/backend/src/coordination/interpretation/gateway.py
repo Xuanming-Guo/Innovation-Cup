@@ -5,6 +5,7 @@ from typing import Any, Literal, Protocol
 
 import httpx
 from google import genai
+from google.auth import exceptions as google_auth_exceptions
 from google.auth.credentials import Credentials
 from google.genai import errors, types
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -95,6 +96,22 @@ class GeminiPermanentError(GeminiGatewayError):
     outcome = "permanent_failure"
 
 
+class GeminiBadRequestError(GeminiPermanentError):
+    code = "model_bad_request"
+
+
+class GeminiAuthenticationError(GeminiPermanentError):
+    code = "model_auth_rejected"
+
+
+class GeminiPermissionError(GeminiPermanentError):
+    code = "model_forbidden"
+
+
+class GeminiModelNotFoundError(GeminiPermanentError):
+    code = "model_not_found"
+
+
 class InterpretationGateway(Protocol):
     configuration: GatewayConfiguration
 
@@ -145,6 +162,14 @@ class GoogleGeminiGateway:
 
     def generate(self, projection: InterpretationProjection) -> GatewayResponse:
         try:
+            return self._generate(projection)
+        finally:
+            close = getattr(self._client, "close", None)
+            if callable(close):
+                close()
+
+    def _generate(self, projection: InterpretationProjection) -> GatewayResponse:
+        try:
             response = self._client.models.generate_content(
                 model=self.configuration.model,
                 contents=build_interpretation_prompt(projection),
@@ -161,9 +186,21 @@ class GoogleGeminiGateway:
                 raise GeminiThrottledError("Gemini request was throttled") from error
             if error.code == 408:
                 raise GeminiTimeoutError("Gemini request timed out") from error
+            if error.code == 400:
+                raise GeminiBadRequestError("Gemini rejected the request shape") from error
+            if error.code == 401:
+                raise GeminiAuthenticationError("Google rejected the credential") from error
+            if error.code == 403:
+                raise GeminiPermissionError("Google denied model access") from error
+            if error.code == 404:
+                raise GeminiModelNotFoundError("The configured model was not found") from error
             raise GeminiPermanentError("Gemini rejected the request") from error
         except errors.ServerError as error:
             raise GeminiTransientError("Gemini service failed after bounded retries") from error
+        except google_auth_exceptions.RefreshError as error:
+            raise GeminiAuthenticationError("Google rejected the credential") from error
+        except google_auth_exceptions.TransportError as error:
+            raise GeminiTransientError("Google authentication transport failed") from error
         except (httpx.TimeoutException, TimeoutError) as error:
             raise GeminiTimeoutError("Gemini request timed out") from error
         except (httpx.TransportError, ConnectionError) as error:

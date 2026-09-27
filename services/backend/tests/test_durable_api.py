@@ -104,6 +104,10 @@ class FakeDurableStore:
         self.calls.append(("cancel_job", values))
         return job_view("cancelled")
 
+    def retry_job(self, **values: Any) -> JobView:
+        self.calls.append(("retry_job", values))
+        return job_view("queued")
+
     def metrics(self, **values: Any) -> QueueMetrics:
         self.calls.append(("metrics", values))
         return QueueMetrics(
@@ -177,6 +181,23 @@ def test_member_cannot_enqueue_or_read_manager_operations() -> None:
     assert interpret.status_code == 403
     assert metrics.status_code == 403
     assert store.calls == []
+
+
+def test_manager_can_retry_a_terminal_side_effect_free_job() -> None:
+    store = FakeDurableStore()
+    with client_for("manager", store) as client:
+        response = client.post(
+            f"/v1/companies/{COMPANY_ID}/jobs/{JOB_ID}/retry",
+            headers=headers(idempotency_key="retry-command-0001"),
+            json={"reason": "Provider configuration was corrected."},
+        )
+
+    assert response.status_code == 200
+    assert response.json()["state"] == "queued"
+    assert [name for name, _values in store.calls] == ["retry_job"]
+    command = store.calls[0][1]
+    assert command["job_id"] == JOB_ID
+    assert command["reason"] == "Provider configuration was corrected."
 
 
 def test_notifications_are_available_to_members_and_cursor_is_fail_closed() -> None:

@@ -109,6 +109,28 @@ class ClarificationRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class PlanningStageJob:
+    job_id: UUID
+    state: str
+    attempt_count: int
+    max_attempts: int
+    last_error_code: str | None
+
+
+def _planning_stage_job(row: dict[str, Any], prefix: str) -> PlanningStageJob | None:
+    job_id = cast(UUID | None, row[f"{prefix}_id"])
+    if job_id is None:
+        return None
+    return PlanningStageJob(
+        job_id=job_id,
+        state=cast(str, row[f"{prefix}_state"]),
+        attempt_count=cast(int, row[f"{prefix}_attempt_count"]),
+        max_attempts=cast(int, row[f"{prefix}_max_attempts"]),
+        last_error_code=cast(str | None, row[f"{prefix}_error_code"]),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class PlanningRequestView:
     request_id: UUID
     status: str
@@ -122,6 +144,9 @@ class PlanningRequestView:
     interpretation_job_state: str | None = None
     materialization_job_state: str | None = None
     planning_job_state: str | None = None
+    interpretation_job: PlanningStageJob | None = None
+    materialization_job: PlanningStageJob | None = None
+    planning_job: PlanningStageJob | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -420,7 +445,19 @@ class PostgresInterpretationStore:
                            plan.id as plan_id,
                            interpretation_job.state as interpretation_job_state,
                            materialization_job.state as materialization_job_state,
-                           planning_job.state as planning_job_state
+                           planning_job.state as planning_job_state,
+                           interpretation_job.id as interpretation_job_id,
+                           interpretation_job.attempt_count as interpretation_job_attempt_count,
+                           interpretation_job.max_attempts as interpretation_job_max_attempts,
+                           interpretation_job.last_error_code as interpretation_job_error_code,
+                           materialization_job.id as materialization_job_id,
+                           materialization_job.attempt_count as materialization_job_attempt_count,
+                           materialization_job.max_attempts as materialization_job_max_attempts,
+                           materialization_job.last_error_code as materialization_job_error_code,
+                           planning_job.id as planning_job_id,
+                           planning_job.attempt_count as planning_job_attempt_count,
+                           planning_job.max_attempts as planning_job_max_attempts,
+                           planning_job.last_error_code as planning_job_error_code
                     from app.planning_requests as request
                     left join lateral (
                       select interpretation.id, interpretation.outcome
@@ -505,6 +542,9 @@ class PostgresInterpretationStore:
             interpretation_job_state=cast(str | None, row["interpretation_job_state"]),
             materialization_job_state=cast(str | None, row["materialization_job_state"]),
             planning_job_state=cast(str | None, row["planning_job_state"]),
+            interpretation_job=_planning_stage_job(row, "interpretation_job"),
+            materialization_job=_planning_stage_job(row, "materialization_job"),
+            planning_job=_planning_stage_job(row, "planning_job"),
         )
 
     def get_worker_request_state(
@@ -641,10 +681,20 @@ class PostgresInterpretationStore:
 
                 employee_rows = connection.execute(
                     """
-                    select id, timezone
-                    from app.employee_profiles
-                    where company_id = %s and status = 'active'
-                    order by id
+                    select employee.id, employee.timezone,
+                           coalesce(profile.capability_keys, '[]'::jsonb) as capability_keys,
+                           coalesce(profile.permission_keys, '[]'::jsonb) as permission_keys
+                    from app.employee_profiles as employee
+                    left join app.execution_resources as resource
+                      on resource.company_id = employee.company_id
+                     and resource.employee_id = employee.id
+                     and resource.status = 'active'
+                    left join app.planning_resource_profiles as profile
+                      on profile.company_id = resource.company_id
+                     and profile.resource_id = resource.id
+                     and profile.active
+                    where employee.company_id = %s and employee.status = 'active'
+                    order by employee.id
                     """,
                     (context.company_id,),
                 ).fetchall()
@@ -718,6 +768,8 @@ class PostgresInterpretationStore:
                 PermittedEmployee(
                     employee_id=cast(UUID, row["id"]),
                     timezone=cast(str, row["timezone"]),
+                    capability_keys=tuple(sorted(cast(list[str], row["capability_keys"]))),
+                    permission_keys=tuple(sorted(cast(list[str], row["permission_keys"]))),
                     status="active",
                 )
                 for row in employee_rows
@@ -776,6 +828,19 @@ class PostgresInterpretationRecorder(InterpretationRunRecorder):
         ]
         try:
             with self._transaction("interpretation:start") as connection:
+                # A provider call is side-effect free. If the preceding durable attempt lost
+                # database availability while recording its result, close that stranded run
+                # before the next fenced attempt starts instead of retrying forever against an
+                # `interpretation_running` request.
+                connection.execute(
+                    """
+                    update app.interpretation_runs
+                    set status = 'failed', outcome = 'transient_failure',
+                        error_code = 'superseded_by_retry', completed_at = %s
+                    where company_id = %s and request_id = %s and status = 'running'
+                    """,
+                    (started_at, self._context.company_id, self._request_id),
+                )
                 connection.execute(
                     """
                     insert into app.retrieval_runs (
@@ -834,7 +899,10 @@ class PostgresInterpretationRecorder(InterpretationRunRecorder):
                     update app.planning_requests
                     set status = 'interpretation_running'
                     where company_id = %s and id = %s
-                      and status in ('pending_interpretation', 'failed', 'clarification_required')
+                      and status in (
+                        'pending_interpretation', 'failed', 'clarification_required',
+                        'interpretation_running'
+                      )
                     returning id
                     """,
                     (self._context.company_id, self._request_id),

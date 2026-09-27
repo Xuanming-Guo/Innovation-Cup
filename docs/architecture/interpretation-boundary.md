@@ -12,8 +12,9 @@ schedule, a validated constraint, an approval or a committed task.
    the same transaction.
 3. Interpretation rechecks the manager and every pinned source under the
    `coordination_worker` RLS role. It builds a bounded projection containing source metadata,
-   permitted excerpts, permitted employee identities, known structured facts and explicit
-   missing-data markers. It records a canonical SHA-256 digest.
+   permitted excerpts, permitted employee identities plus their active capability/permission
+   identifiers, known structured facts and explicit missing-data markers. It records a canonical
+   SHA-256 digest.
 4. One adapter calls the official `google-genai` SDK. The worker resolves the current company's
    encrypted Gemini API key or Vertex service-account JSON from Supabase Vault under the same
    tenant context and constructs a short-lived client for the selected mode. Vertex clients bind
@@ -47,8 +48,11 @@ at `clarification_required`; they do not silently become hard constraints.
 
 Missing capacity, commitments or policy are represented explicitly instead of being treated as
 zero or guessed. The interpretation may still identify proposed work, but the planning compiler
-cannot run until its own required inputs and confirmations exist. The future Z3 compiler accepts
-only `ValidatedConstraint` records produced by the next trusted boundary, never model JSON.
+cannot run until its own required inputs and confirmations exist. The implemented trusted
+materialiser converts admitted candidate fields into allowlisted `ValidatedConstraint` records and
+an immutable snapshot; the Z3 compiler accepts only that snapshot, never model JSON. The API can
+read recorded clarification questions, but submitting answers and resuming interpretation remains
+an explicitly tracked incomplete workflow in #51.
 
 ## Failure behavior
 
@@ -61,6 +65,8 @@ only `ValidatedConstraint` records produced by the next trusted boundary, never 
 - Provider error messages and credentials are not returned to clients or stored in the run
   ledger.
 
-Interpretation runs through the durable worker. A live Gemini call remains **NOT RUN** until a
-company administrator supplies and authorises a key; fixture tests use no external model or
-company data. The worker host is portable and is not required to run on Google Cloud.
+Interpretation runs through the durable worker. A live Vertex structured call identified and
+reproduced the schema-filtering failure addressed by the current implementation; the corrected
+request must be repeated after deployment before the hosted path is called successful. Fixture
+tests use no external model or company data. The worker host is portable and is not required to
+run on Google Cloud.

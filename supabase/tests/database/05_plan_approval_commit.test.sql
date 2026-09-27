@@ -1,5 +1,5 @@
 begin;
-select plan(18);
+select plan(20);
 
 select has_table('app', 'plan_approval_requirements', 'approval requirements exist');
 select has_table('app', 'plan_approval_decisions', 'immutable approval decisions exist');
@@ -235,6 +235,17 @@ select app.record_plan_approval_decision(
   0, 0, 'planning-v1', 'approval-operation-0002', decode(repeat('72', 32), 'hex'),
   '66666666-a000-4000-8000-000000000067'
 );
+select app.record_plan_approval_decision(
+  '11111111-1111-4111-8111-111111111111', '66666666-8000-4000-8000-000000000066',
+  (select id from app.plan_approval_requirements
+   where company_id = '11111111-1111-4111-8111-111111111111'
+     and plan_id = '66666666-8000-4000-8000-000000000066'
+     and approval_domain = 'disclosure'),
+  'approved', '', decode(repeat('6b', 32), 'hex'), decode(repeat('69', 32), 'hex'),
+  decode(repeat('66', 32), 'hex'), decode(repeat('65', 32), 'hex'), 0, 0,
+  'planning-v1', 'approval-disclosure-operation-0001', decode(repeat('75', 32), 'hex'),
+  '66666666-a000-4000-8000-000000000068'
+);
 
 insert into approval_results
 select 'commit', commit_status
@@ -285,11 +296,18 @@ insert into approval_results values
                         where approval_domain = 'disclosure')),
   ('brief-publish-count', (select count(*)::text from app.outbox_intents
                            where intent_kind = 'employee_brief.publish')),
+  ('assignment-notification-count', (select count(*)::text from app.outbox_intents
+                                     where intent_kind = 'task.changed'
+                                       and payload ->> 'event' = 'assigned')),
+  ('brief-readable', app.can_read_employee_brief(
+                       '66666666-aaaa-4aaa-8aaa-aaaaaaaaaaa6',
+                       '11111111-1111-4111-8111-111111111111',
+                       '66666666-9500-4000-8000-000000000066')::text),
   ('revision', (select planning_revision::text from app.companies
                 where id = '11111111-1111-4111-8111-111111111111'));
 
-select is((select observed from approval_results where label = 'approval-count'), '2',
-  'both exact approvals are recorded before shared state changes');
+select is((select observed from approval_results where label = 'approval-count'), '3',
+  'planning and disclosure approvals are recorded before shared state changes');
 select is((select observed from approval_results where label = 'commit'), 'committed',
   'the approved plan commits atomically');
 select is((select observed from approval_results where label = 'replay'), 'true',
@@ -304,14 +322,18 @@ select is((select observed from approval_results where label = 'revision'), '1',
   'the authoritative planning revision advances exactly once');
 select is((select observed from approval_results where label = 'use-count'), '1',
   'the consumed exact approval is linked to the commitment');
-select is((select observed from approval_results where label = 'outbox-count'), '1',
-  'the external action intent is committed in the same transaction');
-select is((select observed from approval_results where label = 'audit-count'), '3',
+select is((select observed from approval_results where label = 'outbox-count'), '3',
+  'plan, assignment and approved-brief intents are committed in the same transaction');
+select is((select observed from approval_results where label = 'audit-count'), '4',
   'approval and commitment audit events retain actor, policy and digest context');
 select is((select observed from approval_results where label = 'disclosure-count'), '1',
   'a brief automatically receives a separate exact disclosure requirement');
-select is((select observed from approval_results where label = 'brief-publish-count'), '0',
-  'planning approval alone never emits a brief publication intent');
+select is((select observed from approval_results where label = 'brief-publish-count'), '1',
+  'an approved brief is published only once the plan is committed');
+select is((select observed from approval_results where label = 'assignment-notification-count'), '1',
+  'committing an owner assignment emits one employee task invalidation intent');
+select is((select observed from approval_results where label = 'brief-readable'), 'true',
+  'the corrected employee-brief argument order authorises the intended audience');
 
 select * from finish();
 rollback;

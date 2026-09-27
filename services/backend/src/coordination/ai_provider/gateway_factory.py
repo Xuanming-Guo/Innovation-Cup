@@ -53,6 +53,10 @@ class CompanyGeminiGatewayFactory:
             max_output_tokens=self._settings.gemini_max_output_tokens,
         )
         if credential.credential_kind == "api_key":
+            if credential.provider != "gemini_developer_api":
+                raise CompanyGeminiCredentialNotConfiguredError(
+                    "company Google credential metadata does not match policy"
+                )
             return GoogleGeminiGateway(
                 api_key=credential.credential.get_secret_value(),
                 configuration=configuration,

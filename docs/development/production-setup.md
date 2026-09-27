@@ -85,7 +85,7 @@ local/remote drift, `db push --dry-run` previews the target changes, and only th
 `db push` changes the hosted database.
 
 Stop if hosted history is not an exact prefix before the push, or if the final list does not match
-the fourteen files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
+the fifteen files under `supabase/migrations/`. Do not use `db reset --linked`. Do not paste edited
 copies into the Dashboard SQL editor: that applies untracked bytes and loses reliable migration
 history.
 
@@ -275,7 +275,6 @@ or environment settings, not in Git or the desktop.
 | `COORDINATION_SUPABASE_JWT_LEEWAY_SECONDS` | `30` | Clock-skew allowance |
 | `COORDINATION_DATABASE_CONNECT_TIMEOUT_SECONDS` | `5` | Postgres connection timeout |
 | `COORDINATION_GEMINI_TIMEOUT_SECONDS` | `20` | Provider request timeout |
-| `COORDINATION_GEMINI_RETRY_ATTEMPTS` | `2` | Bounded provider attempts |
 | `COORDINATION_GEMINI_MAX_OUTPUT_TOKENS` | `8192` | Model output bound |
 | `COORDINATION_GEMINI_MAX_PROJECTION_CHARACTERS` | `150000` | Authorised prompt projection bound |
 | `COORDINATION_VERTEX_LOCATION` | `global` | Explicit Vertex AI request location |

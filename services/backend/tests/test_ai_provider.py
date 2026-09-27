@@ -312,12 +312,17 @@ class FakeModels:
     def __init__(self, error: Exception | None = None) -> None:
         self.error = error
         self.models: list[str] = []
+        self.generations: list[dict[str, object]] = []
 
     def get(self, *, model: str) -> object:
         self.models.append(model)
         if self.error:
             raise self.error
         return SimpleNamespace(name=model)
+
+    def generate_content(self, **values: object) -> object:
+        self.generations.append(values)
+        return SimpleNamespace(text="{}")
 
 
 class FakeClient:
@@ -329,7 +334,7 @@ class FakeClient:
         self.closed = True
 
 
-def test_api_key_validator_checks_model_access_without_generation() -> None:
+def test_api_key_validator_checks_model_and_structured_generation_access() -> None:
     models = FakeModels()
     client = FakeClient(models)
     captured: dict[str, object] = {}
@@ -348,6 +353,9 @@ def test_api_key_validator_checks_model_access_without_generation() -> None:
     assert captured["api_key"] == TEST_KEY
     assert "credentials" not in captured
     assert models.models == ["gemini-test"]
+    assert len(models.generations) == 1
+    config = cast(Any, models.generations[0]["config"])
+    assert config.response_json_schema["properties"]
     assert client.closed is True
 
 
@@ -382,6 +390,7 @@ def test_vertex_validator_builds_an_explicit_scoped_vertex_client() -> None:
     assert result.vertex_project_id == PROJECT_ID
     assert result.canonical_credential.get_secret_value().startswith("{")
     assert models.models == ["gemini-test"]
+    assert len(models.generations) == 1
     assert client.closed is True
 
 

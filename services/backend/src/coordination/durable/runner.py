@@ -97,11 +97,13 @@ class DurableWorker:
         for lease in leases:
             outcome = self._run_job(lease)
             cycle = _record_cycle_outcome(cycle, outcome)
-        self._store.heartbeat(worker=self._worker, current_job_id=None)
+        if leases:
+            self._store.heartbeat(worker=self._worker, current_job_id=None)
         return cycle
 
     def _run_job(self, lease: JobLease) -> str:
         started = monotonic()
+        error_code: str | None = None
         self._store.heartbeat(worker=self._worker, current_job_id=lease.job_id)
         self._emit(
             {
@@ -149,6 +151,7 @@ class DurableWorker:
                 metrics={"runtime_ms": _runtime_ms(started)},
             )
         except RetryableJobError as error:
+            error_code = error.code
             state = self._record_failure(
                 lease,
                 code=error.code,
@@ -157,6 +160,7 @@ class DurableWorker:
                 started=started,
             )
         except PermanentJobError as error:
+            error_code = error.code
             state = self._record_failure(
                 lease,
                 code=error.code,
@@ -165,6 +169,7 @@ class DurableWorker:
                 started=started,
             )
         except AmbiguousJobOutcomeError as error:
+            error_code = error.code
             state = self._record_failure(
                 lease,
                 code=error.code,
@@ -175,6 +180,7 @@ class DurableWorker:
         except JobStateConflictError:
             state = "lease_lost"
         except Exception:
+            error_code = "unexpected_handler_error"
             state = self._record_failure(
                 lease,
                 code="unexpected_handler_error",
@@ -183,15 +189,16 @@ class DurableWorker:
                 started=started,
             )
 
-        self._emit(
-            {
-                "event": "job.finished",
-                "job_id": str(lease.job_id),
-                "job_kind": lease.job_kind,
-                "state": state,
-                "runtime_ms": _runtime_ms(started),
-            }
-        )
+        event: dict[str, object] = {
+            "event": "job.finished",
+            "job_id": str(lease.job_id),
+            "job_kind": lease.job_kind,
+            "state": state,
+            "runtime_ms": _runtime_ms(started),
+        }
+        if error_code is not None:
+            event["error_code"] = error_code
+        self._emit(event)
         if state in {
             "succeeded",
             "retry_scheduled",

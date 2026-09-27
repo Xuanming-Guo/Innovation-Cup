@@ -30,7 +30,9 @@ production.
    **Vertex service account**.
 2. For Vertex, the administrator pastes the downloaded JSON object—not Python code. The API
    validates its type, Google endpoints, project/email binding, private key and optional project
-   allowlist, then checks configured-model access without sending company content.
+   allowlist, then checks model discovery and one bounded schema-constrained generation without
+   sending company content. This catches credentials that can inspect a model but cannot execute
+   the application's real structured-output contract.
 3. A security-definer database function writes the API key or canonical service-account JSON to
    Supabase Vault. The `app` schema stores only its Vault identifier, SHA-256 hint, safe Vertex
    identity metadata and validation metadata.

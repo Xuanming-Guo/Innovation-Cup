@@ -340,6 +340,44 @@ class PostgresDurableStore:
             raise JobNotFoundError("job was not found")
         return _job_view(row)
 
+    def retry_job(
+        self,
+        *,
+        context: CompanyContext,
+        job_id: UUID,
+        reason: str,
+        idempotency_key: str,
+        command_digest: bytes,
+    ) -> JobView:
+        try:
+            with self._company_transaction(context, "durable:retry") as connection:
+                row = connection.execute(
+                    "select * from app.retry_durable_planning_job(%s, %s, %s, %s, %s)",
+                    (
+                        context.company_id,
+                        job_id,
+                        reason,
+                        idempotency_key,
+                        command_digest,
+                    ),
+                ).fetchone()
+        except psycopg.errors.InsufficientPrivilege as error:
+            raise PermissionError("manager authority is required") from error
+        except psycopg.errors.InvalidParameterValue as error:
+            if "job_not_found" in str(error):
+                raise JobNotFoundError("job was not found") from error
+            raise JobStateConflictError("job retry request is invalid") from error
+        except (
+            psycopg.errors.SerializationFailure,
+            psycopg.errors.UniqueViolation,
+        ) as error:
+            raise JobStateConflictError("job retry conflicts with current state") from error
+        except psycopg.Error as error:
+            raise DurableStoreError("durable job retry could not be stored") from error
+        if row is None:
+            raise JobNotFoundError("job was not found")
+        return _job_view(row)
+
     def metrics(self, *, context: CompanyContext) -> QueueMetrics:
         try:
             with self._company_transaction(context, "durable:metrics") as connection:

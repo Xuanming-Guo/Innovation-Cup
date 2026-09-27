@@ -42,7 +42,17 @@ class SourceVersionEvidence(StrictProjection):
 class PermittedEmployee(StrictProjection):
     employee_id: UUID
     timezone: str = Field(min_length=1, max_length=64)
+    capability_keys: tuple[str, ...] = Field(max_length=200)
+    permission_keys: tuple[str, ...] = Field(max_length=200)
     status: Literal["active"]
+
+    @model_validator(mode="after")
+    def canonical_keys(self) -> PermittedEmployee:
+        if tuple(sorted(set(self.capability_keys))) != self.capability_keys:
+            raise ValueError("capability keys must be unique and ordered")
+        if tuple(sorted(set(self.permission_keys))) != self.permission_keys:
+            raise ValueError("permission keys must be unique and ordered")
+        return self
 
 
 class ExistingCommitment(StrictProjection):

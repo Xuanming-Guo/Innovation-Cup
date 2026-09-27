@@ -63,6 +63,22 @@ authenticated host discovery or the initial API refetch; focus, online and inter
 active as the fallback. Connected member accounts land on the employee workspace and are not
 shown manager-only navigation; manager and company-administrator roles retain planning access.
 
+A live Vertex interpretation exposed that response-schema filtering treated names inside
+`properties` and `$defs` as schema keywords, leaving required fields with no definitions. The
+filter now preserves property/definition names, converts unsupported single-value `const` entries
+to `enum`, closes each short-lived SDK client and classifies safe provider error codes. Credential
+installation now performs one bounded structured-output probe with synthetic identifiers and no
+company content, rather than relying on model discovery alone.
+
+The accompanying backend audit adds stage-level job diagnostics and a guarded manager recovery
+command for side-effect-free terminal planning jobs, repairs stranded interpretation state on a
+later fenced retry, and removes dead retry configuration plus duplicate idle worker output. It also
+supplies employee capability/permission identifiers to interpretation, fixes reversed employee-
+brief authorization arguments, emits assignment invalidations and publishes briefs only after
+both disclosure approval and commitment. Migration 15 records recovery history without granting
+runtime table access and repairs completed-demo reset ordering; the clean database suite now
+contains 242 pgTAP assertions.
+
 The founder subsequently selected a no-hosting-bill Innovation Cup deployment: exactly one cloned
 laptop runs the API, durable worker, a free HTTPS Quick Tunnel and a lease registrar. Installed
 manager and employee clients authenticate with Supabase before resolving the current host

@@ -1,5 +1,5 @@
 begin;
-select plan(48);
+select plan(49);
 
 select has_table('app', 'execution_resources', 'execution resources exist');
 select has_table('app', 'task_review_policies', 'versioned task review policies exist');
@@ -595,6 +595,11 @@ select is((select observed from employee_results where label = 'review-policy-ve
 select is((select observed from employee_results where label = 'final-workload-total'), '0', 'accepted work leaves no active workload counters');
 select is((select observed from employee_results where label = 'linked-file-checksum'), repeat('34', 32), 'submission retains the scanner-recorded checksum');
 select is((select observed from employee_results where label = 'bystander-correction-count'), '0', 'unscoped managers cannot read employee corrections');
+
+select lives_ok(
+  $$select app_private.reset_demo_company('11111111-1111-4111-8111-111111111111')$$,
+  'a completed employee-review workflow can be reset for another demo run'
+);
 
 select * from finish();
 rollback;
