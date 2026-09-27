@@ -116,7 +116,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     while not stop.is_set():
         cycle = runner.run_once()
-        emit_json({"event": "worker.cycle", **asdict(cycle)})
+        cycle_values = asdict(cycle)
+        if args.once or any(cycle_values.values()):
+            emit_json({"event": "worker.cycle", **cycle_values})
         if args.once:
             return 0
         stop.wait(settings.worker_poll_seconds)

@@ -15,6 +15,7 @@ from google.oauth2 import service_account
 from pydantic import SecretStr
 
 from coordination.ai_provider.contracts import AiCredentialKind, AiCredentialValidation
+from coordination.interpretation.prompt import candidate_response_schema
 
 CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform"
 TOKEN_URI = "https://oauth2.googleapis.com/token"
@@ -144,7 +145,7 @@ def parse_vertex_service_account(
 
 
 class GoogleGeminiCredentialValidator:
-    """Validate API-key or Vertex access without sending company content or generating output."""
+    """Validate model access with one bounded probe containing no company content."""
 
     def __init__(
         self,
@@ -159,35 +160,29 @@ class GoogleGeminiCredentialValidator:
         self._timeout_seconds = timeout_seconds
         self._vertex_location = vertex_location
         self._vertex_allowed_project_ids = tuple(vertex_allowed_project_ids)
-        self._client_factory = client_factory or genai.Client
+        self._client_factory: Callable[..., Any] = client_factory or genai.Client
 
     def validate(
         self, *, credential_kind: AiCredentialKind, credential: str
     ) -> AiCredentialValidation:
+        client: Any | None = None
         if credential_kind == "api_key":
             if not 20 <= len(credential) <= 512:
                 raise InvalidGeminiCredentialError("invalid Gemini API credential")
-            client = self._client_factory(
-                api_key=credential,
-                http_options=self._http_options(),
-            )
             validation = AiCredentialValidation(
                 provider="gemini_developer_api",
                 credential_kind="api_key",
                 canonical_credential=SecretStr(credential),
                 model=self._model,
             )
+            client_values: dict[str, object] = {
+                "api_key": credential,
+                "http_options": self._http_options(),
+            }
         else:
             parsed = parse_vertex_service_account(
                 credential,
                 allowed_project_ids=self._vertex_allowed_project_ids,
-            )
-            client = self._client_factory(
-                vertexai=True,
-                project=parsed.project_id,
-                location=self._vertex_location,
-                credentials=parsed.credentials,
-                http_options=self._http_options(),
             )
             validation = AiCredentialValidation(
                 provider="vertex_ai",
@@ -198,8 +193,37 @@ class GoogleGeminiCredentialValidator:
                 vertex_client_email=parsed.client_email,
                 vertex_location=self._vertex_location,
             )
+            client_values = {
+                "vertexai": True,
+                "project": parsed.project_id,
+                "location": self._vertex_location,
+                "credentials": parsed.credentials,
+                "http_options": self._http_options(),
+            }
         try:
+            client = self._client_factory(**client_values)
             client.models.get(model=self._model)
+            client.models.generate_content(
+                model=self._model,
+                contents=(
+                    "Return an empty candidate task contract with schema_version "
+                    "candidate-task-contract.v1, company_id "
+                    "00000000-0000-4000-8000-000000000001, request_id "
+                    "00000000-0000-4000-8000-000000000002, request_version 1, and empty "
+                    "arrays for tasks, dependencies, assumptions, clarifications, and "
+                    "unsupported. This synthetic probe contains no company content."
+                ),
+                config=types.GenerateContentConfig(
+                    temperature=0.0,
+                    max_output_tokens=1024,
+                    response_mime_type="application/json",
+                    response_json_schema=candidate_response_schema(),
+                ),
+            )
+        except (TypeError, ValueError) as error:
+            raise InvalidGeminiCredentialError(
+                "Google rejected the credential or configured model"
+            ) from error
         except google_auth_exceptions.RefreshError as error:
             raise InvalidGeminiCredentialError(
                 "Google rejected the credential or configured model"
@@ -227,7 +251,7 @@ class GoogleGeminiCredentialValidator:
                 "Google credential validation could not reach the provider"
             ) from error
         finally:
-            close = getattr(client, "close", None)
+            close = getattr(client, "close", None) if client is not None else None
             if callable(close):
                 close()
         return validation

@@ -18,6 +18,13 @@ dead letter or cancellation. Ambiguous and non-retryable outcomes stop in `revie
 than being guessed successful. A manager whose active planning authority was revoked cannot start
 queued Gemini or Z3 work.
 
+Request details expose the safe state, attempt count, attempt limit and last error code for each
+interpretation, materialisation and planning stage. A manager may deliberately requeue only a
+side-effect-free terminal planning stage through the guarded recovery command. Recovery preserves
+the attempt ledger, records the prior terminal state and error in an immutable audit row, grants a
+bounded retry window and rejects conflicting idempotency reuse. It cannot retry outbox, file-scan or
+other side-effecting jobs.
+
 Interpretation uses deterministic attempt-scoped run identifiers and reconciles an already
 persisted admitted/clarification outcome. Planning loads the immutable snapshot, runs the real
 allowlisted Z3 engine and independent validator, and persists through the existing immutable
@@ -31,6 +38,11 @@ outbox trigger creates one `outbox.deliver` job. Delivery rechecks current targe
 each active membership and writes recipient-specific, idempotent `app.notifications` rows. The
 persisted row is authoritative; delivery remains safe if the worker repeats after an ambiguous
 response.
+
+Committing an owner assignment emits a task invalidation for the authorised employee. An employee
+brief emits a publication intent only after both its exact disclosure approval and plan commitment
+exist, regardless of which arrives first. Brief recipient checks use the employee/user/company
+argument order defined by the access function and still recheck current authority at delivery.
 
 A notification insert emits only this private Supabase Realtime broadcast:
 
@@ -57,6 +69,7 @@ a leased model job.
 The quarantined-file job currently fails closed into `review_required` with
 `file_scanner_not_configured`; no file is declared clean without a real malware scanner and private
 object mover. Interpretation creates the admitted candidate, and planning consumes an already
-frozen snapshot; the trusted candidate-to-constraint/snapshot materialiser is still a distinct
-stage to complete with the connected scenario. Hosted migration, live-provider and crash/restart
-evidence remain deployment/evaluation gates.
+frozen snapshot; the durable trusted materialiser turns an admitted candidate into allowlisted
+constraints and that immutable snapshot. A manager-facing clarification answer/resume command and
+a cross-request action inbox remain open workflow work in #51; hosted migration, corrected live-provider
+and crash/restart evidence remain deployment/evaluation gates.

@@ -158,6 +158,9 @@ def test_manager_can_read_current_interpretation_state() -> None:
         "interpretation_job_state": None,
         "materialization_job_state": None,
         "planning_job_state": None,
+        "interpretation_job": None,
+        "materialization_job": None,
+        "planning_job": None,
         "clarifications": [
             {
                 "question_key": "task-owner",

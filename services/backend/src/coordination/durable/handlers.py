@@ -73,7 +73,6 @@ class InterpretationJobHandler:
         request_id = _payload_uuid(lease, "request_id")
         retrieval_run_id = uuid5(lease.job_id, f"retrieval:{lease.attempt_count}")
         try:
-            gateway = self._gateway_factory(context)
             current = self._store.get_worker_request_state(
                 context=context, request_id=request_id
             )
@@ -86,6 +85,7 @@ class InterpretationJobHandler:
                         "reconciled": True,
                     }
                 )
+            gateway = self._gateway_factory(context)
             bundle = self._store.load_projection(
                 context=context,
                 request_id=request_id,

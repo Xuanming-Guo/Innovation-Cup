@@ -196,6 +196,14 @@ class ClarificationResponse(StrictResponse):
     status: str
 
 
+class PlanningStageJobResponse(StrictResponse):
+    job_id: UUID
+    state: str
+    attempt_count: int
+    max_attempts: int
+    last_error_code: str | None
+
+
 class PlanningRequestDetailResponse(StrictResponse):
     request_id: UUID
     status: str
@@ -209,6 +217,9 @@ class PlanningRequestDetailResponse(StrictResponse):
     interpretation_job_state: str | None
     materialization_job_state: str | None
     planning_job_state: str | None
+    interpretation_job: PlanningStageJobResponse | None = None
+    materialization_job: PlanningStageJobResponse | None = None
+    planning_job: PlanningStageJobResponse | None = None
 
 
 class PlanningSourceResponse(StrictResponse):
@@ -334,6 +345,18 @@ class JobCancellationRequest(StrictResponse):
         cleaned = value.strip()
         if not cleaned:
             raise ValueError("cancellation reason must not be blank")
+        return cleaned
+
+
+class JobRetryRequest(StrictResponse):
+    reason: str = Field(min_length=1, max_length=500)
+
+    @field_validator("reason")
+    @classmethod
+    def nonblank_reason(cls, value: str) -> str:
+        cleaned = value.strip()
+        if not cleaned:
+            raise ValueError("retry reason must not be blank")
         return cleaned
 
 
@@ -718,6 +741,39 @@ def create_app() -> FastAPI:
             interpretation_job_state=view.interpretation_job_state,
             materialization_job_state=view.materialization_job_state,
             planning_job_state=view.planning_job_state,
+            interpretation_job=(
+                PlanningStageJobResponse(
+                    job_id=view.interpretation_job.job_id,
+                    state=view.interpretation_job.state,
+                    attempt_count=view.interpretation_job.attempt_count,
+                    max_attempts=view.interpretation_job.max_attempts,
+                    last_error_code=view.interpretation_job.last_error_code,
+                )
+                if view.interpretation_job is not None
+                else None
+            ),
+            materialization_job=(
+                PlanningStageJobResponse(
+                    job_id=view.materialization_job.job_id,
+                    state=view.materialization_job.state,
+                    attempt_count=view.materialization_job.attempt_count,
+                    max_attempts=view.materialization_job.max_attempts,
+                    last_error_code=view.materialization_job.last_error_code,
+                )
+                if view.materialization_job is not None
+                else None
+            ),
+            planning_job=(
+                PlanningStageJobResponse(
+                    job_id=view.planning_job.job_id,
+                    state=view.planning_job.state,
+                    attempt_count=view.planning_job.attempt_count,
+                    max_attempts=view.planning_job.max_attempts,
+                    last_error_code=view.planning_job.last_error_code,
+                )
+                if view.planning_job is not None
+                else None
+            ),
         )
 
     @application.post(
@@ -840,6 +896,52 @@ def create_app() -> FastAPI:
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 detail="job cancellation could not be stored",
+            ) from error
+
+    @application.post(
+        "/v1/companies/{company_id}/jobs/{job_id}/retry",
+        response_model=JobView,
+    )
+    def retry_durable_job(
+        company_id: UUID,
+        job_id: UUID,
+        body: JobRetryRequest,
+        context: CompanyContextDependency,
+        store: DurableStoreDependency,
+        idempotency_key: Annotated[
+            str, Header(alias="Idempotency-Key", min_length=16, max_length=128)
+        ],
+    ) -> JobView:
+        _require_manager_company(company_id, context)
+        digest = hashlib.sha256(
+            f"{company_id}:{job_id}:retry:{body.reason}".encode()
+        ).digest()
+        try:
+            return store.retry_job(
+                context=context,
+                job_id=job_id,
+                reason=body.reason,
+                idempotency_key=idempotency_key,
+                command_digest=digest,
+            )
+        except JobNotFoundError as error:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="job was not found"
+            ) from error
+        except PermissionError as error:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="manager authority is required",
+            ) from error
+        except JobStateConflictError as error:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="job is not eligible for retry or the retry key conflicts",
+            ) from error
+        except DurableStoreError as error:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="job retry could not be stored",
             ) from error
 
     @application.get(

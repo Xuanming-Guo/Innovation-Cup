@@ -260,9 +260,20 @@ def run_workflow(api_dsn: str, worker_dsn: str) -> dict[str, object]:
     if committed_review.status != "committed":
         raise RuntimeError("the approved synthetic plan did not remain committed")
 
-    outbox_cycle = worker.run_once()
-    if outbox_cycle.succeeded != 1:
-        raise RuntimeError(f"committed-plan outbox delivery failed: {asdict(outbox_cycle)}")
+    outbox_cycles: list[dict[str, int]] = []
+    for _ in range(8):
+        outbox_cycle = worker.run_once()
+        if outbox_cycle.leased == 0:
+            break
+        observed = asdict(outbox_cycle)
+        outbox_cycles.append(observed)
+        if outbox_cycle.succeeded != outbox_cycle.leased:
+            raise RuntimeError(f"committed-plan outbox delivery failed: {observed}")
+    if sum(cycle["succeeded"] for cycle in outbox_cycles) < 3:
+        raise RuntimeError(
+            "commit did not deliver plan, assignment and approved-brief intents: "
+            f"{outbox_cycles}"
+        )
     employee = employee_context()
     employee_store = PostgresEmployeeStore(api_dsn)
     tasks = (
@@ -335,10 +346,23 @@ def run_workflow(api_dsn: str, worker_dsn: str) -> dict[str, object]:
         after_id=None,
         limit=50,
     )
-    if not manager_notifications.notifications:
+    if not any(
+        notification.subject_type == "plan"
+        for notification in manager_notifications.notifications
+    ):
         raise RuntimeError("the committed-plan outbox produced no manager notification")
-    if employee_notifications.notifications:
+    if any(
+        notification.subject_type == "plan"
+        for notification in employee_notifications.notifications
+    ):
         raise RuntimeError("a private plan notification leaked into the employee inbox")
+    employee_subjects = {
+        notification.subject_type for notification in employee_notifications.notifications
+    }
+    if not {"task", "employee_brief"}.issubset(employee_subjects):
+        raise RuntimeError(
+            "the employee did not receive assignment and approved-brief notifications"
+        )
     return {
         "request_created": request.created,
         "ensure_state": ensured.state,
@@ -353,8 +377,12 @@ def run_workflow(api_dsn: str, worker_dsn: str) -> dict[str, object]:
         "employee_submission_state": submission.state,
         "employee_review_decision": accepted.decision,
         "manager_notifications": len(manager_notifications.notifications),
-        "employee_plan_notifications": len(employee_notifications.notifications),
-        "worker_cycles": len(cycles),
+        "employee_plan_notifications": sum(
+            notification.subject_type == "plan"
+            for notification in employee_notifications.notifications
+        ),
+        "employee_work_notifications": len(employee_notifications.notifications),
+        "worker_cycles": len(cycles) + len(outbox_cycles),
     }
 
 
