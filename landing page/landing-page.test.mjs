@@ -34,6 +34,26 @@ test("keeps compatibility and release limitations visible", () => {
   assert.equal((html.match(/Opening steps below/g) ?? []).length, 2);
 });
 
+test("embeds the demo video and links the external Data Room safely", () => {
+  const heroIndex = html.indexOf('class="hero"');
+  const showcaseIndex = html.indexOf('class="showcase"');
+  const downloadsIndex = html.indexOf('class="downloads"');
+
+  assert.ok(heroIndex < showcaseIndex && showcaseIndex < downloadsIndex);
+  assert.match(html, /<video\s+controls\s+playsinline\s+preload="metadata"/);
+  assert.ok(html.includes('aria-label="Watch the ALTO product demo"'));
+  assert.ok(html.includes('<source src="./alto-demo.mp4" type="video/mp4"'));
+  assert.ok(html.includes('<a href="./alto-demo.mp4">Download the ALTO demo video.</a>'));
+  assert.ok(html.includes('<a href="./alto-demo.mp4">Open video file</a>'));
+  assert.doesNotMatch(html, /<video[^>]*\bautoplay\b/);
+
+  assert.ok(html.includes("https://drive.google.com/drive/folders/1H0xRJpa73xkRBztrmQzJI5bub6HVkQe3?usp=sharing"));
+  assert.ok(html.includes('target="_blank"'));
+  assert.ok(html.includes('rel="noopener noreferrer"'));
+  assert.ok(html.includes("Open Data Room"));
+  assert.match(css, /\.showcase-grid\s*{[^}]*display:\s*grid/s);
+});
+
 test("includes the expected accessibility and responsive safeguards", () => {
   assert.ok(html.includes('href="#downloads"'));
   assert.ok(html.includes('id="hero-title"'));
@@ -47,4 +67,3 @@ test("includes the expected accessibility and responsive safeguards", () => {
   assert.match(css, /@media \(max-width: 720px\)/);
   assert.match(css, /min-width:\s*320px/);
 });
-
