@@ -1028,3 +1028,29 @@ caches and build outputs. Completed READMEs are preserved. GitHub MCP has create
 preparation issue and topic branch from current `main`; remote source publication, PR checks,
 native CI candidates, the tagged release and installed-client verification remain pending at
 this checkpoint. No release is claimed from local compilation alone.
+
+### Draft PR and database-test correction (27 September 2026)
+
+GitHub MCP published the reviewed text source and opened draft PR #66. Its native-shell checks
+passed on Windows and macOS; Edge Function checks passed. Repository and application checks
+remain blocked by the missing supplied image files, including the imported ALTO logo. The working
+MCP file tool treats binary payloads as text, while the binary-capable connector returns 403.
+The one malformed test upload was removed. A separate, non-force Git upload of the 47 reviewed
+images awaits the founder's permission; the existing demo video is unchanged.
+
+The disposable CI database applied all 50 migrations, then exposed two stale test assumptions.
+The schema test expected 44 migration registrations instead of 50. The session-rebinding test
+called reconciliation and the STABLE authorization function in the same SQL statement, so the
+authorization assertion saw the statement's pre-update snapshot. It now checks authorization
+in a subsequent statement, matching the worker's execution boundary and preserving all five
+assertions. No production function or immutable migration was changed.
+
+Targeted rollback-only verification in the explicitly identified local Supabase Docker database
+reproduced the original session-test failure, then passed the corrected five session assertions
+and all 23 schema assertions. Migration 42000 was included only inside each rolled-back test
+transaction; the local database still recorded 49 migrations through 41000 afterward.
+
+The founder explicitly declined applying migration 42000 to the hosted database. Hosted state
+was left unchanged. Fresh uninterrupted sessions can proceed, but queued planning work may fail
+after a persona-session rotation, expiry or reopen until that migration is deployed. This
+limitation remains separate from installer compilation and distribution readiness.

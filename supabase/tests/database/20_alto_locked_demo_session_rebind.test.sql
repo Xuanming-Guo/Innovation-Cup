@@ -65,7 +65,10 @@ where id in (
 
 set local role coordination_worker;
 insert into rebind_results values
- ('changed',app.reconcile_unauthorised_durable_jobs()::text),
+ ('changed',app.reconcile_unauthorised_durable_jobs()::text);
+-- The STABLE authorization function reads the calling statement's snapshot.
+-- Check it after reconciliation, as the worker's separate lease query does.
+insert into rebind_results values
  ('planning_authorized',app.alto_job_authorized(
    '11111111-1111-4111-8111-111111111111',
    '20202020-5000-4000-8000-000000000001')::text);
